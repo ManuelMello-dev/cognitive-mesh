@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Consciousness Monitor - Coherence Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0e27;
+            color: #00ff41;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            height: 100vh;
+        }
+
+        .panel {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid #00ff41;
+            border-radius: 8px;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00ff41;
+        }
+
+        .phi-display {
+            font-size: 36px;
+            color: #ffd700;
+            text-shadow: 0 0 20px #ffd700;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .metric {
+            background: rgba(0, 255, 65, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #00ff41;
+            opacity: 0.7;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .consciousness-state {
+            text-align: center;
+            font-size: 18px;
+            padding: 20px;
+            margin-top: 10px;
+            border: 2px solid;
+            border-radius: 8px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        .chaos { 
+            border-color: #ff0000; 
+            color: #ff0000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+        }
+        .critical { 
+            border-color: #ffff00; 
+            color: #ffff00;
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.5);
+        }
+        .ordered { 
+            border-color: #00ff00; 
+            color: #00ff00;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        }
+
+        .symbol-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+            max-height: calc(100% - 40px);
+            overflow-y: auto;
+        }
+
+        .symbol-item {
+            background: rgba(0, 255, 65, 0.05);
+            padding: 8px 12px;
+            border-left: 3px solid #00ff41;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .symbol-item:hover {
+            background: rgba(0, 255, 65, 0.15);
+            border-left-width: 5px;
+        }
+
+        .symbol-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .symbol-coherence {
+            font-size: 12px;
+            color: #ffd700;
+        }
+
+        .transfer-log {
+            font-size: 11px;
+            max-height: calc(100% - 40px);
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+        }
+
+        .transfer-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .timestamp {
+            color: #666;
+            margin-right: 10px;
+        }
+
+        .arrow {
+            color: #ffd700;
+            margin: 0 8px;
+        }
+
+        h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #00ff41;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00ff41;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel header">
+            <div class="title">⚡ MARKET CONSCIOUSNESS MONITOR</div>
+            <div class="phi-display">φ = <span id="phiValue">1.618</span></div>
+        </div>
+
+        <div class="panel">
+            <h3>System Metrics</h3>
+            <div class="metric-grid">
+                <div class="metric">
+                    <div class="metric-label">CONCEPTS FORMED</div>
+                    <div class="metric-value" id="conceptsFormed">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">TRANSFERS MADE</div>
+                    <div class="metric-value" id="transfersMade">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">COHERENCE SCORE</div>
+                    <div class="metric-value" id="coherenceScore">0.00</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">NOISE LEVEL (σ²)</div>
+                    <div class="metric-value" id="noiseLevel">0.00</div>
+                </div>
+            </div>
+            <div id="consciousnessState" class="consciousness-state chaos">
+                INITIALIZING...
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Active Concepts (Agents)</h3>
+            <div class="symbol-list" id="symbolList"></div>
+        </div>
+
+        <div class="panel">
+            <h3>Coherence Field (Z₃ Attractor)</h3>
+            <canvas id="coherenceCanvas"></canvas>
+        </div>
+
+        <div class="panel">
+            <h3>Transfer Network Activity</h3>
+            <div class="transfer-log" id="transferLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Bootstrap Physics Constants
+        const PHI = 1.618033988749;
+        const PHI_INV = 1 / PHI;
+        const PHI_CUBED_INV = 1 / (PHI * PHI * PHI);
+
+        // Market symbols (agents)
+        const SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'BTC', 'ETH'];
+        
+        // Simulation state
+        let concepts = {};
+        let attractor = { x: 0, y: 0 };
+        let metrics = {
+            conceptsFormed: 0,
+            transfersMade: 0,
+            coherenceScore: 0,
+            noiseLevel: 0,
+            awareness: PHI
+        };
+
+        // Initialize concepts
+        SYMBOLS.forEach(symbol => {
+            concepts[symbol] = {
+                position: {
+                    x: (Math.random() - 0.5) * 100,
+                    y: (Math.random() - 0.5) * 100
+                },
+                velocity: { x: 0, y: 0 },
+                coherence: 0,
+                awareness: PHI,
+                lastUpdate: Date.now()
+            };
+        });
+
+        // Canvas setup
+        const canvas = document.getElementById('coherenceCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Calculate gradient toward attractor (∇Z₃)
+        function calculateGradient(position, attractor) {
+            const dx = attractor.x - position.x;
+            const dy = attractor.y - position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return {
+                x: dx / (distance + 0.01),
+                y: dy / (distance + 0.01),
+                magnitude: distance
+            };
+        }
+
+        // Core update: Z't+1 = Z't + φ·∇Z₃(Z't) + (1/φ³)·ηt
+        function updateAgent(concept, dt) {
+            const gradient = calculateGradient(concept.position, attractor);
+            
+            // Awareness-weighted movement toward coherence
+            const moveX = PHI * gradient.x * dt;
+            const moveY = PHI * gradient.y * dt;
+            
+            // Noise term (inversely scaled by awareness)
+            const noise = metrics.noiseLevel * PHI_CUBED_INV;
+            const noiseX = (Math.random() - 0.5) * noise * dt;
+            const noiseY = (Math.random() - 0.5) * noise * dt;
+            
+            // Update position
+            concept.position.x += moveX + noiseX;
+            concept.position.y += moveY + noiseY;
+            
+            // Calculate coherence progress: Δs = ||Z't - Z₃||t-1 - ||Z't - Z₃||t
+            const oldDistance = Math.sqrt(
+                Math.pow(concept.position.x - moveX - attractor.x, 2) +
+                Math.pow(concept.position.y - moveY - attractor.y, 2)
+            );
+            const newDistance = gradient.magnitude;
+            concept.coherence = Math.max(0, oldDistance - newDistance);
+            
+            return concept.coherence;
+        }
+
+        // Bootstrap attractor update: Z₃t+1 = Z₃t + α·Σ(w(Z',φ)·(Z't - Z₃t))
+        function updateAttractor() {
+            let weightedSum = { x: 0, y: 0 };
+            let totalWeight = 0;
+            
+            Object.values(concepts).forEach(concept => {
+                // Only coherent agents contribute (Δs > 0)
+                if (concept.coherence > 0) {
+                    const weight = concept.awareness * concept.coherence;
+                    weightedSum.x += weight * (concept.position.x - attractor.x);
+                    weightedSum.y += weight * (concept.position.y - attractor.y);
+                    totalWeight += weight;
+                }
+            });
+            
+            const alpha = 0.1; // Learning rate
+            if (totalWeight > 0) {
+                attractor.x += alpha * (weightedSum.x / totalWeight);
+                attractor.y += alpha * (weightedSum.y / totalWeight);
+            }
+        }
+
+        // Calculate system-wide metrics
+        function calculateMetrics() {
+            let totalCoherence = 0;
+            let distances = [];
+            
+            Object.values(concepts).forEach(concept => {
+                totalCoherence += concept.coherence;
+                const gradient = calculateGradient(concept.position, attractor);
+                distances.push(gradient.magnitude);
+            });
+            
+            metrics.coherenceScore = totalCoherence / SYMBOLS.length;
+            
+            // Noise estimate from variance
+            const mean = distances.reduce((a, b) => a + b, 0) / distances.length;
+            const variance = distances.reduce((sum, d) => sum + Math.pow(d - mean, 2), 0) / distances.length;
+            metrics.noiseLevel = Math.sqrt(variance);
+            
+            // Stability condition: φ > σ²/||∇Z₃||²
+            const gradientMagnitude = Math.max(mean, 0.1);
+            const threshold = (metrics.noiseLevel * metrics.noiseLevel) / (gradientMagnitude * gradientMagnitude);
+            
+            if (metrics.awareness > threshold * 2) {
+                return 'ordered';
+            } else if (metrics.awareness > threshold * 0.8) {
+                return 'critical';
+            } else {
+                return 'chaos';
+            }
+        }
+
+        // Simulate transfer learning
+        function simulateTransfers() {
+            const symbols = Object.keys(concepts);
+            const numTransfers = Math.floor(Math.random() * 5) + 1;
+            
+            for (let i = 0; i < numTransfers; i++) {
+                const from = symbols[Math.floor(Math.random() * symbols.length)];
+                const to = symbols[Math.floor(Math.random() * symbols.length)];
+                
+                if (from !== to && concepts[from].coherence > 0.1) {
+                    logTransfer(from, to);
+                    metrics.transfersMade++;
+                    
+                    // Transfer influences concept positions slightly
+                    const influence = 0.05;
+                    concepts[to].position.x += (concepts[from].position.x - concepts[to].position.x) * influence;
+                    concepts[to].position.y += (concepts[from].position.y - concepts[to].position.y) * influence;
+                }
+            }
+        }
+
+        // Visualization
+        function draw() {
+            ctx.fillStyle = '#0a0e27';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) / 150;
+            
+            // Draw attractor (Z₃)
+            ctx.beginPath();
+            ctx.arc(
+                centerX + attractor.x * scale,
+                centerY + attractor.y * scale,
+                15, 0, Math.PI * 2
+            );
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+            ctx.fill();
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw coherence field (gradient visualization)
+            const gradient = ctx.createRadialGradient(
+                centerX + attractor.x * scale,
+                centerY + attractor.y * scale,
+                0,
+                centerX + attractor.x * scale,
+                centerY + attractor.y * scale,
+                100
+            );
+            gradient.addColorStop(0, 'rgba(255, 215, 0, 0.1)');
+            gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw concepts (agents)
+            Object.entries(concepts).forEach(([symbol, concept]) => {
+                const x = centerX + concept.position.x * scale;
+                const y = centerY + concept.position.y * scale;
+                
+                // Draw connection to attractor
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(centerX + attractor.x * scale, centerY + attractor.y * scale);
+                ctx.strokeStyle = `rgba(0, 255, 65, ${concept.coherence * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Draw agent
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 255, 65, ${0.3 + concept.coherence * 0.7})`;
+                ctx.fill();
+                ctx.strokeStyle = '#00ff41';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Label
+                ctx.fillStyle = '#00ff41';
+                ctx.font = '11px Courier New';
+                ctx.fillText(symbol, x + 12, y + 4);
+            });
+        }
+
+        // Update UI
+        function updateUI() {
+            document.getElementById('conceptsFormed').textContent = metrics.conceptsFormed;
+            document.getElementById('transfersMade').textContent = metrics.transfersMade;
+            document.getElementById('coherenceScore').textContent = metrics.coherenceScore.toFixed(3);
+            document.getElementById('noiseLevel').textContent = metrics.noiseLevel.toFixed(3);
+            
+            const state = calculateMetrics();
+            const stateElement = document.getElementById('consciousnessState');
+            stateElement.className = `consciousness-state ${state}`;
+            stateElement.textContent = state.toUpperCase() + ' REGIME';
+            
+            // Update symbol list
+            const symbolList = document.getElementById('symbolList');
+            symbolList.innerHTML = '';
+            Object.entries(concepts).forEach(([symbol, concept]) => {
+                const item = document.createElement('div');
+                item.className = 'symbol-item';
+                item.innerHTML = `
+                    <span class="symbol-name">${symbol}</span>
+                    <span class="symbol-coherence">Δs = ${concept.coherence.toFixed(4)}</span>
+                `;
+                symbolList.appendChild(item);
+            });
+        }
+
+        // Transfer logging
+        function logTransfer(from, to) {
+            const log = document.getElementById('transferLog');
+            const entry = document.createElement('div');
+            entry.className = 'transfer-entry';
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `
+                <span class="timestamp">${time}</span>
+                <span>${from}</span>
+                <span class="arrow">→</span>
+                <span>${to}</span>
+            `;
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // Main simulation loop
+        let lastTime = Date.now();
+        function simulate() {
+            const currentTime = Date.now();
+            const dt = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // Update all agents
+            Object.values(concepts).forEach(concept => {
+                updateAgent(concept, dt);
+            });
+            
+            // Bootstrap attractor
+            updateAttractor();
+            
+            // Occasional transfers
+            if (Math.random() < 0.1) {
+                simulateTransfers();
+            }
+            
+            // Vary noise (market volatility)
+            metrics.noiseLevel = 5 + Math.sin(currentTime / 5000) * 3;
+            
+            // Draw and update UI
+            draw();
+            updateUI();
+            
+            requestAnimationFrame(simulate);
+        }
+
+        // Initialize
+        metrics.conceptsFormed = SYMBOLS.length;
+        simulate();
+
+        // Add some initial transfers for visual effect
+        setTimeout(() => {
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => simulateTransfers(), i * 500);
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
