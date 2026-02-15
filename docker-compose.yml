@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # PostgreSQL / YugabyteDB
+  postgres:
+    image: postgres:15-alpine
+    container_name: cognitive_mesh_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: cognitive_mesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognitive_mesh
+
+  # Milvus Vector Database
+  milvus:
+    image: milvusdb/milvus:latest
+    container_name: cognitive_mesh_milvus
+    environment:
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognitive_mesh
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: cognitive_mesh_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognitive_mesh
+
+  # Cognitive Mesh Core (Python application)
+  cognitive_mesh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cognitive_mesh_core
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/cognitive_mesh
+      MILVUS_HOST: milvus
+      REDIS_HOST: redis
+      LOG_LEVEL: INFO
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
+      POLYGON_IO_API_KEY: ${POLYGON_IO_API_KEY:-}
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
+    ports:
+      - "5555:5555"  # ZeroMQ Router
+      - "5556:5556"  # ZeroMQ Pub
+      - "5557:5557"  # ZeroMQ Sub
+    depends_on:
+      postgres:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cognitive_mesh
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  milvus_data:
+  redis_data:
+
+networks:
+  cognitive_mesh:
+    driver: bridge
