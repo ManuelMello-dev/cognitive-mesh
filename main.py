@@ -19,14 +19,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CognitiveMesh")
 
-# Import components
+# Import components with graceful fallbacks for optional dependencies
 from agents.multi_source_provider import MultiSourceDataProvider
 from core.distributed_core import DistributedCognitiveCore
 from shared.gossip_amfg import AMFGProtocol
 from shared.network_zeromq import ZMQNode, ZMQAgent, ZMQPubSub
-from storage.postgres_store import PostgresStore
-from storage.milvus_store import MilvusStore
-from storage.redis_cache import RedisCache
+
+# Optional database components
+try:
+    from storage.postgres_store import PostgresStore
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    logger.warning("PostgreSQL support not available (asyncpg not installed)")
+    PostgresStore = None
+    POSTGRES_AVAILABLE = False
+
+try:
+    from storage.milvus_store import MilvusStore
+    MILVUS_AVAILABLE = True
+except ImportError:
+    logger.warning("Milvus support not available (pymilvus not installed)")
+    MilvusStore = None
+    MILVUS_AVAILABLE = False
+
+try:
+    from storage.redis_cache import RedisCache
+    REDIS_AVAILABLE = True
+except ImportError:
+    logger.warning("Redis support not available (aioredis not installed)")
+    RedisCache = None
+    REDIS_AVAILABLE = False
 
 
 class CognitiveMeshOrchestrator:
@@ -39,9 +61,12 @@ class CognitiveMeshOrchestrator:
         
         # Initialize components
         self.data_provider = MultiSourceDataProvider()
-        self.postgres = PostgresStore()
-        self.milvus = MilvusStore()
-        self.redis = RedisCache()
+        
+        # Initialize optional database components
+        self.postgres = PostgresStore() if POSTGRES_AVAILABLE else None
+        self.milvus = MilvusStore() if MILVUS_AVAILABLE else None
+        self.redis = RedisCache() if REDIS_AVAILABLE else None
+        
         self.core = DistributedCognitiveCore(self.node_id, self.postgres, self.milvus, self.redis)
         self.gossip = AMFGProtocol(self.node_id)
         self.network = ZMQNode(self.node_id, port=int(os.getenv("LISTEN_PORT", "5555")))
@@ -53,11 +78,30 @@ class CognitiveMeshOrchestrator:
         """Initialize all components"""
         logger.info(f"Initializing Cognitive Mesh: {self.node_id}")
         
-        # Connect to databases
-        logger.info("Connecting to databases...")
-        await self.postgres.connect()
-        await self.milvus.connect()
-        await self.redis.connect()
+        # Connect to databases if available
+        if self.postgres:
+            logger.info("Connecting to PostgreSQL...")
+            try:
+                await self.postgres.connect()
+            except Exception as e:
+                logger.warning(f"PostgreSQL connection failed: {e}")
+                self.postgres = None
+        
+        if self.milvus:
+            logger.info("Connecting to Milvus...")
+            try:
+                await self.milvus.connect()
+            except Exception as e:
+                logger.warning(f"Milvus connection failed: {e}")
+                self.milvus = None
+        
+        if self.redis:
+            logger.info("Connecting to Redis...")
+            try:
+                await self.redis.connect()
+            except Exception as e:
+                logger.warning(f"Redis connection failed: {e}")
+                self.redis = None
         
         # Start network components
         logger.info("Starting network components...")
@@ -221,9 +265,13 @@ class CognitiveMeshOrchestrator:
         
         await self.network.stop()
         await self.pubsub.stop()
-        await self.postgres.disconnect()
-        await self.milvus.disconnect()
-        await self.redis.disconnect()
+        
+        if self.postgres:
+            await self.postgres.disconnect()
+        if self.milvus:
+            await self.milvus.disconnect()
+        if self.redis:
+            await self.redis.disconnect()
         
         logger.info("Cognitive Mesh shutdown complete")
 
