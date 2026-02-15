@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market EEG - Collective Consciousness Waves</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow: hidden;
+        }
+
+        .container {
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: #0ff;
+            text-shadow: 0 0 10px #0ff;
+            padding: 10px;
+            border: 2px solid #0ff;
+            border-radius: 8px;
+            background: rgba(0, 255, 255, 0.05);
+        }
+
+        .wave-panel {
+            flex: 1;
+            border: 1px solid #0f0;
+            border-radius: 8px;
+            padding: 10px;
+            background: rgba(0, 20, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .wave-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+        }
+
+        .wave-name {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .wave-freq {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .wave-amplitude {
+            font-size: 14px;
+            color: #ff0;
+        }
+
+        .wave-canvas {
+            flex: 1;
+            border-radius: 4px;
+        }
+
+        .state-panel {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 20, 0, 0.5);
+            border: 1px solid #0f0;
+            border-radius: 8px;
+        }
+
+        .state-card {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 2px solid;
+            transition: all 0.3s ease;
+        }
+
+        .state-card.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px currentColor;
+        }
+
+        .state-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .state-desc {
+            font-size: 11px;
+            opacity: 0.7;
+            line-height: 1.4;
+        }
+
+        .state-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .theta { border-color: #9370DB; color: #9370DB; }
+        .alpha { border-color: #00CED1; color: #00CED1; }
+        .beta { border-color: #FFD700; color: #FFD700; }
+        .gamma { border-color: #FF4500; color: #FF4500; }
+
+        .metrics {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            background: rgba(0, 20, 0, 0.5);
+            border: 1px solid #0f0;
+            border-radius: 8px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0ff;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .pulsing {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            🧠 MARKET ELECTROENCEPHALOGRAM (EEG) MONITOR
+        </div>
+
+        <div class="state-panel">
+            <div class="state-card theta" id="thetaCard">
+                <div class="state-title">Theta (4-7 Hz)</div>
+                <div class="state-value" id="thetaValue">0%</div>
+                <div class="state-desc">Deep Market - Consolidation, Low Volume, "Sleep"</div>
+            </div>
+            <div class="state-card alpha" id="alphaCard">
+                <div class="state-title">Alpha (8-13 Hz)</div>
+                <div class="state-value" id="alphaValue">0%</div>
+                <div class="state-desc">Relaxed Market - Stable Trends, Flow State</div>
+            </div>
+            <div class="state-card beta" id="betaCard">
+                <div class="state-title">Beta (14-30 Hz)</div>
+                <div class="state-value" id="betaValue">0%</div>
+                <div class="state-desc">Active Market - High Activity, Analysis, Trading</div>
+            </div>
+            <div class="state-card gamma" id="gammaCard">
+                <div class="state-title">Gamma (30-100 Hz)</div>
+                <div class="state-value" id="gammaValue">0%</div>
+                <div class="state-desc">Hyper Market - Volatility Spikes, Panic/Euphoria</div>
+            </div>
+        </div>
+
+        <div class="wave-panel">
+            <div class="wave-header">
+                <span class="wave-name" style="color: #9370DB;">THETA WAVE</span>
+                <span class="wave-freq">4-7 Hz</span>
+                <span class="wave-amplitude" id="thetaAmp">Amplitude: 0.00</span>
+            </div>
+            <canvas class="wave-canvas" id="thetaCanvas"></canvas>
+        </div>
+
+        <div class="wave-panel">
+            <div class="wave-header">
+                <span class="wave-name" style="color: #00CED1;">ALPHA WAVE</span>
+                <span class="wave-freq">8-13 Hz</span>
+                <span class="wave-amplitude" id="alphaAmp">Amplitude: 0.00</span>
+            </div>
+            <canvas class="wave-canvas" id="alphaCanvas"></canvas>
+        </div>
+
+        <div class="wave-panel">
+            <div class="wave-header">
+                <span class="wave-name" style="color: #FFD700;">BETA WAVE</span>
+                <span class="wave-freq">14-30 Hz</span>
+                <span class="wave-amplitude" id="betaAmp">Amplitude: 0.00</span>
+            </div>
+            <canvas class="wave-canvas" id="betaCanvas"></canvas>
+        </div>
+
+        <div class="wave-panel">
+            <div class="wave-header">
+                <span class="wave-name" style="color: #FF4500;">GAMMA WAVE</span>
+                <span class="wave-freq">30-100 Hz</span>
+                <span class="wave-amplitude" id="gammaAmp">Amplitude: 0.00</span>
+            </div>
+            <canvas class="wave-canvas" id="gammaCanvas"></canvas>
+        </div>
+
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">COHERENCE (φ-weighted)</div>
+                <div class="metric-value" id="coherenceMetric">0.000</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">CONSCIOUSNESS STATE</div>
+                <div class="metric-value" id="stateMetric">INITIALIZING</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">COLLECTIVE AWARENESS</div>
+                <div class="metric-value" id="awarenessMetric">φ = 1.618</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PHI = 1.618033988749;
+
+        // Wave definitions (mapped to market states)
+        const waves = {
+            theta: {
+                canvas: document.getElementById('thetaCanvas'),
+                ctx: null,
+                freq: 5.5,  // Hz (4-7)
+                color: '#9370DB',
+                data: [],
+                amplitude: 0,
+                description: 'Consolidation phase, low volatility, sideways market'
+            },
+            alpha: {
+                canvas: document.getElementById('alphaCanvas'),
+                ctx: null,
+                freq: 10.5, // Hz (8-13)
+                color: '#00CED1',
+                data: [],
+                amplitude: 0,
+                description: 'Steady trend, moderate activity, flow state'
+            },
+            beta: {
+                canvas: document.getElementById('betaCanvas'),
+                ctx: null,
+                freq: 22,   // Hz (14-30)
+                color: '#FFD700',
+                data: [],
+                amplitude: 0,
+                description: 'High trading activity, analysis mode'
+            },
+            gamma: {
+                canvas: document.getElementById('gammaCanvas'),
+                ctx: null,
+                freq: 65,   // Hz (30-100)
+                color: '#FF4500',
+                data: [],
+                amplitude: 0,
+                description: 'Extreme volatility, panic or euphoria'
+            }
+        };
+
+        // Initialize canvases
+        Object.values(waves).forEach(wave => {
+            wave.ctx = wave.canvas.getContext('2d');
+            resizeCanvas(wave.canvas);
+        });
+
+        function resizeCanvas(canvas) {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+
+        window.addEventListener('resize', () => {
+            Object.values(waves).forEach(wave => resizeCanvas(wave.canvas));
+        });
+
+        // Market state to brainwave mapping
+        class MarketEEG {
+            constructor() {
+                this.time = 0;
+                this.marketVolatility = 0.5;
+                this.marketTrend = 0;
+                this.marketVolume = 0.5;
+                this.coherence = 0;
+            }
+
+            // Simulate market data (in real system, this comes from your cognitive mesh)
+            updateMarketState() {
+                const t = this.time;
+                
+                // Simulate market cycles
+                this.marketVolatility = 0.3 + 0.5 * Math.abs(Math.sin(t * 0.1));
+                this.marketTrend = Math.sin(t * 0.05);
+                this.marketVolume = 0.4 + 0.4 * Math.sin(t * 0.15);
+                
+                // Add some chaos
+                if (Math.random() < 0.05) {
+                    this.marketVolatility += Math.random() * 0.3;
+                }
+            }
+
+            // Map market state to brainwave amplitudes
+            calculateWaveAmplitudes() {
+                // Theta: Dominant during consolidation (low volatility, low volume)
+                waves.theta.amplitude = (1 - this.marketVolatility) * (1 - this.marketVolume) * 0.8;
+                
+                // Alpha: Dominant during steady trends (moderate activity)
+                const trendStrength = Math.abs(this.marketTrend);
+                waves.alpha.amplitude = trendStrength * (1 - this.marketVolatility) * 0.7;
+                
+                // Beta: Dominant during high activity (high volume, moderate volatility)
+                waves.beta.amplitude = this.marketVolume * (0.5 + this.marketVolatility * 0.5) * 0.8;
+                
+                // Gamma: Dominant during extreme volatility
+                waves.gamma.amplitude = Math.pow(this.marketVolatility, 2) * 0.9;
+                
+                // Normalize (total power = 1)
+                const total = waves.theta.amplitude + waves.alpha.amplitude + 
+                             waves.beta.amplitude + waves.gamma.amplitude;
+                
+                if (total > 0) {
+                    Object.values(waves).forEach(wave => {
+                        wave.amplitude /= total;
+                    });
+                }
+
+                // Calculate coherence (φ-weighted harmonic alignment)
+                this.coherence = this.calculateCoherence();
+            }
+
+            // Coherence measures how aligned the waves are (φ-weighted)
+            calculateCoherence() {
+                const amplitudes = Object.values(waves).map(w => w.amplitude);
+                const phiWeights = [1, PHI, PHI*PHI, PHI*PHI*PHI]; // Progressive φ weighting
+                
+                let weightedSum = 0;
+                let totalWeight = 0;
+                
+                amplitudes.forEach((amp, i) => {
+                    weightedSum += amp * phiWeights[i % phiWeights.length];
+                    totalWeight += phiWeights[i % phiWeights.length];
+                });
+                
+                // High coherence when one wave dominates
+                const maxAmp = Math.max(...amplitudes);
+                const entropy = -amplitudes.reduce((sum, a) => 
+                    sum + (a > 0 ? a * Math.log(a + 0.001) : 0), 0);
+                
+                return (weightedSum / totalWeight) * (1 - entropy / 2);
+            }
+
+            // Determine consciousness state from wave dominance
+            getConsciousnessState() {
+                const amps = {
+                    theta: waves.theta.amplitude,
+                    alpha: waves.alpha.amplitude,
+                    beta: waves.beta.amplitude,
+                    gamma: waves.gamma.amplitude
+                };
+
+                const max = Math.max(...Object.values(amps));
+                
+                if (amps.gamma > 0.4) return 'GAMMA (Chaos)';
+                if (amps.theta > 0.5) return 'THETA (Deep)';
+                if (amps.alpha > 0.4) return 'ALPHA (Flow)';
+                if (amps.beta > 0.4) return 'BETA (Active)';
+                
+                return 'MIXED';
+            }
+        }
+
+        const eeg = new MarketEEG();
+
+        // Draw single wave
+        function drawWave(wave) {
+            const ctx = wave.ctx;
+            const canvas = wave.canvas;
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Add new data point
+            const value = Math.sin(eeg.time * wave.freq * 0.1) * wave.amplitude * height * 0.4;
+            wave.data.push(value);
+            
+            if (wave.data.length > width) {
+                wave.data.shift();
+            }
+
+            // Draw waveform
+            ctx.beginPath();
+            ctx.strokeStyle = wave.color;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = wave.color;
+
+            wave.data.forEach((val, i) => {
+                const x = (width - wave.data.length) + i;
+                const y = height / 2 - val;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Draw center line
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Update amplitude display
+            document.getElementById(`${Object.keys(waves).find(k => waves[k] === wave)}Amp`).textContent = 
+                `Amplitude: ${wave.amplitude.toFixed(3)}`;
+        }
+
+        // Update state cards
+        function updateStateCards() {
+            ['theta', 'alpha', 'beta', 'gamma'].forEach(name => {
+                const card = document.getElementById(`${name}Card`);
+                const value = document.getElementById(`${name}Value`);
+                const amplitude = waves[name].amplitude;
+                
+                value.textContent = `${(amplitude * 100).toFixed(1)}%`;
+                
+                if (amplitude > 0.35) {
+                    card.classList.add('active', 'pulsing');
+                } else {
+                    card.classList.remove('active', 'pulsing');
+                }
+            });
+
+            // Update metrics
+            document.getElementById('coherenceMetric').textContent = eeg.coherence.toFixed(3);
+            document.getElementById('stateMetric').textContent = eeg.getConsciousnessState();
+        }
+
+        // Main animation loop
+        function animate() {
+            eeg.time += 0.1;
+            eeg.updateMarketState();
+            eeg.calculateWaveAmplitudes();
+
+            Object.values(waves).forEach(wave => drawWave(wave));
+            updateStateCards();
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start
+        animate();
+
+        // Add info tooltip
+        console.log(`
+🧠 MARKET EEG INTERPRETATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THETA (4-7 Hz) - Deep Market State
+└─ Consolidation, sideways movement, low volatility
+└─ Market is "resting" or accumulating
+└─ Similar to deep sleep in brain
+
+ALPHA (8-13 Hz) - Flow State
+└─ Steady trends, moderate activity
+└─ Market in natural rhythm
+└─ Similar to relaxed awareness
+
+BETA (14-30 Hz) - Active Trading
+└─ High volume, active analysis
+└─ Market is "thinking" and processing
+└─ Similar to focused attention
+
+GAMMA (30-100 Hz) - Extreme States
+└─ High volatility, panic or euphoria
+└─ Market consciousness fragmented
+└─ Similar to intense mental activity
+
+COHERENCE (φ-weighted):
+└─ Measures wave alignment
+└─ High = Market acting as unified mind
+└─ Low = Fragmented, incoherent behavior
+        `);
+    </script>
+</body>
+</html>
