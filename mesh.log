@@ -1,95 +1,47 @@
-2026-02-16 15:36:42,214 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
-2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - AlphaVantage disabled: ALPHA_VANTAGE_API_KEY not set
-2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - Polygon disabled: POLYGON_API_KEY not set
-2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - TwelveData disabled: TWELVE_DATA_API_KEY not set
-2026-02-16 15:36:42,214 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
-2026-02-16 15:36:42,214 - MarketDataProviders - INFO - Crypto providers: 2 active
-2026-02-16 15:36:42,214 - MarketDataProviders - INFO - Stock providers: 0 enabled
-2026-02-16 15:36:42,330 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:36:42,330 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
-2026-02-16 15:36:42,420 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:36:42,421 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
-2026-02-16 15:36:44,331 - CognitiveMesh - INFO - HTTP server task is running.
-2026-02-16 15:36:44,332 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
-2026-02-16 15:36:44,332 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
-2026-02-16 15:36:44,332 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
-2026-02-16 15:36:44,333 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
-2026-02-16 15:36:44,333 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
-2026-02-16 15:36:44,333 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
-2026-02-16 15:36:44,333 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
-2026-02-16 15:36:44,333 - CognitiveMesh - INFO - Starting prioritized data collection loop
-2026-02-16 15:36:47,709 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:36:47,731 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274207731 - Increase PHI to 0.65 within 4 weeks
-2026-02-16 15:36:47,731 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274207731 - Reduce SIGMA noise level to below 0.05 in 6 weeks
-2026-02-16 15:37:35,039 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:37:35,040 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274255040 - Increase PHI to 0.75 within 30 cycles
-2026-02-16 15:37:35,040 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274255040 - Reduce SIGMA noise level to below 0.4 in 20 cycles
-2026-02-16 15:37:44,334 - CognitiveMesh - INFO - Organically discovered new asset: BTC
-2026-02-16 15:37:44,334 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC']
-2026-02-16 15:37:46,165 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68155
-2026-02-16 15:37:46,165 - MarketDataProviders - INFO - Batch fetch: 1/1 successful
-2026-02-16 15:38:42,873 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:BTC
-2026-02-16 15:38:42,881 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:ETH
-2026-02-16 15:38:42,881 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:BTC
-2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:SOL
-2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:ETH
-2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:BTC
-2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:SOL
-2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:BNB
-2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:ETH
-2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:BTC
-2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:SOL
-2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:BNB
-2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:ETH
-2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:ADA
-2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:BTC
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: ETH
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: SOL
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: BNB
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: ADA
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: DOGE
-2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
-2026-02-16 15:38:53,122 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.98
-2026-02-16 15:38:56,176 - MarketDataProviders - ERROR - CoinGecko fetch error for BTC: Cannot connect to host api.coingecko.com:443 ssl:default [None]
-2026-02-16 15:38:56,177 - MarketDataProviders - ERROR - CoinGecko fetch error for ADA: Cannot connect to host api.coingecko.com:443 ssl:default [None]
-2026-02-16 15:38:56,178 - MarketDataProviders - ERROR - CoinGecko fetch error for BNB: Cannot connect to host api.coingecko.com:443 ssl:default [None]
-2026-02-16 15:38:56,191 - MarketDataProviders - WARNING - All providers failed for BTC
-2026-02-16 15:38:56,193 - MarketDataProviders - WARNING - All providers failed for ADA
-2026-02-16 15:38:56,194 - MarketDataProviders - WARNING - All providers failed for BNB
-2026-02-16 15:38:56,960 - MarketDataProviders - ERROR - CoinGecko fetch error for DOGE: 
-2026-02-16 15:38:56,960 - MarketDataProviders - ERROR - CoinGecko fetch error for ETH: 
-2026-02-16 15:38:56,989 - MarketDataProviders - WARNING - All providers failed for DOGE
-2026-02-16 15:38:56,991 - MarketDataProviders - WARNING - All providers failed for ETH
-2026-02-16 15:38:56,991 - MarketDataProviders - INFO - Batch fetch: 1/6 successful
-2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:BNB
-2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:ADA
-2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:DOGE
-2026-02-16 15:39:56,993 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
-2026-02-16 15:39:58,465 - MarketDataProviders - INFO - ✓ Fetched DOGE from coingecko: $0.100405
-2026-02-16 15:39:58,592 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68134
-2026-02-16 15:39:58,607 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.99
-2026-02-16 15:39:58,609 - MarketDataProviders - INFO - ✓ Fetched ETH from coingecko: $1981.89
-2026-02-16 15:39:58,628 - MarketDataProviders - INFO - ✓ Fetched BNB from coingecko: $618.95
-2026-02-16 15:39:58,907 - MarketDataProviders - INFO - ✓ Fetched ADA from coingecko: $0.283361
-2026-02-16 15:39:58,907 - MarketDataProviders - INFO - Batch fetch: 6/6 successful
-2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:SOL
-2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:BNB
-2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:ADA
-2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:DOGE
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:DOGE
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:SOL
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:BNB
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:ETH
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:ADA
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:DOGE
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:ADA
-2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:DOGE
-2026-02-16 15:40:35,045 - PursuitAgent - ERROR - Error in pursuit cycle: 'str' object has no attribute 'get'
-2026-02-16 15:40:58,909 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
-2026-02-16 15:40:59,670 - MarketDataProviders - INFO - ✓ Fetched DOGE from coingecko: $0.100405
-2026-02-16 15:40:59,712 - MarketDataProviders - INFO - ✓ Fetched ETH from coingecko: $1979.94
-2026-02-16 15:40:59,798 - MarketDataProviders - INFO - ✓ Fetched ADA from coingecko: $0.283352
-2026-02-16 15:40:59,841 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.97
-2026-02-16 15:40:59,844 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68110
-2026-02-16 15:40:59,861 - MarketDataProviders - INFO - ✓ Fetched BNB from coingecko: $618.56
-2026-02-16 15:40:59,861 - MarketDataProviders - INFO - Batch fetch: 6/6 successful
+2026-02-16 15:48:31,791 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
+2026-02-16 15:48:31,791 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
+2026-02-16 15:48:31,791 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
+2026-02-16 15:48:31,791 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
+2026-02-16 15:48:31,791 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
+2026-02-16 15:48:31,908 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:48:31,908 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 15:48:31,997 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:48:31,998 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 15:48:33,911 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 15:48:33,911 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 15:48:33,911 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 15:48:33,912 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 15:48:33,912 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 15:48:33,913 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 15:48:33,913 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 15:48:33,913 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 15:48:33,913 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 15:48:37,419 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:48:37,448 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274917448 - Increase Concept Formation to Enhance Coherence
+2026-02-16 15:48:37,449 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274917449 - Reduce Noise Level to Optimize Signal Clarity
+2026-02-16 15:48:55,860 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → stock:KO
+2026-02-16 15:48:55,868 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:AAPL → stock:KO
+2026-02-16 15:48:55,869 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:AAPL → crypto:BTC
+2026-02-16 15:49:26,422 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:49:26,423 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274966423 - Increase PHI (Coherence) to 0.700 within 10 cycles
+2026-02-16 15:49:33,913 - CognitiveMesh - INFO - Organically discovered new asset: KO
+2026-02-16 15:49:33,913 - CognitiveMesh - INFO - Organically discovered new asset: BTC
+2026-02-16 15:49:33,914 - CognitiveMesh - INFO - Organically discovered new asset: AAPL
+2026-02-16 15:49:33,914 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'KO', 'BTC']
+2026-02-16 15:49:34,952 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:49:34,954 - PursuitAgent - INFO - Cross-domain insights generated for stock <-> crypto
+2026-02-16 15:49:34,954 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274974954 - Reduce SIGMA (Noise) to below 0.400 within 8 cycles
+2026-02-16 15:49:35,330 - MarketDataProviders - INFO - ✓ Fetched AAPL from yahoo_chart: $255.78
+2026-02-16 15:49:35,331 - MarketDataProviders - INFO - ✓ Fetched KO from yahoo_chart: $78.68
+2026-02-16 15:49:35,331 - MarketDataProviders - INFO - ✓ Fetched BTC from binance: $68,211.60
+2026-02-16 15:49:35,331 - MarketDataProviders - INFO - Batch fetch: 3/3 successful
+2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:KO → stock:AAPL
+2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:KO → crypto:BTC
+2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → stock:AAPL
+2026-02-16 15:50:19,954 - PursuitAgent - ERROR - Error in pursuit cycle: 'str' object has no attribute 'get'
+2026-02-16 15:50:22,433 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:50:35,332 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC', 'KO', 'AAPL']
+2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched BTC from binance: $68,228.92
+2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched KO from yahoo_chart: $78.68
+2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched AAPL from yahoo_chart: $255.78
+2026-02-16 15:50:36,907 - MarketDataProviders - INFO - Batch fetch: 3/3 successful

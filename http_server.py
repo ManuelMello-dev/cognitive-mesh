@@ -168,7 +168,19 @@ async def handle_synthesize_insights(request):
         logger.error(f"Insight synthesis error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
-async def start_http_server(core=None):
+async def handle_provider_status(request):
+    """Return status of all data providers and their circuit breakers"""
+    try:
+        data_provider = request.app.get('data_provider')
+        if not data_provider:
+            return web.json_response({"error": "Data provider not initialized"}, status=503)
+        status = data_provider.get_provider_status()
+        return web.json_response(status)
+    except Exception as e:
+        logger.error(f"Provider status error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def start_http_server(core=None, data_provider=None):
     """Start the aiohttp web server with GPT I/O and Autonomous Reasoning support"""
     app = web.Application()
     
@@ -176,6 +188,8 @@ async def start_http_server(core=None):
         app['core'] = core
         app['interpreter'] = LLMInterpreter(core)
         app['reasoner'] = AutonomousReasoner(core)
+    if data_provider:
+        app['data_provider'] = data_provider
         
     # Core endpoints
     app.router.add_get('/', handle_dashboard)
@@ -189,6 +203,7 @@ async def start_http_server(core=None):
     app.router.add_get('/api/hypotheses', handle_generate_hypotheses)
     app.router.add_get('/api/goals', handle_formulate_goals)
     app.router.add_post('/api/insights', handle_synthesize_insights)
+    app.router.add_get('/api/providers', handle_provider_status)
     
     port = Config.PORT
     logger.info(f"Starting HTTP server on 0.0.0.0:{port}...")

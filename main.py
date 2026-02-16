@@ -119,7 +119,7 @@ class CognitiveMeshOrchestrator:
         try:
             # PHASE 1: Start HTTP server for health checks
             logger.info("PHASE 1: Starting HTTP server...")
-            http_task = asyncio.create_task(start_http_server(self.core))
+            http_task = asyncio.create_task(start_http_server(self.core, self.data_provider))
             # Wait to see if it fails immediately
             await asyncio.sleep(2)
             if http_task.done():
