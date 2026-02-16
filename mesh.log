@@ -1,0 +1,44 @@
+nohup: ignoring input
+2026-02-16 13:31:00,547 - CognitiveMesh - INFO - Loaded 175 seed symbols from file
+2026-02-16 13:31:02,236 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 13:31:02,346 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 13:31:04,239 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 13:31:04,240 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 13:31:04,240 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 13:31:04,240 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 13:31:04,241 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 13:31:04,241 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 13:31:04,241 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 13:31:04,241 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 13:31:04,241 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 13:31:04,241 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC', 'ETH', 'SOL', 'HYPE', 'TRUMP', 'PUMP', 'AAPL', 'NVDA', 'TSLA', 'ONDO', 'AMD', 'LINK', 'CRO', 'BP', 'XAUt', 'F', 'OGI', 'SQ', 'UBER', 'ARVL', 'SDGR', 'LTC', 'TCEHY', 'RDFN', 'USD1', 'ETC', 'PYPL', 'PEPE', 'XDC']
+2026-02-16 13:31:08,117 - yfinance - ERROR - Failed to get ticker 'SOL-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:09,034 - yfinance - ERROR - Failed to get ticker 'ONDO' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:10,132 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:10,184 - yfinance - ERROR - Failed to get ticker 'TRUMP' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:10,199 - yfinance - ERROR - Failed to get ticker 'HYPE' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:10,234 - yfinance - ERROR - Failed to get ticker 'TSLA' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:11,135 - yfinance - ERROR - Failed to get ticker 'PUMP' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:11,173 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:12,155 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:12,245 - yfinance - ERROR - Failed to get ticker 'NVDA' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:14,297 - yfinance - ERROR - SOL-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:15,946 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:16,945 - yfinance - ERROR - TRUMP: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:16,953 - yfinance - ERROR - ONDO: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:17,018 - yfinance - ERROR - HYPE: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:17,054 - yfinance - ERROR - TSLA: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:17,118 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:19,775 - yfinance - ERROR - NVDA: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:19,829 - yfinance - ERROR - PUMP: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:19,853 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 13:31:20,926 - yfinance - ERROR - Failed to get ticker 'AMD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:22,084 - yfinance - ERROR - Failed to get ticker 'OGI' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:24,787 - yfinance - ERROR - Failed to get ticker 'F' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:24,789 - yfinance - ERROR - Failed to get ticker 'LINK' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:24,853 - yfinance - ERROR - Failed to get ticker 'XAUT' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:24,936 - yfinance - ERROR - Failed to get ticker 'CRO' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:25,793 - yfinance - ERROR - Failed to get ticker 'BP' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:26,630 - yfinance - ERROR - Failed to get ticker 'UBER' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:27,592 - yfinance - ERROR - Failed to get ticker 'SQ' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 13:31:27,752 - yfinance - ERROR - Failed to get ticker 'ARVL' reason: Expecting value: line 1 column 1 (char 0)

@@ -7,12 +7,16 @@ import asyncio
 import logging
 import time
 import os
-from typing import Dict, Any, List, Optional
+import uuid
+import hashlib
+import math
+from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timezone
 from collections import deque
 
-logger = logging.getLogger("DistributedCognitiveCore")
+from config.config import Config
 
+logger = logging.getLogger("DistributedCognitiveCore")
 
 class DistributedCognitiveCore:
     """
@@ -20,20 +24,19 @@ class DistributedCognitiveCore:
     - Processes observations from multiple data sources
     - Maintains concept formation and rule learning
     - Persists to PostgreSQL, Milvus, and Redis
-    - Integrates with AMFG gossip protocol
     """
     
-    def __init__(self, node_id: str, postgres_store=None, milvus_store=None, redis_cache=None):
+    def __init__(self, node_id: str, postgres=None, milvus=None, redis=None):
         self.node_id = node_id
-        self.postgres = postgres_store
-        self.milvus = milvus_store
-        self.redis = redis_cache
+        self.postgres = postgres
+        self.milvus = milvus
+        self.redis = redis
         
         # Core cognitive state
         self.concepts: Dict[str, Dict[str, Any]] = {}
         self.rules: Dict[str, Dict[str, Any]] = {}
         self.short_term_memory: deque = deque(maxlen=1000)
-        self.cross_domain_mappings: Dict[str, set] = {}
+        self.cross_domain_mappings: Dict[str, Set[str]] = {}
         
         # Metrics
         self.metrics = {
@@ -46,27 +49,16 @@ class DistributedCognitiveCore:
             "errors": 0,
             "uptime_seconds": 0.0,
             "last_observation_time": None,
-            "start_time": time.time()
-        }
-        
-        # Configuration
-        self.config = {
-            "concept_similarity_threshold": 0.75,
-            "min_confidence_threshold": 0.01,
-            "concept_half_life_hours": 72.0,
-            "decay_check_interval": 3600,
-            "checkpoint_interval": 100,
-            "goal_generation_interval": 50,
-            "max_rules_per_observation": 5
+            "start_time": time.time(),
+            "global_coherence": 0.5,
+            "noise_level": 0.1
         }
         
         self.iteration = 0
         self._last_decay_time = time.time()
     
     async def ingest(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
-        """
-        Main ingestion pipeline for observations
-        """
+        """Main ingestion pipeline for observations"""
         current_time = datetime.now(timezone.utc).timestamp()
         self.iteration += 1
         self.metrics["total_observations"] += 1
@@ -80,7 +72,7 @@ class DistributedCognitiveCore:
             self.short_term_memory.append(observation)
             
             # Apply concept decay if needed
-            if current_time - self._last_decay_time > self.config["decay_check_interval"]:
+            if current_time - self._last_decay_time > Config.DECAY_CHECK_INTERVAL:
                 await self._apply_concept_decay(current_time)
                 self._last_decay_time = current_time
             
@@ -96,21 +88,14 @@ class DistributedCognitiveCore:
                 await self._attempt_cross_domain_transfer(domain)
             
             # Generate goals
-            if self.iteration % self.config["goal_generation_interval"] == 0:
+            if self.iteration % Config.GOAL_GENERATION_INTERVAL == 0:
                 await self._generate_autonomous_goals(observation)
             
+            # Update global coherence based on rule support
+            self._update_system_metrics()
+            
             # Persist to databases
-            if self.postgres:
-                await self.postgres.save_observation({
-                    "concept_id": concept_id,
-                    "symbol": observation.get("symbol"),
-                    "price": observation.get("price"),
-                    "volume": observation.get("volume"),
-                    "metadata": {"domain": domain}
-                })
-                
-                if self.iteration % 10 == 0:
-                    await self.postgres.save_metrics(self.metrics)
+            await self._persist_data(concept_id, observation)
             
             return {
                 "success": True,
@@ -123,9 +108,37 @@ class DistributedCognitiveCore:
         
         except Exception as e:
             self.metrics["errors"] += 1
-            logger.exception(f"Error ingesting observation: {e}")
+            logger.exception(f"Error ingesting observation in domain {domain}: {e}")
             return {"success": False, "error": str(e)}
-    
+
+    def _update_system_metrics(self):
+        """Update global system metrics based on current state"""
+        if not self.rules:
+            self.metrics["global_coherence"] = 0.5
+        else:
+            avg_confidence = sum(r["confidence"] for r in self.rules.values()) / len(self.rules)
+            self.metrics["global_coherence"] = avg_confidence
+        
+        # Noise level inversely proportional to coherence and concept stability
+        self.metrics["noise_level"] = max(0.0, 1.0 - self.metrics["global_coherence"])
+
+    async def _persist_data(self, concept_id: str, observation: Dict[str, Any]):
+        """Persist data to available stores"""
+        try:
+            if self.postgres:
+                await self.postgres.save_observation({
+                    "concept_id": concept_id,
+                    "symbol": observation.get("symbol"),
+                    "price": observation.get("price"),
+                    "volume": observation.get("volume"),
+                    "metadata": {"domain": observation.get("domain")}
+                })
+                
+                if self.iteration % 10 == 0:
+                    await self.postgres.save_metrics(self.metrics)
+        except Exception as e:
+            logger.error(f"Postgres persistence error: {e}")
+
     def _normalize_observation(self, obs: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize observation timestamps and data types"""
         current_time = datetime.now(timezone.utc).timestamp()
@@ -147,7 +160,7 @@ class DistributedCognitiveCore:
         """Extract numeric features from observation"""
         features = {}
         for k, v in obs.items():
-            if k not in ("timestamp", "symbol", "domain"):
+            if k not in ("timestamp", "symbol", "domain", "id"):
                 if isinstance(v, (int, float)):
                     features[k] = float(v)
         return features
@@ -158,11 +171,11 @@ class DistributedCognitiveCore:
         
         for cid, concept in self.concepts.items():
             hours_since_seen = (current_time - concept.get("last_seen", current_time)) / 3600.0
-            decay_factor = (0.5) ** (hours_since_seen / self.config["concept_half_life_hours"])
+            decay_factor = (0.5) ** (hours_since_seen / Config.CONCEPT_HALF_LIFE_HOURS)
             
             concept["confidence"] *= decay_factor
             
-            if concept["confidence"] < self.config["min_confidence_threshold"]:
+            if concept["confidence"] < Config.MIN_CONFIDENCE_THRESHOLD:
                 to_remove.append(cid)
         
         for cid in to_remove:
@@ -175,40 +188,43 @@ class DistributedCognitiveCore:
     async def _form_concept(self, obs: Dict[str, Any], domain: str, current_time: float) -> str:
         """Form or strengthen concepts"""
         fv = self._create_feature_vector(obs)
-        
-        if not fv:
-            return ""
+        if not fv: return ""
         
         # Look for similar existing concept
         best_concept = None
         best_similarity = 0.0
         
-        for cid, concept in self.concepts.items():
-            if concept.get("domain") != domain:
-                continue
-            
-            concept_sig = concept.get("signature", {})
-            similarity = self._cosine_similarity(fv, concept_sig)
-            
+        # Optimization: only check concepts in the same domain
+        domain_concepts = [c for c in self.concepts.values() if c.get("domain") == domain]
+        
+        for concept in domain_concepts:
+            similarity = self._cosine_similarity(fv, concept.get("signature", {}))
             if similarity > best_similarity:
                 best_similarity = similarity
-                best_concept = cid
+                best_concept = concept["id"]
         
         # Strengthen existing concept
-        if best_concept and best_similarity >= self.config["concept_similarity_threshold"]:
+        if best_concept and best_similarity >= Config.CONCEPT_SIMILARITY_THRESHOLD:
             concept = self.concepts[best_concept]
-            concept["examples"].append(obs)
             concept["last_seen"] = current_time
             concept["observation_count"] += 1
             concept["confidence"] = min(1.0, concept["confidence"] + 0.05)
+            # Update signature (moving average)
+            for k, v in fv.items():
+                if k in concept["signature"]:
+                    concept["signature"][k] = concept["signature"][k] * 0.9 + v * 0.1
+                else:
+                    concept["signature"][k] = v
             
-            logger.debug(f"Strengthened concept {best_concept}")
+            # Keep only last 10 examples to save memory
+            concept.setdefault("examples", []).append(obs)
+            if len(concept["examples"]) > 10:
+                concept["examples"].pop(0)
+                
             return best_concept
         
         # Create new concept
-        import uuid
         cid = f"concept_{uuid.uuid4().hex}"
-        
         self.concepts[cid] = {
             "id": cid,
             "domain": domain,
@@ -217,27 +233,29 @@ class DistributedCognitiveCore:
             "first_seen": current_time,
             "last_seen": current_time,
             "confidence": 0.1,
-            "observation_count": 1,
-            "observation_span_hours": 0.0,
-            "distinct_time_windows": 1
+            "observation_count": 1
         }
         
         self.metrics["concepts_formed"] += 1
         
-        # Save to Milvus
-        if self.milvus:
-            await self.milvus.insert_concept(cid, domain, fv, 0.1, current_time)
+        # Async persistence to vector DB and cache
+        asyncio.create_task(self._persist_concept_async(cid, domain, fv))
         
-        # Cache in Redis
-        if self.redis:
-            await self.redis.cache_concept(cid, self.concepts[cid])
-        
-        logger.info(f"New concept {cid} in domain '{domain}'")
         return cid
-    
+
+    async def _persist_concept_async(self, cid: str, domain: str, signature: Dict[str, float]):
+        """Asynchronously persist concept to Milvus and Redis"""
+        try:
+            if self.milvus:
+                await self.milvus.insert_concept(cid, domain, signature, 0.1, time.time())
+            if self.redis:
+                await self.redis.cache_concept(cid, self.concepts[cid])
+        except Exception as e:
+            logger.error(f"Async persistence error for concept {cid}: {e}")
+
     async def _infer_rules(self, obs: Dict[str, Any], current_time: float) -> List[Dict[str, Any]]:
         """Infer rules from observations"""
-        keys = [k for k in obs.keys() if k not in ("timestamp", "domain", "symbol")]
+        keys = [k for k in obs.keys() if k not in ("timestamp", "domain", "symbol", "id")]
         rules = []
         
         for i in range(len(keys)):
@@ -257,24 +275,11 @@ class DistributedCognitiveCore:
                         "created_at": current_time,
                         "last_seen": current_time
                     })
-                
-                # Rule: if k1 and k2 are similar
-                denom = max(abs(v1), abs(v2), 1.0)
-                if abs(v1 - v2) / denom < 0.1:
-                    rules.append({
-                        "antecedent": f"{k1}_similar",
-                        "consequent": f"{k2}_similar",
-                        "confidence": 0.8,
-                        "created_at": current_time,
-                        "last_seen": current_time
-                    })
         
-        return rules[:self.config["max_rules_per_observation"]]
+        return rules[:Config.MAX_RULES_PER_OBSERVATION]
     
     async def _process_rules(self, new_rules: List[Dict[str, Any]], current_time: float):
         """Process and store rules"""
-        import hashlib
-        
         for rule in new_rules:
             content = f"{rule['antecedent']}→{rule['consequent']}"
             rid = hashlib.md5(content.encode()).hexdigest()
@@ -287,78 +292,61 @@ class DistributedCognitiveCore:
                 self.rules[rid] = {**rule, "support": 1, "id": rid}
                 self.metrics["rules_learned"] += 1
             
-            # Save to PostgreSQL
             if self.postgres:
                 await self.postgres.save_rule(rid, self.rules[rid])
     
-    def _get_active_domains(self) -> set:
+    def _get_active_domains(self) -> Set[str]:
         """Get all active domains"""
         return {c.get("domain") for c in self.concepts.values()}
     
     async def _attempt_cross_domain_transfer(self, current_domain: str):
-        """Attempt to transfer knowledge across domains"""
+        """Identify potential transfers between domains"""
         domains = self._get_active_domains()
-        
         for other in domains:
-            if other == current_domain:
-                continue
+            if other == current_domain: continue
             
             if other not in self.cross_domain_mappings.get(current_domain, set()):
-                if current_domain not in self.cross_domain_mappings:
-                    self.cross_domain_mappings[current_domain] = set()
-                
-                self.cross_domain_mappings[current_domain].add(other)
+                self.cross_domain_mappings.setdefault(current_domain, set()).add(other)
                 self.metrics["transfers_made"] += 1
-                logger.info(f"Transfer: {current_domain} → {other}")
+                logger.info(f"Cross-domain Transfer: {current_domain} → {other}")
     
     async def _generate_autonomous_goals(self, obs: Dict[str, Any]):
-        """Generate autonomous goals"""
+        """Generate autonomous goals based on observation patterns"""
         self.metrics["goals_generated"] += 1
-        logger.debug(f"Goal: analyze covariation in {list(obs.keys())[:3]}")
+        logger.debug(f"Autonomous Goal Generated: Analyze covariation in {list(obs.keys())[:3]}")
     
     def _cosine_similarity(self, v1: Dict[str, float], v2: Dict[str, float]) -> float:
-        """Compute cosine similarity between two vectors"""
-        import math
-        
+        """Compute cosine similarity between two feature vectors"""
         keys = set(v1.keys()) | set(v2.keys())
-        if not keys:
-            return 0.0
+        if not keys: return 0.0
         
         dot = sum(v1.get(k, 0.0) * v2.get(k, 0.0) for k in keys)
         mag1 = math.sqrt(sum(v1.get(k, 0.0) ** 2 for k in keys))
         mag2 = math.sqrt(sum(v2.get(k, 0.0) ** 2 for k in keys))
         
-        if mag1 == 0 or mag2 == 0:
-            return 0.0
-        
+        if mag1 == 0 or mag2 == 0: return 0.0
         return dot / (mag1 * mag2)
     
     def get_metrics(self) -> Dict[str, Any]:
-        """Get current system metrics"""
         return self.metrics.copy()
     
     def get_concepts_snapshot(self) -> Dict[str, Any]:
-        """Get snapshot of current concepts"""
-        return {cid: c for cid, c in self.concepts.items()}
+        return {cid: c.copy() for cid, c in self.concepts.items()}
     
     def get_rules_snapshot(self) -> Dict[str, Any]:
-        """Get snapshot of current rules"""
-        return {rid: r for rid, r in self.rules.items()}
+        return {rid: r.copy() for rid, r in self.rules.items()}
         
     def get_state_summary(self) -> Dict[str, Any]:
-        """Get a summary of the current mesh state for gossip"""
         return {
             "node_id": self.node_id,
-            "concepts": len(self.concepts),
-            "rules": len(self.rules),
+            "concepts_count": len(self.concepts),
+            "rules_count": len(self.rules),
             "metrics": self.metrics,
             "timestamp": time.time()
         }
         
     async def process_network_message(self, msg: Any):
-        """Process incoming network message"""
         logger.debug(f"Processing network message: {msg}")
         
     async def process_pubsub_message(self, msg: Any):
-        """Process incoming pubsub message"""
         logger.debug(f"Processing pubsub message: {msg}")

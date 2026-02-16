@@ -1,37 +1,13 @@
-# Core async framework
-asyncio-contextmanager==1.0.0
-
-# HTTP client
 aiohttp==3.9.1
-
-# ZeroMQ messaging
 pyzmq==25.1.0
-
-# Database - PostgreSQL (optional, can be skipped if not using)
 asyncpg==0.29.0
-
-# Database - Milvus vector DB (optional, can be skipped if not using)
 pymilvus==2.3.5
-
-# Cache - Redis (optional, can be skipped if not using)
 aioredis==2.0.1
-
-# Financial data
 yfinance==0.2.32
 requests==2.31.0
-
-# Hashing
 mmh3==4.0.1
-
-# Serialization
 msgpack==1.0.7
-
-# Configuration
 python-dotenv==1.0.0
-
-# Utilities
 pydantic==2.5.0
-
-# Logging
 structlog==23.3.0
 openai==1.12.0
