@@ -276,7 +276,8 @@ class CognitiveMeshOrchestrator:
         
         try:
             # Start HTTP server first and independently to satisfy Railway health checks
-            http_task = asyncio.create_task(start_http_server())
+            # Pass self.core to allow the LLM interpreter to access the mesh state
+            http_task = asyncio.create_task(start_http_server(self.core))
             
             # Wait a moment for HTTP server to bind
             await asyncio.sleep(1)

@@ -1,7 +1,8 @@
 import os
 import logging
-from aiohttp import web
 import asyncio
+from aiohttp import web
+from agents.llm_interpreter import LLMInterpreter
 
 logger = logging.getLogger("HttpServer")
 
@@ -27,12 +28,36 @@ async def handle_eeg(request):
         logger.error(f"Error serving EEG monitor: {e}")
         return web.Response(text="EEG Monitor file not found", status=404)
 
-async def start_http_server():
+async def handle_chat(request):
+    """Interpretive chat endpoint"""
+    try:
+        data = await request.json()
+        message = data.get("message", "")
+        history = data.get("history", [])
+        
+        # Access the interpreter via the app state
+        interpreter = request.app.get('interpreter')
+        if not interpreter:
+            return web.json_response({"response": "The Global Mind is currently offline (interpreter not initialized)."}, status=503)
+            
+        response = await interpreter.chat(message, history)
+        return web.json_response({"response": response})
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def start_http_server(core=None):
     """Start the aiohttp web server"""
     app = web.Application()
+    
+    # Store interpreter in app state if core is provided
+    if core:
+        app['interpreter'] = LLMInterpreter(core)
+        
     app.router.add_get('/', handle_dashboard)
     app.router.add_get('/dashboard', handle_dashboard)
     app.router.add_get('/eeg', handle_eeg)
+    app.router.add_post('/api/chat', handle_chat)
     
     # Railway typically expects port 8080 for web services
     port = int(os.getenv("PORT", 8080))
