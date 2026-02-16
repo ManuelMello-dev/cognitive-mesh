@@ -59,17 +59,13 @@ class CognitiveMeshOrchestrator:
         self.running = False
 
     def _load_symbols(self) -> Set[str]:
-        """Load seed symbols from file or config"""
-        try:
-            if os.path.exists("seed_symbols.txt"):
-                with open("seed_symbols.txt", "r") as f:
-                    seeds = f.read().strip().split(",")
-                logger.info(f"Loaded {len(seeds)} seed symbols from file")
-                return set(seeds)
-        except Exception as e:
-            logger.warning(f"Could not load seed_symbols.txt: {e}. Falling back to defaults.")
-        
-        return Config.get_symbols()
+        """Load symbols from environment variable only - no hardcoded defaults"""
+        symbols = Config.get_symbols()
+        if symbols:
+            logger.info(f"Loaded {len(symbols)} symbols from SYMBOLS environment variable")
+        else:
+            logger.info("No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.")
+        return symbols
 
     async def initialize(self):
         """Initialize all system components with robust error handling"""
@@ -169,6 +165,11 @@ class CognitiveMeshOrchestrator:
                 # Prepare batch
                 current_batch = self._prepare_data_batch()
                 
+                if not current_batch:
+                    # No symbols to fetch - mesh is idle, waiting for manual ingestion
+                    await asyncio.sleep(self.update_interval)
+                    continue
+                
                 logger.info(f"Processing Attention Batch: {current_batch}")
                 ticks = await self.data_provider.fetch_batch(current_batch)
                 
@@ -198,16 +199,16 @@ class CognitiveMeshOrchestrator:
                     self.symbols.add(symbol)
 
     def _prepare_data_batch(self) -> List[str]:
-        """Prepare a batch of symbols to fetch, prioritizing key assets"""
-        all_symbols = list(self.symbols)
-        priority = [s for s in Config.PRIORITY_SYMBOLS if s in self.symbols]
-        others = [s for s in all_symbols if s not in priority]
+        """Prepare a batch of symbols to fetch - returns empty list if no symbols available"""
+        if not self.symbols:
+            return []  # No symbols to fetch - mesh operates on manual ingestion only
         
+        all_symbols = list(self.symbols)
         batch_size = Config.DATA_BATCH_SIZE
-        current_batch = priority + others[:batch_size]
+        current_batch = all_symbols[:batch_size]
         
         # Rotate symbols for next cycle
-        self.symbols = set(priority + others[batch_size:] + others[:batch_size])
+        self.symbols = set(all_symbols[batch_size:] + all_symbols[:batch_size])
         return current_batch
 
     async def _pursuit_loop(self):

@@ -19,8 +19,8 @@ class Config:
     MAX_RULES_PER_OBSERVATION = int(os.getenv("MAX_RULES_PER_OBSERVATION", 5))
     
     # Data Sources
-    DEFAULT_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH,SOL,BNB,XRP"
-    PRIORITY_SYMBOLS = ["BTC", "ETH", "SOL", "HYPE", "TRUMP", "PUMP", "AAPL", "NVDA", "TSLA"]
+    DEFAULT_SYMBOLS = ""  # No hardcoded symbols - purely organic data
+    PRIORITY_SYMBOLS = []  # No priority symbols - all data is equal
     DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 20))
     
     # Database URLs
@@ -35,4 +35,6 @@ class Config:
     @classmethod
     def get_symbols(cls) -> Set[str]:
         symbols_str = os.getenv("SYMBOLS", cls.DEFAULT_SYMBOLS)
-        return set(symbols_str.split(","))
+        if not symbols_str or symbols_str.strip() == "":
+            return set()
+        return set(s.strip() for s in symbols_str.split(",") if s.strip())
