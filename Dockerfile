@@ -20,7 +20,7 @@ COPY requirements.txt .
 
 # Install Python dependencies with error handling
 RUN pip install --no-cache-dir -r requirements.txt || \
-    (pip install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 && \
+    (pip install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 openai && \
      echo "Core dependencies installed, optional DB packages may have failed")
 
 # Copy application code

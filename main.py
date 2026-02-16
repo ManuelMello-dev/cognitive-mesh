@@ -1,57 +1,29 @@
-"""
-Cognitive Mesh - Main Orchestrator
-Coordinates all components: Data Providers, Gossip Protocol, Databases, and Core
-"""
-
-import asyncio
-import logging
 import os
 import sys
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+import asyncio
+import logging
+import time
+from typing import List, Dict, Any, Set
 
 # Configure logging
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("CognitiveMesh")
 
-# Import components with graceful fallbacks for optional dependencies
-from agents.multi_source_provider import MultiSourceDataProvider
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from core.distributed_core import DistributedCognitiveCore
-from shared.gossip_amfg import AMFGProtocol
-from shared.network_zeromq import ZMQNode, ZMQAgent, ZMQPubSub
-from http_server import start_http_server
+from agents.multi_source_provider import MultiSourceDataProvider
 from agents.pursuit_agent import PursuitAgent
-
-# Optional database components
-try:
-    from storage.postgres_store import PostgresStore
-    POSTGRES_AVAILABLE = True
-except ImportError:
-    logger.warning("PostgreSQL support not available (asyncpg not installed)")
-    PostgresStore = None
-    POSTGRES_AVAILABLE = False
-
-try:
-    from storage.milvus_store import MilvusStore
-    MILVUS_AVAILABLE = True
-except ImportError:
-    logger.warning("Milvus support not available (pymilvus not installed)")
-    MilvusStore = None
-    MILVUS_AVAILABLE = False
-
-try:
-    from storage.redis_cache import RedisCache
-    REDIS_AVAILABLE = True
-except ImportError:
-    logger.warning("Redis support not available (aioredis not installed)")
-    RedisCache = None
-    REDIS_AVAILABLE = False
-
+from shared.network_zeromq import ZeroMQNetwork
+from shared.pubsub_manager import PubSubManager
+from shared.postgres_store import PostgresStore
+from shared.milvus_store import MilvusStore
+from shared.redis_cache import RedisCache
+from http_server import start_http_server
 
 class CognitiveMeshOrchestrator:
     """Main orchestrator for the Cognitive Mesh system"""
@@ -72,204 +44,41 @@ class CognitiveMeshOrchestrator:
         
         # Initialize components
         self.data_provider = MultiSourceDataProvider()
+        self.core = DistributedCognitiveCore(node_id=self.node_id)
+        self.network = ZeroMQNetwork(node_id=self.node_id)
+        self.pubsub = PubSubManager(node_id=self.node_id)
         
-        # Initialize optional database components
-        self.postgres = PostgresStore() if POSTGRES_AVAILABLE else None
-        self.milvus = MilvusStore() if MILVUS_AVAILABLE else None
-        self.redis = RedisCache() if REDIS_AVAILABLE else None
+        # Optional persistence
+        self.postgres = None
+        self.milvus = None
+        self.redis = None
         
-        self.core = DistributedCognitiveCore(self.node_id, self.postgres, self.milvus, self.redis)
-        self.gossip = AMFGProtocol(self.node_id)
-        self.network = ZMQNode(self.node_id, port=int(os.getenv("LISTEN_PORT", "5555")))
-        self.pubsub = ZMQPubSub(self.node_id)
         self.pursuit = PursuitAgent(self.core, self.pubsub)
-        
         self.running = False
-    
+
     async def initialize(self):
-        """Initialize all components"""
+        """Initialize all system components"""
         logger.info(f"Initializing Cognitive Mesh: {self.node_id}")
         
-        # Connect to databases if available
-        if self.postgres:
-            logger.info("Connecting to PostgreSQL...")
-            try:
-                await self.postgres.connect()
-            except Exception as e:
-                logger.warning(f"PostgreSQL connection failed: {e}")
-                self.postgres = None
-        
-        if self.milvus:
-            logger.info("Connecting to Milvus...")
-            try:
-                await self.milvus.connect()
-            except Exception as e:
-                logger.warning(f"Milvus connection failed: {e}")
-                self.milvus = None
-        
-        if self.redis:
-            logger.info("Connecting to Redis...")
-            try:
-                await self.redis.connect()
-            except Exception as e:
-                logger.warning(f"Redis connection failed: {e}")
-                self.redis = None
-        
-        # Start network components
-        logger.info("Starting network components...")
+        # Start networking
         await self.network.start()
-        await self.pubsub.start_publisher()
-        await self.pubsub.start_subscriber(topics=["concept", "rule", "transfer"])
+        await self.pubsub.start()
         
-        # Register message handlers
-        self.network.register_handler("observation", self._handle_observation)
-        self.pubsub.register_callback("concept", self._handle_new_concept)
-        self.pubsub.register_callback("rule", self._handle_new_rule)
-        self.pubsub.register_callback("transfer", self._handle_transfer)
-        
+        # Connect to databases if configured
+        if os.getenv("POSTGRES_URL"):
+            self.postgres = PostgresStore(os.getenv("POSTGRES_URL"))
+            await self.postgres.connect()
+            
+        if os.getenv("MILVUS_HOST"):
+            self.milvus = MilvusStore(os.getenv("MILVUS_HOST"))
+            await self.milvus.connect()
+            
+        if os.getenv("REDIS_URL"):
+            self.redis = RedisCache(os.getenv("REDIS_URL"))
+            await self.redis.connect()
+            
         logger.info("Cognitive Mesh initialized successfully")
-    
-    async def _handle_observation(self, sender: str, message: dict):
-        """Handle incoming observation from an agent"""
-        try:
-            observation = message.get("data", {})
-            domain = message.get("domain", "unknown")
-            
-            result = await self.core.ingest(observation, domain)
-            
-            if result.get("success"):
-                # Cache metrics
-                if self.redis:
-                    await self.redis.increment_counter("observations_processed")
-                
-                # Broadcast if high-confidence concept formed
-                if result.get("concept_id"):
-                    await self.pubsub.publish("concept", {
-                        "type": "NEW_CONCEPT",
-                        "concept_id": result["concept_id"],
-                        "domain": domain,
-                        "timestamp": result["timestamp"]
-                    })
-        except Exception as e:
-            logger.error(f"Error handling observation: {e}")
-    
-    async def _handle_new_concept(self, message: dict):
-        """Handle new concept event from gossip"""
-        logger.info(f"Received new concept: {message.get('concept_id')}")
-        await self.gossip.broadcast(message, priority=1.0)
-    
-    async def _handle_new_rule(self, message: dict):
-        """Handle new rule event from gossip"""
-        logger.info(f"Received new rule: {message}")
-        await self.gossip.broadcast(message, priority=0.8)
-    
-    async def _handle_transfer(self, message: dict):
-        """Handle cross-domain transfer event"""
-        logger.info(f"Cross-domain transfer: {message}")
-    
-    async def _pursuit_loop(self):
-        """Periodically run pursuit agent cycles"""
-        while self.running:
-            try:
-                await self.pursuit.run_pursuit_cycle()
-                await asyncio.sleep(45)
-            except Exception as e:
-                logger.error(f"Error in pursuit loop: {e}")
-                await asyncio.sleep(10)
-    
-    async def _data_collection_loop(self):
-        """Continuously collect data from multiple sources in staggered batches"""
-        logger.info(f"Starting data collection for symbols: {list(self.symbols)}")
-        
-        batch_size = 20  # Process symbols in smaller batches
-        
-        while self.running:
-            try:
-                # Organic discovery
-                active_concepts = self.core.get_concepts_snapshot()
-                for cid, concept in active_concepts.items():
-                    domain = concept.get("domain", "")
-                    if domain.startswith("stock:") or domain.startswith("crypto:"):
-                        symbol = domain.split(":")[1].upper()
-                        if symbol not in self.symbols:
-                            logger.info(f"Organically discovered new asset: {symbol}")
-                            self.symbols.add(symbol)
-                
-                symbol_list = list(self.symbols)
-                for i in range(0, len(symbol_list), batch_size):
-                    if not self.running: break
-                    
-                    batch = symbol_list[i:i + batch_size]
-                    logger.info(f"Processing batch {i//batch_size + 1}: {batch}")
-                    
-                    ticks = await self.data_provider.fetch_batch(batch)
-                    
-                    for tick in ticks:
-                        if isinstance(tick, Exception): continue
-                        
-                        domain = f"stock:{tick.get('symbol')}"
-                        await self.core.ingest(tick, domain)
-                        
-                        if self.redis:
-                            await self.redis.cache_tick(tick.get('symbol'), tick)
-                    
-                    # Small delay between batches to keep the event loop free for the UI
-                    await asyncio.sleep(2)
-                
-                # Log metrics periodically
-                metrics = self.core.get_metrics()
-                logger.info(f"Metrics: {metrics}")
-                
-                await asyncio.sleep(self.update_interval)
-            
-            except Exception as e:
-                logger.error(f"Error in data collection loop: {e}")
-                await asyncio.sleep(5)
-    
-    async def _gossip_loop(self):
-        """Periodically broadcast gossip state"""
-        while self.running:
-            try:
-                stats = self.gossip.get_stats()
-                
-                # Broadcast gossip stats
-                await self.pubsub.publish("gossip", stats)
-                
-                # Cache gossip state
-                if self.redis:
-                    await self.redis.set_gossip_state(stats)
-                
-                await asyncio.sleep(30)
-            
-            except Exception as e:
-                logger.error(f"Error in gossip loop: {e}")
-                await asyncio.sleep(5)
-    
-    async def _metrics_reporter_loop(self):
-        """Periodically report system metrics"""
-        while self.running:
-            try:
-                metrics = self.core.get_metrics()
-                logger.info(f"System Metrics: {metrics}")
-                
-                # Save to database
-                if self.postgres:
-                    await self.postgres.save_metrics(metrics)
-                
-                await asyncio.sleep(60)
-            
-            except Exception as e:
-                logger.error(f"Error in metrics reporter: {e}")
-                await asyncio.sleep(10)
-    
-    async def _network_listener_loop(self):
-        """Listen for incoming network messages"""
-        await self.network.listen(self._handle_observation)
-    
-    async def _pubsub_listener_loop(self):
-        """Listen for published messages"""
-        await self.pubsub.listen()
-    
+
     async def run(self):
         """Run the Cognitive Mesh"""
         self.running = True
@@ -301,7 +110,109 @@ class CognitiveMeshOrchestrator:
         
         finally:
             await self.shutdown()
-    
+
+    async def _data_collection_loop(self):
+        """Continuously collect data from multiple sources with Attention Priority"""
+        logger.info("Starting prioritized data collection loop")
+        
+        batch_size = 20
+        priority_symbols = ["BTC", "ETH", "SOL", "HYPE", "TRUMP", "PUMP", "AAPL", "NVDA", "TSLA"]
+        
+        while self.running:
+            try:
+                # Organic discovery
+                active_concepts = self.core.get_concepts_snapshot()
+                for cid, concept in active_concepts.items():
+                    domain = concept.get("domain", "")
+                    if domain.startswith("stock:") or domain.startswith("crypto:"):
+                        symbol = domain.split(":")[1].upper()
+                        if symbol not in self.symbols:
+                            logger.info(f"Organically discovered new asset: {symbol}")
+                            self.symbols.add(symbol)
+                
+                all_symbols = list(self.symbols)
+                # Filter priority to those actually in self.symbols
+                current_priority = [s for s in priority_symbols if s in self.symbols]
+                others = [s for s in all_symbols if s not in current_priority]
+                
+                # Process priority symbols + a rotating batch of others
+                current_batch = current_priority + others[:batch_size]
+                # Rotate symbols for next cycle
+                self.symbols = set(current_priority + others[batch_size:] + others[:batch_size])
+                
+                logger.info(f"Processing Attention Batch: {current_batch}")
+                ticks = await self.data_provider.fetch_batch(current_batch)
+                
+                for tick in ticks:
+                    if isinstance(tick, Exception): continue
+                    domain = f"stock:{tick.get('symbol')}"
+                    await self.core.ingest(tick, domain)
+                    if self.redis:
+                        await self.redis.cache_tick(tick.get('symbol'), tick)
+                
+                metrics = self.core.get_metrics()
+                logger.info(f"System Metrics: {metrics}")
+                
+                await asyncio.sleep(self.update_interval)
+            
+            except Exception as e:
+                logger.error(f"Error in data collection loop: {e}")
+                await asyncio.sleep(5)
+
+    async def _pursuit_loop(self):
+        """Periodically run pursuit agent cycles"""
+        while self.running:
+            try:
+                await self.pursuit.run_pursuit_cycle()
+                await asyncio.sleep(45)
+            except Exception as e:
+                logger.error(f"Error in pursuit loop: {e}")
+                await asyncio.sleep(10)
+
+    async def _gossip_loop(self):
+        """Periodically broadcast gossip state"""
+        while self.running:
+            try:
+                state = self.core.get_state_summary()
+                await self.network.broadcast_gossip(state)
+                await asyncio.sleep(30)
+            except Exception as e:
+                logger.error(f"Error in gossip loop: {e}")
+                await asyncio.sleep(10)
+
+    async def _metrics_reporter_loop(self):
+        """Periodically report system-wide metrics"""
+        while self.running:
+            try:
+                metrics = self.core.get_metrics()
+                await self.pubsub.publish("metrics", metrics)
+                await asyncio.sleep(15)
+            except Exception as e:
+                logger.error(f"Error in metrics reporter: {e}")
+                await asyncio.sleep(5)
+
+    async def _network_listener_loop(self):
+        """Listen for incoming network messages"""
+        while self.running:
+            try:
+                msg = await self.network.receive()
+                if msg:
+                    await self.core.process_network_message(msg)
+            except Exception as e:
+                logger.error(f"Error in network listener: {e}")
+                await asyncio.sleep(1)
+
+    async def _pubsub_listener_loop(self):
+        """Listen for pubsub messages"""
+        while self.running:
+            try:
+                msg = await self.pubsub.receive()
+                if msg:
+                    await self.core.process_pubsub_message(msg)
+            except Exception as e:
+                logger.error(f"Error in pubsub listener: {e}")
+                await asyncio.sleep(1)
+
     async def shutdown(self):
         """Shutdown all components"""
         self.running = False
@@ -319,12 +230,10 @@ class CognitiveMeshOrchestrator:
         
         logger.info("Cognitive Mesh shutdown complete")
 
-
 async def main():
     """Main entry point"""
     orchestrator = CognitiveMeshOrchestrator()
     await orchestrator.run()
-
 
 if __name__ == "__main__":
     try:

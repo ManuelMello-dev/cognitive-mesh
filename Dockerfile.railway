@@ -15,7 +15,9 @@ RUN pip install --upgrade pip setuptools wheel
 COPY requirements-minimal.txt requirements.txt ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-minimal.txt
+RUN pip install --no-cache-dir -r requirements-minimal.txt || \
+    (pip install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 openai && \
+     echo "Core dependencies installed")
 
 # Copy application code
 COPY . .

@@ -28,3 +28,6 @@ pydantic==2.5.0
 
 # Logging
 structlog==23.3.0
+
+# LLM Layer
+openai==1.12.0
