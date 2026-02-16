@@ -37,8 +37,19 @@ class LLMInterpreter:
             concepts = self.core.get_concepts_snapshot()
             rules = self.core.get_rules_snapshot()
             
+            # Extract RAW data for specific assets to prevent LLM hallucinations
+            # We'll include the last 10 processed ticks from the mesh for the most relevant assets
+            raw_data_snapshot = {}
+            for symbol, agent in list(concepts.items())[:50]: # Look at top 50 active agents
+                if hasattr(agent, 'last_tick') and agent.last_tick:
+                    raw_data_snapshot[symbol] = {
+                        "price": agent.last_tick.get("price"),
+                        "volume": agent.last_tick.get("volume"),
+                        "change": agent.last_tick.get("change_pct"),
+                        "timestamp": agent.last_tick.get("timestamp")
+                    }
+
             # Prepare a summary of the 'brains' (the mesh)
-            # We provide the full metrics and a more detailed snapshot of active agents/concepts
             mesh_context = f"""
             SYSTEM STATE (Z³ ARCHITECTURE):
             Global Coherence (Φ): {metrics.get('global_coherence', 'N/A')}
@@ -46,12 +57,12 @@ class LLMInterpreter:
             Concepts Formed: {metrics.get('concepts_count', '0')}
             Transfers Made: {metrics.get('transfers_count', '0')}
             
-            ACTIVE DATA FEED (REAL-TIME PULSE):
-            The mesh is currently processing {len(concepts)} assets across Crypto and Stocks.
-            Top Active Agents: {list(concepts.keys())[:20]}
+            RAW MARKET DATA (TRUTH LAYER):
+            {raw_data_snapshot}
             
-            RECENT MESH ACTIVITY:
-            Active Rules: {len(rules)}
+            ACTIVE DATA FEED:
+            The mesh is currently processing {len(concepts)} assets.
+            Top Active Agents: {list(concepts.keys())[:20]}
             """
             
             messages = [
