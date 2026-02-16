@@ -113,25 +113,12 @@ class CognitiveMeshOrchestrator:
                 logger.warning(f"PostgreSQL connection failed: {e} — skipping")
                 self.postgres = None
 
-        # Milvus — run in executor to avoid blocking the event loop
+        # Milvus — deferred to background task so it NEVER blocks startup
         if Config.MILVUS_HOST and MilvusStore:
-            try:
-                self.milvus = MilvusStore(Config.MILVUS_HOST)
-                await asyncio.wait_for(
-                    self._connect_milvus_nonblocking(),
-                    timeout=5.0,
-                )
-                if self.milvus and self.milvus.connected:
-                    logger.info("Connected to Milvus")
-                else:
-                    logger.warning("Milvus connection failed — running without vector store")
-                    self.milvus = None
-            except asyncio.TimeoutError:
-                logger.warning("Milvus connection timed out (5s) — running without vector store")
-                self.milvus = None
-            except Exception as e:
-                logger.warning(f"Milvus connection failed: {e} — running without vector store")
-                self.milvus = None
+            logger.info(f"Milvus configured at {Config.MILVUS_HOST} — connecting in background...")
+            asyncio.create_task(self._connect_milvus_background())
+        else:
+            logger.info("Milvus not configured — running without vector store")
 
         # Redis
         if Config.REDIS_URL and RedisCache:
@@ -146,16 +133,33 @@ class CognitiveMeshOrchestrator:
                 logger.warning(f"Redis connection failed: {e} — skipping")
                 self.redis = None
 
-    async def _connect_milvus_nonblocking(self):
-        """Run the blocking Milvus connect() in a thread so it doesn't freeze the event loop"""
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._milvus_sync_connect)
+    async def _connect_milvus_background(self):
+        """Connect to Milvus in the background — never blocks startup"""
+        try:
+            self.milvus = MilvusStore(Config.MILVUS_HOST)
+            loop = asyncio.get_event_loop()
+            await asyncio.wait_for(
+                loop.run_in_executor(None, self._milvus_sync_connect),
+                timeout=10.0,
+            )
+            if self.milvus and self.milvus.connected:
+                self.core.milvus = self.milvus
+                logger.info("Connected to Milvus (background)")
+            else:
+                logger.warning("Milvus connection failed — running without vector store")
+                self.milvus = None
+        except asyncio.TimeoutError:
+            logger.warning("Milvus connection timed out — running without vector store")
+            self.milvus = None
+        except Exception as e:
+            logger.warning(f"Milvus background connect error: {e}")
+            self.milvus = None
 
     def _milvus_sync_connect(self):
         """Synchronous Milvus connection wrapper"""
         try:
             from pymilvus import connections
-            connections.connect("default", host=self.milvus.host, port=self.milvus.port, timeout=3)
+            connections.connect("default", host=self.milvus.host, port=self.milvus.port, timeout=5)
             self.milvus.connected = True
         except Exception as e:
             logger.warning(f"Milvus sync connect error: {e}")

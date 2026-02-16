@@ -1,22 +1,23 @@
-2026-02-16 15:55:50,052 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
-2026-02-16 15:55:50,053 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
-2026-02-16 15:55:50,053 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
-2026-02-16 15:55:50,053 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
-2026-02-16 15:55:50,053 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
-2026-02-16 15:55:50,184 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:55:50,184 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
-2026-02-16 15:55:50,316 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:55:50,316 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
-2026-02-16 15:55:52,187 - CognitiveMesh - INFO - HTTP server task is running.
-2026-02-16 15:55:52,187 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
-2026-02-16 15:55:52,187 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
-2026-02-16 15:55:52,188 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
-2026-02-16 15:55:52,188 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
-2026-02-16 15:55:52,189 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
-2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
-2026-02-16 15:55:52,189 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
-2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Cognitive Mesh is LIVE and ready for data.
-2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Starting prioritized data collection loop
-2026-02-16 15:55:55,375 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:55:55,398 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275355398 - Increase Concept Formation to 50 within 10 Cycles
-2026-02-16 15:55:55,398 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275355398 - Reduce Noise Level (SIGMA) from 0.100 to 0.050 in 5 Cycles
+2026-02-16 16:01:32,704 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
+2026-02-16 16:01:32,705 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
+2026-02-16 16:01:32,705 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
+2026-02-16 16:01:32,705 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
+2026-02-16 16:01:32,705 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
+2026-02-16 16:01:32,817 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 16:01:32,818 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 16:01:32,907 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 16:01:32,908 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 16:01:34,822 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 16:01:34,822 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 16:01:34,822 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 16:01:34,822 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 16:01:34,823 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 16:01:34,823 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Milvus not configured — running without vector store
+2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 16:01:34,823 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Cognitive Mesh is LIVE and ready for data.
+2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 16:01:37,770 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 16:01:37,792 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275697792 - Increase Concept Formation Rate
+2026-02-16 16:01:37,792 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275697792 - Reduce Noise Level to Enhance Signal Clarity

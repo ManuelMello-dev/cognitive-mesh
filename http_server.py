@@ -40,6 +40,10 @@ async def handle_chat(request):
         logger.error(f"Chat error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
+async def handle_health(request):
+    """Health check endpoint — always returns 200 immediately for Railway"""
+    return web.json_response({"status": "alive", "service": "cognitive-mesh"})
+
 async def handle_metrics(request):
     """Return current mesh metrics"""
     try:
@@ -192,6 +196,10 @@ async def start_http_server(core=None, data_provider=None):
     if data_provider:
         app['data_provider'] = data_provider
         
+    # Health check (Railway)
+    app.router.add_get('/healthz', handle_health)
+    app.router.add_get('/health', handle_health)
+    
     # Core endpoints
     app.router.add_get('/', handle_dashboard)
     app.router.add_get('/api/metrics', handle_metrics)
