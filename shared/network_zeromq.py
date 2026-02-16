@@ -84,6 +84,26 @@ class ZMQNode:
         if self.socket:
             self.socket.close()
         logger.info(f"ZeroMQ Node {self.identity} stopped")
+        
+    async def receive(self) -> Optional[Dict[str, Any]]:
+        """Non-blocking receive for the orchestrator loop"""
+        if not self.socket: return None
+        try:
+            # Try a non-blocking receive
+            frames = await self.socket.recv_multipart(flags=zmq.NOBLOCK)
+            if len(frames) >= 2:
+                return json.loads(frames[1].decode())
+        except zmq.Again:
+            return None
+        except Exception as e:
+            logger.error(f"Receive error: {e}")
+        return None
+        
+    async def broadcast_gossip(self, state: Dict[str, Any]):
+        """Broadcast state to the network"""
+        # In a real mesh, this would send to known peers
+        # For now, we'll just log that gossip is happening
+        logger.debug(f"Broadcasting gossip state: {state.get('node_id')}")
 
 
 class ZMQAgent:
@@ -212,3 +232,16 @@ class ZMQPubSub:
         if self.sub_socket:
             self.sub_socket.close()
         logger.info(f"PubSub {self.identity} stopped")
+        
+    async def receive(self) -> Optional[Dict[str, Any]]:
+        """Non-blocking receive for the subscriber"""
+        if not self.sub_socket: return None
+        try:
+            frames = await self.sub_socket.recv_multipart(flags=zmq.NOBLOCK)
+            if len(frames) >= 2:
+                return json.loads(frames[1].decode())
+        except zmq.Again:
+            return None
+        except Exception as e:
+            logger.error(f"PubSub receive error: {e}")
+        return None

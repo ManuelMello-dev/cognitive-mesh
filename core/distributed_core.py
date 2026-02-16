@@ -344,3 +344,21 @@ class DistributedCognitiveCore:
     def get_rules_snapshot(self) -> Dict[str, Any]:
         """Get snapshot of current rules"""
         return {rid: r for rid, r in self.rules.items()}
+        
+    def get_state_summary(self) -> Dict[str, Any]:
+        """Get a summary of the current mesh state for gossip"""
+        return {
+            "node_id": self.node_id,
+            "concepts": len(self.concepts),
+            "rules": len(self.rules),
+            "metrics": self.metrics,
+            "timestamp": time.time()
+        }
+        
+    async def process_network_message(self, msg: Any):
+        """Process incoming network message"""
+        logger.debug(f"Processing network message: {msg}")
+        
+    async def process_pubsub_message(self, msg: Any):
+        """Process incoming pubsub message"""
+        logger.debug(f"Processing pubsub message: {msg}")
