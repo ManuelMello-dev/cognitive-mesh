@@ -18,11 +18,20 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from core.distributed_core import DistributedCognitiveCore
 from agents.multi_source_provider import MultiSourceDataProvider
 from agents.pursuit_agent import PursuitAgent
-from shared.network_zeromq import ZeroMQNetwork
-from shared.pubsub_manager import PubSubManager
-from shared.postgres_store import PostgresStore
-from shared.milvus_store import MilvusStore
-from shared.redis_cache import RedisCache
+from shared.network_zeromq import ZMQNode, ZMQPubSub
+# Optional stores - only import if they exist
+try:
+    from shared.postgres_store import PostgresStore
+except ImportError:
+    PostgresStore = None
+try:
+    from shared.milvus_store import MilvusStore
+except ImportError:
+    MilvusStore = None
+try:
+    from shared.redis_cache import RedisCache
+except ImportError:
+    RedisCache = None
 from http_server import start_http_server
 
 class CognitiveMeshOrchestrator:
@@ -45,8 +54,8 @@ class CognitiveMeshOrchestrator:
         # Initialize components
         self.data_provider = MultiSourceDataProvider()
         self.core = DistributedCognitiveCore(node_id=self.node_id)
-        self.network = ZeroMQNetwork(node_id=self.node_id)
-        self.pubsub = PubSubManager(node_id=self.node_id)
+        self.network = ZMQNode(identity=self.node_id)
+        self.pubsub = ZMQPubSub(identity=self.node_id)
         
         # Optional persistence
         self.postgres = None
@@ -62,7 +71,8 @@ class CognitiveMeshOrchestrator:
         
         # Start networking
         await self.network.start()
-        await self.pubsub.start()
+        await self.pubsub.start_publisher()
+        await self.pubsub.start_subscriber(["concept", "rule", "transfer", "metrics", "goal"])
         
         # Connect to databases if configured
         if os.getenv("POSTGRES_URL"):
