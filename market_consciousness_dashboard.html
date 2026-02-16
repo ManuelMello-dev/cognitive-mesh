@@ -270,6 +270,14 @@
             <h3>Transfer Network Activity</h3>
             <div class="transfer-log" id="transferLog"></div>
         </div>
+
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Goals & Pursuits Log</h3>
+                <span id="goalsCount" style="color: #ff00ff; font-weight: bold;">[0]</span>
+            </div>
+            <div class="transfer-log" id="goalsLog" style="border-color: #ff00ff;"></div>
+        </div>
     </div>
 
     <script>
@@ -287,6 +295,7 @@
         let metrics = {
             conceptsFormed: 0,
             transfersMade: 0,
+            goalsGenerated: 0,
             coherenceScore: 0,
             noiseLevel: 0,
             awareness: PHI
@@ -542,6 +551,26 @@
             }
         }
 
+        function logGoal(goal) {
+            const log = document.getElementById('goalsLog');
+            const entry = document.createElement('div');
+            entry.className = 'transfer-entry';
+            entry.style.borderLeft = '2px solid #ff00ff';
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `
+                <span class="timestamp" style="color: #ff00ff;">${time}</span>
+                <span style="color: #ff00ff; font-weight: bold; margin-right: 10px;">GOAL</span>
+                <span>${goal}</span>
+            `;
+            log.insertBefore(entry, log.firstChild);
+            metrics.goalsGenerated++;
+            document.getElementById('goalsCount').textContent = `[${metrics.goalsGenerated}]`;
+            
+            while (log.children.length > 20) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
         // Main simulation loop
         let lastTime = Date.now();
         function simulate() {
@@ -561,6 +590,20 @@
             // Occasional transfers
             if (Math.random() < 0.1) {
                 simulateTransfers();
+            }
+
+            // Occasional goal generation
+            if (Math.random() < 0.02) {
+                const goals = [
+                    "Refining rule coherence for AAPL",
+                    "Exploring cross-domain transfer: BTC -> NVDA",
+                    "Optimizing pursuit agent for market noise",
+                    "Analyzing emergent concept covariance",
+                    "Stabilizing phi-drift in global mind",
+                    "Pursuing new asset discovery: SOL",
+                    "Validating Z3 attractor stability"
+                ];
+                logGoal(goals[Math.floor(Math.random() * goals.length)]);
             }
             
             // Vary noise (market volatility)

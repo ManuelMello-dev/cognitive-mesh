@@ -25,6 +25,7 @@ from core.distributed_core import DistributedCognitiveCore
 from shared.gossip_amfg import AMFGProtocol
 from shared.network_zeromq import ZMQNode, ZMQAgent, ZMQPubSub
 from http_server import start_http_server
+from agents.pursuit_agent import PursuitAgent
 
 # Optional database components
 try:
@@ -57,7 +58,8 @@ class CognitiveMeshOrchestrator:
     
     def __init__(self):
         self.node_id = os.getenv("NODE_ID", "global_mind_01")
-        self.symbols = os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH").split(",")
+        # Initialize with a few seeds, but the system will now discover more
+        self.symbols = set(os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH,SOL,BNB,XRP").split(","))
         self.update_interval = int(os.getenv("UPDATE_INTERVAL", "60"))
         
         # Initialize components
@@ -72,6 +74,7 @@ class CognitiveMeshOrchestrator:
         self.gossip = AMFGProtocol(self.node_id)
         self.network = ZMQNode(self.node_id, port=int(os.getenv("LISTEN_PORT", "5555")))
         self.pubsub = ZMQPubSub(self.node_id)
+        self.pursuit = PursuitAgent(self.core, self.pubsub)
         
         self.running = False
     
@@ -156,14 +159,34 @@ class CognitiveMeshOrchestrator:
         """Handle cross-domain transfer event"""
         logger.info(f"Cross-domain transfer: {message}")
     
+    async def _pursuit_loop(self):
+        """Periodically run pursuit agent cycles"""
+        while self.running:
+            try:
+                await self.pursuit.run_pursuit_cycle()
+                await asyncio.sleep(45)
+            except Exception as e:
+                logger.error(f"Error in pursuit loop: {e}")
+                await asyncio.sleep(10)
+    
     async def _data_collection_loop(self):
         """Continuously collect data from multiple sources"""
-        logger.info(f"Starting data collection for symbols: {self.symbols}")
+        logger.info(f"Starting data collection for symbols: {list(self.symbols)}")
         
         while self.running:
             try:
+                # Organic discovery: check for new domains/concepts in the core
+                active_concepts = self.core.get_concepts_snapshot()
+                for cid, concept in active_concepts.items():
+                    domain = concept.get("domain", "")
+                    if domain.startswith("stock:") or domain.startswith("crypto:"):
+                        symbol = domain.split(":")[1].upper()
+                        if symbol not in self.symbols:
+                            logger.info(f"Organically discovered new asset: {symbol}")
+                            self.symbols.add(symbol)
+                
                 # Fetch data for all symbols
-                ticks = await self.data_provider.fetch_batch(self.symbols)
+                ticks = await self.data_provider.fetch_batch(list(self.symbols))
                 
                 # Process each tick
                 for tick in ticks:
@@ -251,6 +274,7 @@ class CognitiveMeshOrchestrator:
             # Run all components concurrently
             await asyncio.gather(
                 self._data_collection_loop(),
+                self._pursuit_loop(),
                 self._gossip_loop(),
                 self._metrics_reporter_loop(),
                 self._network_listener_loop(),
