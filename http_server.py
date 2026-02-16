@@ -34,7 +34,7 @@ async def start_http_server():
     app.router.add_get('/dashboard', handle_dashboard)
     app.router.add_get('/eeg', handle_eeg)
     
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 80))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
