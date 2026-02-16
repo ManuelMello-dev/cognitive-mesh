@@ -26,8 +26,6 @@ RUN mkdir -p /app/logs
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=INFO
-ENV PORT=80
-EXPOSE 80
 
 # Run the application
 CMD ["python", "main.py"]

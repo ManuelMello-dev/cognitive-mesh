@@ -34,10 +34,13 @@ async def start_http_server():
     app.router.add_get('/dashboard', handle_dashboard)
     app.router.add_get('/eeg', handle_eeg)
     
-    port = int(os.getenv("PORT", 80))
+    # Railway provides the port via the PORT environment variable
+    port = int(os.getenv("PORT", 8080))
+    logger.info(f"Binding HTTP server to 0.0.0.0:{port}")
+    
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
+    site = web.TCPSite(runner, host='0.0.0.0', port=port)
     
     logger.info(f"Starting HTTP server on port {port}...")
     await site.start()
