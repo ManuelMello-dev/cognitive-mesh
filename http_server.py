@@ -42,9 +42,12 @@ async def start_http_server():
     logger.info(f"Starting HTTP server on port {port}...")
     await site.start()
     
-    # Keep the runner alive
-    while True:
-        await asyncio.sleep(3600)
+    # Return the runner to keep it alive or just wait forever if used in gather
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        await runner.cleanup()
 
 if __name__ == "__main__":
     # For standalone testing

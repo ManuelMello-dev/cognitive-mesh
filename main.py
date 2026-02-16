@@ -240,6 +240,12 @@ class CognitiveMeshOrchestrator:
         self.running = True
         
         try:
+            # Start HTTP server first and independently to satisfy Railway health checks
+            http_task = asyncio.create_task(start_http_server())
+            
+            # Wait a moment for HTTP server to bind
+            await asyncio.sleep(1)
+            
             await self.initialize()
             
             # Run all components concurrently
@@ -249,7 +255,7 @@ class CognitiveMeshOrchestrator:
                 self._metrics_reporter_loop(),
                 self._network_listener_loop(),
                 self._pubsub_listener_loop(),
-                start_http_server(),
+                http_task,
                 return_exceptions=True
             )
         
