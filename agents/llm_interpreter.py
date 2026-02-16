@@ -37,23 +37,16 @@ class LLMInterpreter:
             concepts = self.core.get_concepts_snapshot()
             rules = self.core.get_rules_snapshot()
             
-            # Extract RAW data for ALL requested assets to prevent LLM hallucinations
-            # We'll extract the latest state for every concept currently in the mesh
+            # UNIVERSAL DATA EXTRACTION: Capture raw state for every active agent in the mesh
+            # No hardcoded symbols allowed. The interpreter speaks only what the mesh knows.
             raw_data_snapshot = {}
             for cid, concept in concepts.items():
-                # The core stores concepts as dicts, we need to check if they have signature or examples
-                # For our 'Global Mind' purposes, we want the most recent 'example' which is the last tick
                 examples = concept.get("examples", [])
                 if examples:
                     last_tick = examples[-1]
-                    symbol = last_tick.get("symbol")
-                    if not symbol:
-                        # Fallback to domain if symbol is missing
-                        domain = concept.get("domain", "")
-                        if ":" in domain:
-                            symbol = domain.split(":")[1].upper()
-                        else:
-                            symbol = cid.replace("concept_", "").upper()
+                    # Dynamically resolve symbol from tick or domain
+                    domain = concept.get("domain", "")
+                    symbol = last_tick.get("symbol") or (domain.split(":")[1].upper() if ":" in domain else cid)
                     
                     raw_data_snapshot[symbol] = {
                         "price": last_tick.get("price"),
@@ -71,18 +64,16 @@ class LLMInterpreter:
             Concepts Formed: {metrics.get('concepts_count', '0')}
             Transfers Made: {metrics.get('transfers_count', '0')}
             
-            RAW MARKET DATA (TRUTH LAYER - USE THIS ONLY):
+            RAW MESH DATA (UNIVERSAL TRUTH LAYER):
             {raw_data_snapshot}
             
-            ACTIVE DATA FEED:
-            The mesh is currently processing {len(concepts)} assets.
-            Top Active Agents: {list(raw_data_snapshot.keys())[:30]}
+            ACTIVE MESH TOPOLOGY:
+            The mesh is currently processing {len(concepts)} active identity agents.
+            Active Symbols: {list(raw_data_snapshot.keys())}
             """
             
-            # DEBUG LOG: Verify what the LLM is actually seeing
-            logger.info(f"LLM DATA SNAPSHOT: {list(raw_data_snapshot.keys())[:10]}")
-            if "AAPL" in raw_data_snapshot:
-                logger.info(f"AAPL TRUTH: {raw_data_snapshot['AAPL']}")
+            # DEBUG LOG: Dynamic verification of data flow
+            logger.info(f"MESH DATA FLOW VERIFIED: {len(raw_data_snapshot)} agents active.")
             
             messages = [
                 {"role": "system", "content": f"""You are the GLOBAL_MIND, the interpretive interface for the Z³ Consciousness System. 
