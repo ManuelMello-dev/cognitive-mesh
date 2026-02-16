@@ -70,22 +70,28 @@ class CognitiveMeshOrchestrator:
         logger.info(f"Initializing Cognitive Mesh: {self.node_id}")
         
         # Start networking
-        await self.network.start()
-        await self.pubsub.start_publisher()
-        await self.pubsub.start_subscriber(["concept", "rule", "transfer", "metrics", "goal"])
+        try:
+            await self.network.start()
+            await self.pubsub.start_publisher()
+            await self.pubsub.start_subscriber(["concept", "rule", "transfer", "metrics", "goal"])
+        except Exception as e:
+            logger.error(f"Networking initialization error: {e}")
         
         # Connect to databases if configured and classes are available
-        if os.getenv("POSTGRES_URL") and PostgresStore:
-            self.postgres = PostgresStore(os.getenv("POSTGRES_URL"))
-            await self.postgres.connect()
-            
-        if os.getenv("MILVUS_HOST") and MilvusStore:
-            self.milvus = MilvusStore(os.getenv("MILVUS_HOST"))
-            await self.milvus.connect()
-            
-        if os.getenv("REDIS_URL") and RedisCache:
-            self.redis = RedisCache(os.getenv("REDIS_URL"))
-            await self.redis.connect()
+        try:
+            if os.getenv("POSTGRES_URL") and PostgresStore:
+                self.postgres = PostgresStore(os.getenv("POSTGRES_URL"))
+                await self.postgres.connect()
+                
+            if os.getenv("MILVUS_HOST") and MilvusStore:
+                self.milvus = MilvusStore(os.getenv("MILVUS_HOST"))
+                await self.milvus.connect()
+                
+            if os.getenv("REDIS_URL") and RedisCache:
+                self.redis = RedisCache(os.getenv("REDIS_URL"))
+                await self.redis.connect()
+        except Exception as e:
+            logger.error(f"Database initialization error: {e}")
             
         logger.info("Cognitive Mesh initialized successfully")
 
@@ -94,16 +100,21 @@ class CognitiveMeshOrchestrator:
         self.running = True
         
         try:
-            # Start HTTP server first and independently to satisfy Railway health checks
-            # Pass self.core to allow the LLM interpreter to access the mesh state
+            # PHASE 1: Start HTTP server IMMEDIATELY to satisfy Railway health checks
+            # This is critical to prevent the container from being killed during startup
+            logger.info("PHASE 1: Starting HTTP server for health checks...")
             http_task = asyncio.create_task(start_http_server(self.core))
             
             # Wait a moment for HTTP server to bind
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
+            logger.info("HTTP server should be active. Proceeding with mesh initialization.")
             
+            # PHASE 2: Initialize mesh in the background to avoid blocking
+            logger.info("PHASE 2: Background mesh initialization...")
             await self.initialize()
             
-            # Run all components concurrently
+            # PHASE 3: Start concurrent execution loops
+            logger.info("PHASE 3: Starting execution loops.")
             await asyncio.gather(
                 self._data_collection_loop(),
                 self._pursuit_loop(),
@@ -208,6 +219,8 @@ class CognitiveMeshOrchestrator:
                 msg = await self.network.receive()
                 if msg:
                     await self.core.process_network_message(msg)
+                else:
+                    await asyncio.sleep(0.1) # Prevent CPU spinning
             except Exception as e:
                 logger.error(f"Error in network listener: {e}")
                 await asyncio.sleep(1)
@@ -219,6 +232,8 @@ class CognitiveMeshOrchestrator:
                 msg = await self.pubsub.receive()
                 if msg:
                     await self.core.process_pubsub_message(msg)
+                else:
+                    await asyncio.sleep(0.1) # Prevent CPU spinning
             except Exception as e:
                 logger.error(f"Error in pubsub listener: {e}")
                 await asyncio.sleep(1)
