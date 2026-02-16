@@ -58,8 +58,16 @@ class CognitiveMeshOrchestrator:
     
     def __init__(self):
         self.node_id = os.getenv("NODE_ID", "global_mind_01")
-        # Initialize with a few seeds, but the system will now discover more
-        self.symbols = set(os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH,SOL,BNB,XRP").split(","))
+        # Load expanded seed symbols from file
+        try:
+            with open("seed_symbols.txt", "r") as f:
+                seeds = f.read().strip().split(",")
+            self.symbols = set(seeds)
+            logger.info(f"Loaded {len(self.symbols)} seed symbols from file")
+        except Exception as e:
+            logger.warning(f"Could not load seed_symbols.txt: {e}. Falling back to defaults.")
+            self.symbols = set(os.getenv("SYMBOLS", "AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH,SOL,BNB,XRP").split(","))
+            
         self.update_interval = int(os.getenv("UPDATE_INTERVAL", "60"))
         
         # Initialize components
