@@ -15,16 +15,32 @@
             font-family: 'Courier New', monospace;
             background: #0a0e27;
             color: #00ff41;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto 1fr 1fr;
+            grid-template-rows: auto auto auto auto;
             gap: 10px;
             padding: 10px;
-            height: 100vh;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+            }
+            
+            .phi-display {
+                font-size: 24px;
+            }
+            
+            .title {
+                font-size: 18px;
+            }
         }
 
         .panel {
