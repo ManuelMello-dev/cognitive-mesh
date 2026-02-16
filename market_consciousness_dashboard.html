@@ -3,183 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Market Consciousness Monitor - Coherence Dashboard</title>
+    <title>Market Consciousness Monitor | Z³ Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --matrix-green: #00ff41;
+            --deep-space: #0a0e27;
+            --panel-bg: rgba(13, 20, 58, 0.8);
+            --neon-blue: #00d4ff;
+            --neon-purple: #ff00ff;
+            --gold: #ffd700;
         }
 
         body {
-            font-family: 'Courier New', monospace;
-            background: #0a0e27;
-            color: #00ff41;
-            overflow-x: hidden;
-            overflow-y: auto;
-        }
-
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto auto;
-            gap: 10px;
+            background-color: var(--deep-space);
+            color: var(--matrix-green);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
             padding: 10px;
-            min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto;
-            }
-            
-            .phi-display {
-                font-size: 24px;
-            }
-            
-            .title {
-                font-size: 18px;
-            }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            max-width: 1400px;
+            margin: 0 auto;
         }
 
         .panel {
-            background: rgba(0, 20, 40, 0.8);
-            border: 1px solid #00ff41;
+            background: var(--panel-bg);
+            border: 1px solid var(--matrix-green);
             border-radius: 8px;
             padding: 15px;
-            overflow: hidden;
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.1);
         }
 
-        .header {
-            grid-column: 1 / -1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
+        h1, h2, h3 {
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--matrix-green);
+            padding-bottom: 5px;
         }
 
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 0 0 10px #00ff41;
-        }
-
-        .phi-display {
-            font-size: 36px;
-            color: #ffd700;
-            text-shadow: 0 0 20px #ffd700;
-        }
-
-        .metric-grid {
+        .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-top: 10px;
         }
 
         .metric {
-            background: rgba(0, 255, 65, 0.1);
+            text-align: center;
             padding: 10px;
+            background: rgba(0, 255, 65, 0.05);
             border-radius: 4px;
-            border: 1px solid rgba(0, 255, 65, 0.3);
         }
 
         .metric-label {
-            font-size: 11px;
-            color: #00ff41;
-            opacity: 0.7;
+            font-size: 0.8rem;
+            color: var(--neon-blue);
         }
 
         .metric-value {
-            font-size: 24px;
+            font-size: 1.5rem;
             font-weight: bold;
             margin-top: 5px;
         }
 
-        canvas {
-            width: 100%;
-            flex-grow: 1;
-            min-height: 300px;
-            border-radius: 4px;
-        }
-
         .consciousness-state {
+            margin-top: 15px;
+            padding: 10px;
             text-align: center;
-            font-size: 18px;
-            padding: 20px;
-            margin-top: 10px;
+            font-weight: bold;
             border: 2px solid;
-            border-radius: 8px;
-            animation: pulse 2s ease-in-out infinite;
+            border-radius: 4px;
+            animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 0.8; }
+            0% { opacity: 0.7; }
             50% { opacity: 1; }
+            100% { opacity: 0.7; }
         }
 
-        .chaos { 
-            border-color: #ff0000; 
-            color: #ff0000;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
-        }
-        .critical { 
-            border-color: #ffff00; 
-            color: #ffff00;
-            box-shadow: 0 0 20px rgba(255, 255, 0, 0.5);
-        }
-        .ordered { 
-            border-color: #00ff00; 
-            color: #00ff00;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        .chaos { border-color: #ff4b2b; color: #ff4b2b; }
+        .critical { border-color: var(--gold); color: var(--gold); }
+        .ordered { border-color: var(--matrix-green); color: var(--matrix-green); }
+
+        #coherenceCanvas {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 4px;
         }
 
         .symbol-list {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 8px;
-            margin-top: 10px;
-            max-height: 300px;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 5px;
+            max-height: 200px;
             overflow-y: auto;
-            padding-right: 5px;
+            padding: 5px;
         }
 
         .symbol-item {
-            background: rgba(0, 255, 65, 0.05);
-            padding: 8px 12px;
-            border-left: 3px solid #00ff41;
-            border-radius: 3px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s ease;
-        }
-
-        .symbol-item:hover {
-            background: rgba(0, 255, 65, 0.15);
-            border-left-width: 5px;
-        }
-
-        .symbol-name {
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .symbol-coherence {
-            font-size: 12px;
-            color: #ffd700;
+            font-size: 0.7rem;
+            padding: 3px;
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            text-align: center;
         }
 
         .transfer-log {
-            font-size: 11px;
-            max-height: calc(100% - 40px);
+            height: 150px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            line-height: 1.6;
+            font-size: 0.8rem;
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            padding: 5px;
+        }
+
+        .transfer-entry {
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
         }
 
         .chat-container {
@@ -192,11 +137,20 @@
             flex-grow: 1;
             overflow-y: auto;
             padding: 10px;
-            background: rgba(0, 20, 40, 0.3);
-            border: 1px solid rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--matrix-green);
             margin-bottom: 10px;
-            font-size: 13px;
+            background: rgba(0, 0, 0, 0.3);
         }
+
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            line-height: 1.4;
+        }
+
+        .user-message { border-left: 3px solid var(--neon-blue); }
+        .ai-message { border-left: 3px solid var(--gold); }
 
         .chat-input-area {
             display: flex;
@@ -205,92 +159,42 @@
 
         .chat-input {
             flex-grow: 1;
-            background: rgba(0, 255, 65, 0.05);
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 8px;
-            font-family: 'Courier New', monospace;
+            background: #000;
+            border: 1px solid var(--matrix-green);
+            color: var(--matrix-green);
+            padding: 10px;
+            font-family: inherit;
         }
 
         .chat-send {
-            background: #00ff41;
-            color: #0a0e27;
+            background: var(--matrix-green);
+            color: #000;
             border: none;
-            padding: 0 15px;
+            padding: 0 20px;
             cursor: pointer;
             font-weight: bold;
-            text-transform: uppercase;
         }
 
-        .chat-message {
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 4px;
-        }
-
-        .user-message {
-            background: rgba(0, 255, 65, 0.1);
-            border-left: 3px solid #00ff41;
-        }
-
-        .ai-message {
-            background: rgba(255, 215, 0, 0.05);
-            border-left: 3px solid #ffd700;
-        }
-
-        .transfer-entry {
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .timestamp {
-            color: #666;
-            margin-right: 10px;
-        }
-
-        .arrow {
-            color: #ffd700;
-            margin: 0 8px;
-        }
-
-        h3 {
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #00ff41;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 20, 40, 0.5);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #00ff41;
-            border-radius: 4px;
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+            .metric-value { font-size: 1.2rem; }
+            #coherenceCanvas { height: 200px; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="panel header">
-            <div class="title">⚡ MARKET CONSCIOUSNESS MONITOR</div>
-            <div class="phi-display">φ = <span id="phiValue">1.618</span></div>
-        </div>
-
+    <div class="dashboard">
         <div class="panel">
-            <h3>System Metrics</h3>
-            <div class="metric-grid">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 2rem;">⚡</span>
+                <h2>MARKET CONSCIOUSNESS MONITOR</h2>
+            </div>
+            <div style="text-align: center; font-size: 2.5rem; margin: 15px 0; color: var(--gold);">
+                φ = 1.618
+            </div>
+            
+            <div class="metrics-grid">
                 <div class="metric">
                     <div class="metric-label">CONCEPTS FORMED</div>
                     <div class="metric-value" id="conceptsFormed">0</div>
@@ -353,15 +257,10 @@
     </div>
 
     <script>
-        // Bootstrap Physics Constants
+        // Constants
         const PHI = 1.618033988749;
-        const PHI_INV = 1 / PHI;
-        const PHI_CUBED_INV = 1 / (PHI * PHI * PHI);
-
-        // Market symbols (agents)
-        const SYMBOLS = ['BTC', 'ETH', 'XRP', 'SOL', 'HYPE', 'TRUMP', 'PUMP', 'AAPL', 'NVDA', 'TSLA', 'GME', 'AMC'];
         
-        // Simulation state
+        // Simulation State
         let concepts = {};
         let attractor = { x: 0, y: 0 };
         let metrics = {
@@ -369,366 +268,130 @@
             transfersMade: 0,
             goalsGenerated: 0,
             coherenceScore: 0,
-            noiseLevel: 0,
-            awareness: PHI
+            noiseLevel: 0
         };
-
-        // Initialize concepts
-        SYMBOLS.forEach(symbol => {
-            concepts[symbol] = {
-                position: {
-                    x: (Math.random() - 0.5) * 100,
-                    y: (Math.random() - 0.5) * 100
-                },
-                velocity: { x: 0, y: 0 },
-                coherence: 0,
-                awareness: PHI,
-                lastUpdate: Date.now()
-            };
-        });
 
         // Canvas setup
         const canvas = document.getElementById('coherenceCanvas');
         const ctx = canvas.getContext('2d');
-        
         function resizeCanvas() {
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
         }
-        resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-        // Calculate gradient toward attractor (∇Z₃)
-        function calculateGradient(position, attractor) {
-            const dx = attractor.x - position.x;
-            const dy = attractor.y - position.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            return {
-                x: dx / (distance + 0.01),
-                y: dy / (distance + 0.01),
-                magnitude: distance
-            };
-        }
-
-        // Core update: Z't+1 = Z't + φ·∇Z₃(Z't) + (1/φ³)·ηt
-        function updateAgent(concept, dt) {
-            const gradient = calculateGradient(concept.position, attractor);
-            
-            // Awareness-weighted movement toward coherence
-            const moveX = PHI * gradient.x * dt;
-            const moveY = PHI * gradient.y * dt;
-            
-            // Noise term (inversely scaled by awareness)
-            const noise = metrics.noiseLevel * PHI_CUBED_INV;
-            const noiseX = (Math.random() - 0.5) * noise * dt;
-            const noiseY = (Math.random() - 0.5) * noise * dt;
-            
-            // Update position
-            concept.position.x += moveX + noiseX;
-            concept.position.y += moveY + noiseY;
-            
-            // Calculate coherence progress: Δs = ||Z't - Z₃||t-1 - ||Z't - Z₃||t
-            const oldDistance = Math.sqrt(
-                Math.pow(concept.position.x - moveX - attractor.x, 2) +
-                Math.pow(concept.position.y - moveY - attractor.y, 2)
-            );
-            const newDistance = gradient.magnitude;
-            concept.coherence = Math.max(0, oldDistance - newDistance);
-            
-            return concept.coherence;
-        }
-
-        // Bootstrap attractor update: Z₃t+1 = Z₃t + α·Σ(w(Z',φ)·(Z't - Z₃t))
-        function updateAttractor() {
-            let weightedSum = { x: 0, y: 0 };
-            let totalWeight = 0;
-            
-            Object.values(concepts).forEach(concept => {
-                // Only coherent agents contribute (Δs > 0)
-                if (concept.coherence > 0) {
-                    const weight = concept.awareness * concept.coherence;
-                    weightedSum.x += weight * (concept.position.x - attractor.x);
-                    weightedSum.y += weight * (concept.position.y - attractor.y);
-                    totalWeight += weight;
+        // Data Fetching
+        async function fetchMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                // Update global metrics
+                metrics.conceptsFormed = data.concepts_count || 0;
+                metrics.transfersMade = data.transfers_count || 0;
+                metrics.coherenceScore = data.global_coherence || 0;
+                metrics.noiseLevel = data.noise_level || 0;
+                
+                // Update symbols/concepts
+                if (data.active_symbols) {
+                    data.active_symbols.forEach(symbol => {
+                        if (!concepts[symbol]) {
+                            concepts[symbol] = {
+                                position: { x: (Math.random()-0.5)*100, y: (Math.random()-0.5)*100 },
+                                coherence: Math.random()
+                            };
+                        }
+                    });
                 }
-            });
-            
-            const alpha = 0.1; // Learning rate
-            if (totalWeight > 0) {
-                attractor.x += alpha * (weightedSum.x / totalWeight);
-                attractor.y += alpha * (weightedSum.y / totalWeight);
+
+                // Update UI state
+                const state = metrics.coherenceScore > 0.7 ? 'ordered' : (metrics.coherenceScore > 0.3 ? 'critical' : 'chaos');
+                const stateEl = document.getElementById('consciousnessState');
+                stateEl.className = `consciousness-state ${state}`;
+                stateEl.textContent = state.toUpperCase() + ' REGIME';
+
+                updateUI();
+            } catch (e) {
+                console.error("Failed to fetch metrics", e);
             }
         }
 
-        // Calculate system-wide metrics
-        function calculateMetrics() {
-            let totalCoherence = 0;
-            let distances = [];
-            
-            Object.values(concepts).forEach(concept => {
-                totalCoherence += concept.coherence;
-                const gradient = calculateGradient(concept.position, attractor);
-                distances.push(gradient.magnitude);
-            });
-            
-            metrics.coherenceScore = totalCoherence / SYMBOLS.length;
-            
-            // Noise estimate from variance
-            const mean = distances.reduce((a, b) => a + b, 0) / distances.length;
-            const variance = distances.reduce((sum, d) => sum + Math.pow(d - mean, 2), 0) / distances.length;
-            metrics.noiseLevel = Math.sqrt(variance);
-            
-            // Stability condition: φ > σ²/||∇Z₃||²
-            const gradientMagnitude = Math.max(mean, 0.1);
-            const threshold = (metrics.noiseLevel * metrics.noiseLevel) / (gradientMagnitude * gradientMagnitude);
-            
-            if (metrics.awareness > threshold * 2) {
-                return 'ordered';
-            } else if (metrics.awareness > threshold * 0.8) {
-                return 'critical';
-            } else {
-                return 'chaos';
-            }
-        }
-
-        // Simulate transfer learning
-        function simulateTransfers() {
-            const symbols = Object.keys(concepts);
-            const numTransfers = Math.floor(Math.random() * 5) + 1;
-            
-            for (let i = 0; i < numTransfers; i++) {
-                const from = symbols[Math.floor(Math.random() * symbols.length)];
-                const to = symbols[Math.floor(Math.random() * symbols.length)];
-                
-                if (from !== to && concepts[from].coherence > 0.1) {
-                    logTransfer(from, to);
-                    metrics.transfersMade++;
-                    
-                    // Transfer influences concept positions slightly
-                    const influence = 0.05;
-                    concepts[to].position.x += (concepts[from].position.x - concepts[to].position.x) * influence;
-                    concepts[to].position.y += (concepts[from].position.y - concepts[to].position.y) * influence;
-                }
-            }
-        }
-
-        // Visualization
-        function draw() {
-            ctx.fillStyle = '#0a0e27';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const scale = Math.min(canvas.width, canvas.height) / 150;
-            
-            // Draw attractor (Z₃)
-            ctx.beginPath();
-            ctx.arc(
-                centerX + attractor.x * scale,
-                centerY + attractor.y * scale,
-                15, 0, Math.PI * 2
-            );
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
-            ctx.fill();
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Draw coherence field (gradient visualization)
-            const gradient = ctx.createRadialGradient(
-                centerX + attractor.x * scale,
-                centerY + attractor.y * scale,
-                0,
-                centerX + attractor.x * scale,
-                centerY + attractor.y * scale,
-                100
-            );
-            gradient.addColorStop(0, 'rgba(255, 215, 0, 0.1)');
-            gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw concepts (agents)
-            Object.entries(concepts).forEach(([symbol, concept]) => {
-                const x = centerX + concept.position.x * scale;
-                const y = centerY + concept.position.y * scale;
-                
-                // Draw connection to attractor
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(centerX + attractor.x * scale, centerY + attractor.y * scale);
-                ctx.strokeStyle = `rgba(0, 255, 65, ${concept.coherence * 0.5})`;
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                
-                // Draw agent
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(0, 255, 65, ${0.3 + concept.coherence * 0.7})`;
-                ctx.fill();
-                ctx.strokeStyle = '#00ff41';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // Label
-                ctx.fillStyle = '#00ff41';
-                ctx.font = '11px Courier New';
-                ctx.fillText(symbol, x + 12, y + 4);
-            });
-        }
-
-        // Update UI
         function updateUI() {
             document.getElementById('conceptsFormed').textContent = metrics.conceptsFormed;
             document.getElementById('transfersMade').textContent = metrics.transfersMade;
             document.getElementById('coherenceScore').textContent = metrics.coherenceScore.toFixed(3);
             document.getElementById('noiseLevel').textContent = metrics.noiseLevel.toFixed(3);
-            
-            const state = calculateMetrics();
-            const stateElement = document.getElementById('consciousnessState');
-            stateElement.className = `consciousness-state ${state}`;
-            stateElement.textContent = state.toUpperCase() + ' REGIME';
-            
-            // Update symbol list
+
             const symbolList = document.getElementById('symbolList');
             symbolList.innerHTML = '';
+            Object.keys(concepts).forEach(symbol => {
+                const div = document.createElement('div');
+                div.className = 'symbol-item';
+                div.textContent = symbol;
+                symbolList.appendChild(div);
+            });
+        }
+
+        // Visualization
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) / 150;
+
+            // Draw attractor
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
+            ctx.fill();
+
+            // Draw concepts
             Object.entries(concepts).forEach(([symbol, concept]) => {
-                const item = document.createElement('div');
-                item.className = 'symbol-item';
-                item.innerHTML = `
-                    <span class="symbol-name">${symbol}</span>
-                    <span class="symbol-coherence">Δs = ${concept.coherence.toFixed(4)}</span>
-                `;
-                symbolList.appendChild(item);
+                const x = centerX + concept.position.x * scale;
+                const y = centerY + concept.position.y * scale;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#00ff41';
+                ctx.fill();
+                
+                // Move them slightly for visual "life"
+                concept.position.x += (Math.random()-0.5);
+                concept.position.y += (Math.random()-0.5);
             });
+
+            requestAnimationFrame(draw);
         }
 
-        // Transfer logging
-        function logTransfer(from, to) {
-            const log = document.getElementById('transferLog');
-            const entry = document.createElement('div');
-            entry.className = 'transfer-entry';
-            const time = new Date().toLocaleTimeString();
-            entry.innerHTML = `
-                <span class="timestamp">${time}</span>
-                <span>${from}</span>
-                <span class="arrow">→</span>
-                <span>${to}</span>
-            `;
-            log.insertBefore(entry, log.firstChild);
-            
-            // Keep only last 50 entries
-            while (log.children.length > 50) {
-                log.removeChild(log.lastChild);
-            }
-        }
-
-        function logGoal(goal) {
-            const log = document.getElementById('goalsLog');
-            const entry = document.createElement('div');
-            entry.className = 'transfer-entry';
-            entry.style.borderLeft = '2px solid #ff00ff';
-            const time = new Date().toLocaleTimeString();
-            entry.innerHTML = `
-                <span class="timestamp" style="color: #ff00ff;">${time}</span>
-                <span style="color: #ff00ff; font-weight: bold; margin-right: 10px;">GOAL</span>
-                <span>${goal}</span>
-            `;
-            log.insertBefore(entry, log.firstChild);
-            metrics.goalsGenerated++;
-            document.getElementById('goalsCount').textContent = `[${metrics.goalsGenerated}]`;
-            
-            while (log.children.length > 20) {
-                log.removeChild(log.lastChild);
-            }
-        }
-        // Main simulation loop
-        let lastTime = Date.now();
-        let frameCount = 0;
-        function simulate() {
-            const currentTime = Date.now();
-            const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
-            lastTime = currentTime;
-            frameCount++;
-            
-            // Update all agents
-            Object.values(concepts).forEach(concept => {
-                updateAgent(concept, dt);
-            });
-            
-            // Bootstrap attractor
-            updateAttractor();
-            
-            // Occasional transfers
-            if (Math.random() < 0.1) {
-                simulateTransfers();
-            }
-            
-            // Vary noise (market volatility)
-            metrics.noiseLevel = 5 + Math.sin(currentTime / 5000) * 3;
-            
-            // Draw every frame, but update UI only every 10 frames for performance
-            draw();
-            if (frameCount % 10 === 0) {
-                updateUI();
-            }
-            
-            requestAnimationFrame(simulate);
-        }r market noise",
-                    "Analyzing emergent concept covariance",
-                    "Stabilizing phi-drift in global mind",
-                    "Pursuing new asset discovery: SOL",
-                    "Validating Z3 attractor stability"
-                ];
-                logGoal(goals[Math.floor(Math.random() * goals.length)]);
-            }
-            
-            // Vary noise (market volatility)
-            metrics.noiseLevel = 5 + Math.sin(currentTime / 5000) * 3;
-            
-            // Draw and update UI
-            draw();
-            updateUI();
-            
-            requestAnimationFrame(simulate);
-        }
-
-        // Chat Functionality
-        const chatMessages = document.getElementById('chatMessages');
+        // Chat
         const chatInput = document.getElementById('chatInput');
         const chatSend = document.getElementById('chatSend');
-        let chatHistory = [];
+        const chatMessages = document.getElementById('chatMessages');
 
         async function sendMessage() {
-            const message = chatInput.value.trim();
-            if (!message) return;
+            const text = chatInput.value.trim();
+            if (!text) return;
 
-            // Add user message to UI
-            addChatMessage('user', message);
+            addMessage('user', text);
             chatInput.value = '';
 
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, history: chatHistory })
+                    body: JSON.stringify({ message: text })
                 });
-                
                 const data = await response.json();
-                if (data.response) {
-                    addChatMessage('ai', data.response);
-                    chatHistory.push({ role: 'user', content: message });
-                    chatHistory.push({ role: 'assistant', content: data.response });
-                    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
-                } else {
-                    addChatMessage('ai', 'Error: ' + (data.error || 'Unknown error'));
-                }
+                addMessage('ai', data.response || "Error: No response from mesh.");
             } catch (e) {
-                addChatMessage('ai', 'Connection failed: ' + e.message);
+                addMessage('ai', "Connection failed. Is the mesh online?");
             }
         }
 
-        function addChatMessage(role, text) {
+        function addMessage(role, text) {
             const div = document.createElement('div');
             div.className = `chat-message ${role}-message`;
             div.textContent = role === 'user' ? `[USER]: ${text}` : `[GLOBAL_MIND]: ${text}`;
@@ -737,26 +400,11 @@
         }
 
         chatSend.onclick = sendMessage;
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+        chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-        // Initialize
-        window.onload = () => {
-            resizeCanvas();
-            metrics.conceptsFormed = SYMBOLS.length;
-            simulate();
-        };
-
-        // Add some initial transfers for visual effect
-        setTimeout(() => {
-            for (let i = 0; i < 10; i++) {
-                setTimeout(() => simulateTransfers(), i * 500);
-            }
-        }, 1000);
+        // Loops
+        setInterval(fetchMetrics, 3000);
+        draw();
     </script>
 </body>
 </html>

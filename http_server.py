@@ -46,17 +46,36 @@ async def handle_chat(request):
         logger.error(f"Chat error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
+async def handle_metrics(request):
+    """Return current mesh metrics for the dashboard"""
+    try:
+        core = request.app.get('core')
+        if not core:
+            return web.json_response({"error": "Core not initialized"}, status=503)
+        
+        metrics = core.get_metrics()
+        # Add extra info for the dashboard grid
+        active_concepts = core.get_concepts_snapshot()
+        metrics['active_symbols'] = list(active_concepts.keys())
+        
+        return web.json_response(metrics)
+    except Exception as e:
+        logger.error(f"Metrics error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
 async def start_http_server(core=None):
     """Start the aiohttp web server"""
     app = web.Application()
     
-    # Store interpreter in app state if core is provided
+    # Store core and interpreter in app state if core is provided
     if core:
+        app['core'] = core
         app['interpreter'] = LLMInterpreter(core)
         
     app.router.add_get('/', handle_dashboard)
     app.router.add_get('/dashboard', handle_dashboard)
     app.router.add_get('/eeg', handle_eeg)
+    app.router.add_get('/api/metrics', handle_metrics)
     app.router.add_post('/api/chat', handle_chat)
     
     # Railway typically expects port 8080 for web services
