@@ -332,28 +332,15 @@ class MultiSourceDataProvider:
                 logger.debug(f"Provider {provider_name} failed: {e}")
                 continue
         
-        # PHASE 4: Simulated Fallback for emergent/unlisted assets
-        # This ensures the mesh keeps learning even if an asset is temporarily delisted or restricted
-        logger.debug(f"Using simulated fallback for {symbol}")
-        import random
-        import math
-        
-        # Deterministic but shifting price based on symbol name
-        base_val = sum(ord(c) for c in symbol) % 1000
-        volatility = 0.02
-        drift = math.sin(time.time() / 10000) * 0.001
-        
-        return {
-            "symbol": symbol,
-            "source": "simulated_mesh_fallback",
-            "price": base_val * (1 + random.uniform(-volatility, volatility) + drift),
-            "volume": random.uniform(1000, 1000000),
-            "timestamp": time.time(),
-            "note": "Emergent asset detected in mesh field"
-        }
+        # HARDENED PRODUCTION FALLBACK
+        # We strictly avoid simulations. If all primary providers fail, we log a critical 
+        # failure for the asset. This ensures the mesh only processes real market signals.
+        logger.error(f"CRITICAL: All data providers failed for {symbol}. No real-world pulse detected.")
+        return None
     
     async def fetch_batch(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """Fetch data for multiple symbols concurrently"""
         tasks = [self.fetch_tick(symbol) for symbol in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        return [r for r in results if not isinstance(r, Exception)]
+        # Filter out exceptions AND None values (which represent real-world data failures)
+        return [r for r in results if r is not None and not isinstance(r, Exception)]
