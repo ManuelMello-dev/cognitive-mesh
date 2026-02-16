@@ -578,4 +578,33 @@ if __name__ == "__main__":
     
     # Transfer knowledge
     physics_rule = {
-        'antec
+        'antecedents': ['mass', 'acceleration'],
+        'consequent': 'force',
+        'confidence': 0.95,
+        'formula': 'F = ma'
+    }
+    
+    transfer = engine.transfer_knowledge(
+        knowledge=physics_rule,
+        knowledge_type='rule',
+        source_domain_id="physics",
+        target_domain_id="economics"
+    )
+    
+    if transfer:
+        print("Transferred Knowledge:")
+        print(f"Source: {transfer.source_knowledge}")
+        print(f"Adapted: {transfer.adapted_knowledge}\n")
+    
+    # Simulate validation
+    engine.validate_transfer(transfer.transfer_id, 0.6, 0.75)
+    
+    # Get suggestions
+    print("Transfer Opportunities:")
+    suggestions = engine.suggest_transfer_opportunities()
+    for sug in suggestions[:3]:
+        print(f"  {sug['source_domain']} -> {sug['target_domain']}: {sug['reason']}")
+    
+    print("\nInsights:")
+    insights = engine.get_insights()
+    print(json.dumps(insights, indent=2))

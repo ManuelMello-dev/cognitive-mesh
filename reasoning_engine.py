@@ -636,4 +636,30 @@ if __name__ == "__main__":
         for link in links:
             print(f"  {cause} -> {link.effect} (strength: {link.strength:.2f})")
     
-    print("\n=== Plann
+    print("\n=== Planning Demo ===\n")
+    
+    # Clear facts
+    engine.facts.clear()
+    
+    # Setup scenario
+    engine.assert_fact("have_ingredients")
+    engine.add_rule(["have_ingredients", "have_recipe"], "can_cook", confidence=0.9)
+    engine.add_rule(["can_cook", "have_time"], "meal_ready", confidence=0.85)
+    
+    # Create plan
+    plan = engine.create_plan(
+        goal="meal_ready",
+        current_state={},
+        available_actions=[]
+    )
+    
+    if plan:
+        print(f"Plan created: {plan.plan_id}")
+        print(f"Goal: {plan.goal}")
+        print("Steps:")
+        for i, step in enumerate(plan.steps):
+            print(f"  {i+1}. {step}")
+    
+    print("\nInsights:")
+    insights = engine.get_insights()
+    print(json.dumps(insights, indent=2))

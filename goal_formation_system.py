@@ -562,4 +562,72 @@ class OpenEndedGoalSystem:
             'strategy_performance': dict(self.strategy_performance)
         }
         
-        with open(filepath, 'w') as f
+        with open(filepath, 'w') as f:
+            json.dump(state, f, indent=2, default=str)
+        
+        logger.info(f"Goal system state saved to {filepath}")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    
+    # Demo
+    system = OpenEndedGoalSystem(max_active_goals=3)
+    
+    print("=== Open-Ended Goal Formation Demo ===\n")
+    
+    # Create context
+    context = GoalGenerationContext(
+        observations=[
+            {'temp': 20 + i, 'pressure': 1013 + i}
+            for i in range(30)
+        ],
+        patterns=[
+            {'pattern_id': 'p1', 'confidence': 0.4},
+            {'pattern_id': 'p2', 'confidence': 0.9}
+        ],
+        capabilities={'pattern_recognition', 'prediction'},
+        constraints={},
+        current_state={},
+        performance_metrics={
+            'accuracy': 0.65,
+            'coverage': 0.5
+        }
+    )
+    
+    # Generate goals
+    print("Generating goals...")
+    goals = system.generate_goals(context)
+    
+    print(f"\nGenerated {len(goals)} goals:")
+    for goal in goals:
+        print(f"  [{goal.goal_type.value}] {goal.description}")
+        print(f"    Priority: {goal.priority:.2f}, Value: {goal.value_estimate:.2f}")
+    
+    # Select active goals
+    print("\nSelecting active goals...")
+    active = system.select_active_goals()
+    print(f"Active goals: {len(active)}")
+    
+    # Simulate progress
+    print("\nSimulating goal progress...")
+    for goal_id in active[:2]:
+        goal = system.goals[goal_id]
+        print(f"\nUpdating: {goal.description}")
+        
+        # Simulate progress
+        metrics = {}
+        for criterion in goal.success_criteria.keys():
+            if isinstance(goal.success_criteria[criterion], bool):
+                metrics[criterion] = True
+            else:
+                metrics[criterion] = goal.success_criteria[criterion]
+        
+        system.update_goal_progress(goal_id, metrics)
+        print(f"  Progress: {goal.progress:.0%}")
+        print(f"  Status: {goal.status.value}")
+    
+    # Get insights
+    print("\nInsights:")
+    insights = system.get_insights()
+    print(json.dumps(insights, indent=2))

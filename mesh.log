@@ -1,23 +1,439 @@
-2026-02-16 16:01:32,704 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
-2026-02-16 16:01:32,705 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
-2026-02-16 16:01:32,705 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
-2026-02-16 16:01:32,705 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
-2026-02-16 16:01:32,705 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
-2026-02-16 16:01:32,817 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 16:01:32,818 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
-2026-02-16 16:01:32,907 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 16:01:32,908 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
-2026-02-16 16:01:34,822 - CognitiveMesh - INFO - HTTP server task is running.
-2026-02-16 16:01:34,822 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
-2026-02-16 16:01:34,822 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
-2026-02-16 16:01:34,822 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
-2026-02-16 16:01:34,823 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
-2026-02-16 16:01:34,823 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
-2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Milvus not configured — running without vector store
-2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
-2026-02-16 16:01:34,823 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
-2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Cognitive Mesh is LIVE and ready for data.
-2026-02-16 16:01:34,823 - CognitiveMesh - INFO - Starting prioritized data collection loop
-2026-02-16 16:01:37,770 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 16:01:37,792 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275697792 - Increase Concept Formation Rate
-2026-02-16 16:01:37,792 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275697792 - Reduce Noise Level to Enhance Signal Clarity
+2026-02-16 16:26:39,135 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
+2026-02-16 16:26:39,135 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
+2026-02-16 16:26:39,135 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
+2026-02-16 16:26:39,135 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
+2026-02-16 16:26:39,135 - cognitive_intelligent_system - INFO - Initializing global_mind_01 with full cognitive capabilities...
+2026-02-16 16:26:39,143 - continuous_learning_engine - INFO - ContinuousLearningEngine initialized: dim=50, lr=0.01, pattern_mining=True, auto_adapt=True
+2026-02-16 16:26:39,143 - self_writing_engine - INFO - SelfEvolvingSystem initialized: max_gen=10, pop_size=20
+2026-02-16 16:26:39,143 - always_on_orchestrator - INFO - AlwaysOnOrchestrator initialized: checkpoint_interval=300s, auto_restart=True
+2026-02-16 16:26:39,143 - abstraction_engine - INFO - Abstraction Engine initialized
+2026-02-16 16:26:39,143 - reasoning_engine - INFO - Reasoning Engine initialized
+2026-02-16 16:26:39,143 - cross_domain_engine - INFO - Cross-Domain Engine initialized
+2026-02-16 16:26:39,143 - goal_formation_system - INFO - Open-Ended Goal System initialized
+2026-02-16 16:26:39,143 - cognitive_intelligent_system - INFO - System initialized with all cognitive capabilities
+2026-02-16 16:26:39,143 - DistributedCognitiveCore - INFO - DistributedCognitiveCore initialized with CognitiveIntelligentSystem: global_mind_01
+2026-02-16 16:26:39,144 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 16:26:39,309 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 16:26:39,309 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 16:26:41,147 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 16:26:41,147 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 16:26:41,147 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 16:26:41,148 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 16:26:41,148 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 16:26:41,149 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 16:26:41,149 - CognitiveMesh - INFO - Milvus not configured — running without vector store
+2026-02-16 16:26:41,149 - DistributedCognitiveCore - INFO - Cognitive loop started (background thread)
+2026-02-16 16:26:41,149 - DistributedCognitiveCore - INFO - Cognitive loop thread started
+2026-02-16 16:26:41,149 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 16:26:41,149 - CognitiveMesh - INFO - PHASE 3: Autonomous market discovery...
+2026-02-16 16:26:41,174 - MarketScanner - WARNING - Binance top returned 451
+2026-02-16 16:26:41,187 - MarketScanner - INFO - CoinGecko trending: discovered 15 symbols
+2026-02-16 16:26:41,230 - MarketScanner - INFO - CoinGecko top: discovered 50 symbols
+2026-02-16 16:26:41,301 - MarketScanner - INFO - Yahoo trending: discovered 6 symbols
+2026-02-16 16:26:41,338 - MarketScanner - INFO - Yahoo most active: discovered 25 symbols
+2026-02-16 16:26:41,339 - MarketScanner - INFO - Discovered 56 new crypto assets: {'BTC', 'BUIDL', 'ZEC', 'BNB', 'SOL', 'CC', 'USD1', 'HBAR', 'USYC', 'INIT', 'TRX', 'USDS', 'TAO', 'USDF', 'LEO', 'FIGR_HELOC', 'PYUSD', 'ADA', 'USDE', 'PENGU', 'PAXG', 'USDC', 'LINK', 'AVAX', 'PEPE', 'BGB', 'DOGE', 'RPL', 'XRP', 'DAI', 'USDT', 'XAUT', 'WBT', 'VVV', 'MNT', 'ETH', 'PIPPIN', 'BCH', 'AAVE', 'UNI', 'M', 'USDG', 'SHIB', 'SUI', 'ASTER', 'LDO', 'XLM', 'RAIN', 'LTC', 'TON', 'XMR', 'WLFI', 'DOT', 'CRO', 'HYPE', 'OKB'}
+2026-02-16 16:26:41,339 - MarketScanner - INFO - Discovered 31 new stock assets: {'^N225', 'DNN', 'PINS', 'INTC', 'PLUG', 'AMZN', 'ONDS', 'MARA', 'GGB', 'F', 'AVAV', 'BMNR', 'KVUE', 'DKNG', 'AAPL', 'NVDA', 'RIVN', 'GRAB', 'OCUL', 'ALM', 'FSLY', 'BBD', 'PLTR', 'NU', 'LYG', 'TSLA', 'VALE', 'SNAP', '^FTSE', 'RIG', 'ZIM'}
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - Initial scan complete: 56 crypto, 31 stocks
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - PHASE 4: Starting execution loops.
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - ============================================================
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   COGNITIVE MESH IS LIVE
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   Engines: Abstraction, Reasoning, CrossDomain,
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -            Goals, Learning, Evolution, Orchestrator
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   Data:    13 providers (stocks + crypto)
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   Crypto:  56 symbols discovered
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   Stocks:  31 symbols discovered
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO -   GPT I/O: /api/chat, /api/ingest, /api/state
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - ============================================================
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - Starting data collection loop
+2026-02-16 16:26:41,339 - CognitiveMesh - INFO - Fetching batch [40 symbols]: ['AAVE', 'ADA', 'ASTER', 'AVAX', 'BCH', 'BGB', 'BNB', 'BTC', 'BUIDL', 'CC']...
+2026-02-16 16:26:41,340 - CognitiveMesh - INFO - METRICS | PHI=0.500 SIGMA=0.350 Concepts=0 Rules=0 Goals=0 Obs=0 Transfers=0 Crypto=56 Stocks=31
+2026-02-16 16:26:41,458 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 3 failures (cooldown 90.0s)
+2026-02-16 16:26:41,458 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 4 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 5 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 6 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 7 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 8 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 9 failures (cooldown 90.0s)
+2026-02-16 16:26:41,459 - MarketDataProviders - WARNING - CircuitBreaker [coingecko] → OPEN after 3 failures (cooldown 90.0s)
+2026-02-16 16:26:41,460 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 10 failures (cooldown 90.0s)
+2026-02-16 16:26:41,462 - MarketDataProviders - WARNING - CircuitBreaker [binance] → OPEN after 11 failures (cooldown 90.0s)
+2026-02-16 16:26:41,525 - MarketDataProviders - INFO - CircuitBreaker [coingecko] → CLOSED (recovered)
+2026-02-16 16:26:41,548 - MarketDataProviders - WARNING - All providers failed for HYPE
+2026-02-16 16:26:41,808 - MarketDataProviders - WARNING - All providers failed for BUIDL
+2026-02-16 16:26:41,912 - MarketDataProviders - WARNING - All providers failed for FIGR_HELOC
+2026-02-16 16:26:42,630 - MarketDataProviders - WARNING - CircuitBreaker [cnbc] → OPEN after 3 failures (cooldown 90.0s)
+2026-02-16 16:26:42,630 - MarketDataProviders - WARNING - All providers failed for CRO
+2026-02-16 16:26:42,749 - MarketDataProviders - WARNING - CircuitBreaker [cnbc] → OPEN after 4 failures (cooldown 90.0s)
+2026-02-16 16:26:42,750 - MarketDataProviders - WARNING - All providers failed for ASTER
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched AAVE from cryptocompare: $126.62
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched ADA from coingecko: $0.29
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched AVAX from coingecko: $9.22
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BCH from yahoo_chart: $43.52
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BGB from yahoo_chart: $11.65
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BNB from coingecko: $622.72
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68,485.00
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched CC from yahoo_chart: $20.52
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched DAI from cryptocompare: $1.00
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched DOGE from cryptocompare: $0.10
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched DOT from coingecko: $1.37
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched ETH from coingecko: $1,988.63
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched HBAR from cryptocompare: $0.10
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched INIT from cnbc: $2.99
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched LDO from cryptocompare: $0.35
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched AAPL from yahoo_chart: $255.78
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched ALM from yahoo_chart: $13.84
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched AMZN from yahoo_chart: $198.79
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched AVAV from yahoo_chart: $243.87
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BBD from yahoo_chart: $3.98
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched BMNR from yahoo_chart: $20.96
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched DKNG from yahoo_chart: $21.76
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched DNN from yahoo_chart: $3.78
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched F from yahoo_chart: $14.12
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched FSLY from yahoo_chart: $18.26
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched GGB from yahoo_chart: $4.12
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched GRAB from yahoo_chart: $4.13
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched INTC from yahoo_chart: $46.79
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched KVUE from yahoo_chart: $18.70
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched LYG from yahoo_chart: $5.61
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched MARA from yahoo_chart: $7.92
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched NU from yahoo_chart: $16.82
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched NVDA from yahoo_chart: $182.78
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched OCUL from yahoo_chart: $8.88
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - ✓ Fetched ONDS from yahoo_chart: $9.31
+2026-02-16 16:26:42,750 - MarketDataProviders - INFO - Batch fetch: 35/40 successful
+2026-02-16 16:26:42,750 - cross_domain_engine - INFO - Registered domain: crypto:AAVE (id: crypto:AAVE)
+2026-02-16 16:26:42,750 - DistributedCognitiveCore - INFO - Registered new domain: crypto:AAVE
+2026-02-16 16:26:42,750 - cross_domain_engine - INFO - Registered domain: crypto:ADA (id: crypto:ADA)
+2026-02-16 16:26:42,750 - DistributedCognitiveCore - INFO - Registered new domain: crypto:ADA
+2026-02-16 16:26:42,750 - cross_domain_engine - INFO - Registered domain: crypto:AVAX (id: crypto:AVAX)
+2026-02-16 16:26:42,750 - DistributedCognitiveCore - INFO - Registered new domain: crypto:AVAX
+2026-02-16 16:26:42,750 - cross_domain_engine - INFO - Registered domain: stock:BCH (id: stock:BCH)
+2026-02-16 16:26:42,750 - DistributedCognitiveCore - INFO - Registered new domain: stock:BCH
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: stock:BGB (id: stock:BGB)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: stock:BGB
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:BNB (id: crypto:BNB)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:BNB
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:BTC (id: crypto:BTC)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:BTC
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: stock:CC (id: stock:CC)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: stock:CC
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:DAI (id: crypto:DAI)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:DAI
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:DOGE (id: crypto:DOGE)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:DOGE
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:DOT (id: crypto:DOT)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:DOT
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:ETH (id: crypto:ETH)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:ETH
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:HBAR (id: crypto:HBAR)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:HBAR
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: stock:INIT (id: stock:INIT)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: stock:INIT
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: crypto:LDO (id: crypto:LDO)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: crypto:LDO
+2026-02-16 16:26:42,751 - cross_domain_engine - INFO - Registered domain: stock:AAPL (id: stock:AAPL)
+2026-02-16 16:26:42,751 - DistributedCognitiveCore - INFO - Registered new domain: stock:AAPL
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:ALM (id: stock:ALM)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:ALM
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:AMZN (id: stock:AMZN)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:AMZN
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:AVAV (id: stock:AVAV)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:AVAV
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:BBD (id: stock:BBD)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:BBD
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:BMNR (id: stock:BMNR)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:BMNR
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:DKNG (id: stock:DKNG)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:DKNG
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:DNN (id: stock:DNN)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:DNN
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:F (id: stock:F)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:F
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:FSLY (id: stock:FSLY)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:FSLY
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:GGB (id: stock:GGB)
+2026-02-16 16:26:42,752 - DistributedCognitiveCore - INFO - Registered new domain: stock:GGB
+2026-02-16 16:26:42,752 - cross_domain_engine - INFO - Registered domain: stock:GRAB (id: stock:GRAB)
+2026-02-16 16:26:42,753 - DistributedCognitiveCore - INFO - Registered new domain: stock:GRAB
+2026-02-16 16:26:42,753 - cross_domain_engine - INFO - Registered domain: stock:INTC (id: stock:INTC)
+2026-02-16 16:26:42,753 - DistributedCognitiveCore - INFO - Registered new domain: stock:INTC
+2026-02-16 16:26:42,753 - cross_domain_engine - INFO - Registered domain: stock:KVUE (id: stock:KVUE)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:KVUE
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:LYG (id: stock:LYG)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:LYG
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:MARA (id: stock:MARA)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:MARA
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:NU (id: stock:NU)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:NU
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:NVDA (id: stock:NVDA)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:NVDA
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:OCUL (id: stock:OCUL)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:OCUL
+2026-02-16 16:26:42,754 - cross_domain_engine - INFO - Registered domain: stock:ONDS (id: stock:ONDS)
+2026-02-16 16:26:42,754 - DistributedCognitiveCore - INFO - Registered new domain: stock:ONDS
+2026-02-16 16:26:42,754 - CognitiveMesh - INFO - Ingested 35/40 ticks into cognitive system
+2026-02-16 16:26:43,151 - abstraction_engine - INFO - Formed new concept: Concept_market_cap-timestamp-price (id: concept_0)
+2026-02-16 16:26:43,151 - DistributedCognitiveCore - INFO - Concept formed: concept_0 in domain crypto:AVAX
+2026-02-16 16:26:43,151 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_1)
+2026-02-16 16:26:43,151 - DistributedCognitiveCore - INFO - Concept formed: concept_1 in domain stock:BCH
+2026-02-16 16:26:43,152 - DistributedCognitiveCore - INFO - Concept formed: concept_1 in domain stock:BGB
+2026-02-16 16:26:43,152 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_2)
+2026-02-16 16:26:43,152 - abstraction_engine - INFO - Formed abstract concept: Abstract_0 at level 1
+2026-02-16 16:26:43,152 - DistributedCognitiveCore - INFO - Concept formed: concept_2 in domain crypto:BNB
+2026-02-16 16:26:43,152 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_4)
+2026-02-16 16:26:43,152 - abstraction_engine - INFO - Formed abstract concept: Abstract_1 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_2 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_3 at level 1
+2026-02-16 16:26:43,153 - DistributedCognitiveCore - INFO - Concept formed: concept_4 in domain crypto:BTC
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_8)
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_4 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_5 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_6 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_7 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_8 at level 1
+2026-02-16 16:26:43,153 - abstraction_engine - INFO - Formed abstract concept: Abstract_9 at level 1
+2026-02-16 16:26:43,153 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:CC
+2026-02-16 16:26:43,154 - DistributedCognitiveCore - INFO - Concept formed: concept_1 in domain crypto:DAI
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_15)
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_10 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_11 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_12 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_13 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_14 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_15 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_16 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_17 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_18 at level 1
+2026-02-16 16:26:43,154 - abstraction_engine - INFO - Formed abstract concept: Abstract_19 at level 1
+2026-02-16 16:26:43,155 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:DOGE
+2026-02-16 16:26:43,155 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain crypto:DOT
+2026-02-16 16:26:43,155 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:ETH
+2026-02-16 16:26:43,155 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:HBAR
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_26)
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_20 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_21 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_22 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_23 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_24 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_25 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_26 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_27 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_28 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_29 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_30 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_31 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_32 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_33 at level 1
+2026-02-16 16:26:43,156 - abstraction_engine - INFO - Formed abstract concept: Abstract_34 at level 1
+2026-02-16 16:26:43,156 - DistributedCognitiveCore - INFO - Concept formed: concept_26 in domain stock:INIT
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:LDO
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:AAPL
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:ALM
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:AMZN
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:AVAV
+2026-02-16 16:26:43,157 - DistributedCognitiveCore - INFO - Concept formed: concept_4 in domain stock:BBD
+2026-02-16 16:26:43,158 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:BMNR
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed new concept: Concept_currency-exchange-price (id: concept_42)
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_35 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_36 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_37 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_38 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_39 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_40 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_41 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_42 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_43 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_44 at level 1
+2026-02-16 16:26:43,158 - abstraction_engine - INFO - Formed abstract concept: Abstract_45 at level 1
+2026-02-16 16:26:43,159 - abstraction_engine - INFO - Formed abstract concept: Abstract_46 at level 1
+2026-02-16 16:26:43,159 - abstraction_engine - INFO - Formed abstract concept: Abstract_47 at level 1
+2026-02-16 16:26:43,159 - abstraction_engine - INFO - Formed abstract concept: Abstract_48 at level 1
+2026-02-16 16:26:43,159 - abstraction_engine - INFO - Formed abstract concept: Abstract_49 at level 1
+2026-02-16 16:26:43,159 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:DKNG
+2026-02-16 16:26:43,159 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:DNN
+2026-02-16 16:26:43,159 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:F
+2026-02-16 16:26:43,159 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:FSLY
+2026-02-16 16:26:43,160 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:GGB
+2026-02-16 16:26:43,160 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:GRAB
+2026-02-16 16:26:43,160 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:INTC
+2026-02-16 16:26:43,160 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:KVUE
+2026-02-16 16:26:43,160 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:LYG
+2026-02-16 16:26:43,161 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:MARA
+2026-02-16 16:26:43,161 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:NU
+2026-02-16 16:26:43,161 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:NVDA
+2026-02-16 16:26:43,161 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:OCUL
+2026-02-16 16:26:43,161 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:ONDS
+2026-02-16 16:26:50,164 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:00,166 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:10,169 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:11,341 - CognitiveMesh - INFO - METRICS | PHI=0.500 SIGMA=0.070 Concepts=58 Rules=0 Goals=0 Obs=35 Transfers=0 Crypto=56 Stocks=31
+2026-02-16 16:27:20,171 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:30,174 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:30,174 - DistributedCognitiveCore - ERROR - Error generating goals: 'AbstractionEngine' object has no attribute 'patterns'
+2026-02-16 16:27:40,177 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)
+2026-02-16 16:27:41,343 - CognitiveMesh - INFO - METRICS | PHI=0.500 SIGMA=0.070 Concepts=58 Rules=0 Goals=0 Obs=35 Transfers=0 Crypto=56 Stocks=31
+2026-02-16 16:27:42,755 - CognitiveMesh - INFO - Fetching batch [31 symbols]: ['LEO', 'LINK', 'LTC', 'M', 'MNT', 'OKB', 'PAXG', 'PENGU', 'PEPE', 'PIPPIN']...
+2026-02-16 16:27:44,001 - MarketDataProviders - WARNING - All providers failed for PIPPIN
+2026-02-16 16:27:44,035 - MarketDataProviders - WARNING - All providers failed for PENGU
+2026-02-16 16:27:44,037 - MarketDataProviders - WARNING - All providers failed for MNT
+2026-02-16 16:27:44,040 - MarketDataProviders - WARNING - All providers failed for PYUSD
+2026-02-16 16:27:44,144 - MarketDataProviders - WARNING - All providers failed for PAXG
+2026-02-16 16:27:44,169 - MarketDataProviders - WARNING - CircuitBreaker [coingecko] → OPEN after 3 failures (cooldown 90.0s)
+2026-02-16 16:27:44,182 - MarketDataProviders - WARNING - CircuitBreaker [coingecko] → OPEN after 4 failures (cooldown 90.0s)
+2026-02-16 16:27:44,184 - MarketDataProviders - WARNING - CircuitBreaker [coingecko] → OPEN after 5 failures (cooldown 90.0s)
+2026-02-16 16:27:44,199 - MarketDataProviders - WARNING - All providers failed for OKB
+2026-02-16 16:27:44,227 - MarketDataProviders - INFO - CircuitBreaker [coingecko] → CLOSED (recovered)
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched LEO from yahoo_chart: $6.49
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched LINK from cryptocompare: $8.88
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched LTC from coingecko: $55.01
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched M from yahoo_chart: $21.63
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched PEPE from coingecko: $0.00
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched RAIN from yahoo_chart: $2.78
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched RPL from cryptocompare: $2.85
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched SHIB from cryptocompare: $0.00
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched SOL from cryptocompare: $85.59
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched SUI from coingecko: $0.99
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched TAO from yahoo_chart: $25.93
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched TON from cryptocompare: $1.45
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched TRX from cryptocompare: $0.28
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched UNI from cryptocompare: $3.54
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched PINS from yahoo_chart: $15.42
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched PLTR from yahoo_chart: $131.41
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched PLUG from yahoo_chart: $1.89
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched RIG from yahoo_chart: $6.54
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched RIVN from yahoo_chart: $17.73
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched SNAP from yahoo_chart: $4.83
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched TSLA from yahoo_chart: $417.44
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched VALE from yahoo_chart: $16.65
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched ZIM from yahoo_chart: $22.20
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched ^FTSE from yahoo_chart: $10,473.69
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - ✓ Fetched ^N225 from yahoo_chart: $56,806.41
+2026-02-16 16:27:46,548 - MarketDataProviders - INFO - Batch fetch: 25/31 successful
+2026-02-16 16:27:46,548 - cross_domain_engine - INFO - Registered domain: stock:LEO (id: stock:LEO)
+2026-02-16 16:27:46,548 - DistributedCognitiveCore - INFO - Registered new domain: stock:LEO
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:LINK (id: crypto:LINK)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:LINK
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:LTC (id: crypto:LTC)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:LTC
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: stock:M (id: stock:M)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: stock:M
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:PEPE (id: crypto:PEPE)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:PEPE
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: stock:RAIN (id: stock:RAIN)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: stock:RAIN
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:RPL (id: crypto:RPL)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:RPL
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:SHIB (id: crypto:SHIB)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:SHIB
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:SOL (id: crypto:SOL)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:SOL
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:SUI (id: crypto:SUI)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:SUI
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: stock:TAO (id: stock:TAO)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: stock:TAO
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:TON (id: crypto:TON)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:TON
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:TRX (id: crypto:TRX)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:TRX
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: crypto:UNI (id: crypto:UNI)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: crypto:UNI
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: stock:PINS (id: stock:PINS)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: stock:PINS
+2026-02-16 16:27:46,549 - cross_domain_engine - INFO - Registered domain: stock:PLTR (id: stock:PLTR)
+2026-02-16 16:27:46,549 - DistributedCognitiveCore - INFO - Registered new domain: stock:PLTR
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:PLUG (id: stock:PLUG)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:PLUG
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:RIG (id: stock:RIG)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:RIG
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:RIVN (id: stock:RIVN)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:RIVN
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:SNAP (id: stock:SNAP)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:SNAP
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:TSLA (id: stock:TSLA)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:TSLA
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:VALE (id: stock:VALE)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:VALE
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:ZIM (id: stock:ZIM)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:ZIM
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:^FTSE (id: stock:^FTSE)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:^FTSE
+2026-02-16 16:27:46,550 - cross_domain_engine - INFO - Registered domain: stock:^N225 (id: stock:^N225)
+2026-02-16 16:27:46,550 - DistributedCognitiveCore - INFO - Registered new domain: stock:^N225
+2026-02-16 16:27:46,550 - CognitiveMesh - INFO - Ingested 25/31 ticks into cognitive system
+2026-02-16 16:27:47,178 - DistributedCognitiveCore - INFO - Concept formed: concept_4 in domain stock:LEO
+2026-02-16 16:27:47,178 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:LINK
+2026-02-16 16:27:47,179 - DistributedCognitiveCore - INFO - Concept formed: concept_2 in domain crypto:LTC
+2026-02-16 16:27:47,179 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:M
+2026-02-16 16:27:47,179 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain crypto:PEPE
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_58)
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_50 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_51 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_52 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_53 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_54 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_55 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_56 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_57 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_58 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_59 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_60 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_61 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_62 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_63 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_64 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_65 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_66 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_67 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_68 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_69 at level 1
+2026-02-16 16:27:47,180 - abstraction_engine - INFO - Formed abstract concept: Abstract_70 at level 1
+2026-02-16 16:27:47,180 - DistributedCognitiveCore - INFO - Concept formed: concept_58 in domain stock:RAIN
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed new concept: Concept_price-source-change_24h (id: concept_80)
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_71 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_72 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_73 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_74 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_75 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_76 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_77 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_78 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_79 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_80 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_81 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_82 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_83 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_84 at level 1
+2026-02-16 16:27:47,181 - abstraction_engine - INFO - Formed abstract concept: Abstract_85 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_86 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_87 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_88 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_89 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_90 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_91 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_92 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_93 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_94 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_95 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_96 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_97 at level 1
+2026-02-16 16:27:47,182 - abstraction_engine - INFO - Formed abstract concept: Abstract_98 at level 1
+2026-02-16 16:27:47,182 - DistributedCognitiveCore - INFO - Concept formed: concept_80 in domain crypto:RPL
+2026-02-16 16:27:47,182 - DistributedCognitiveCore - INFO - Concept formed: concept_26 in domain crypto:SHIB
+2026-02-16 16:27:47,182 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:SOL
+2026-02-16 16:27:47,183 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain crypto:SUI
+2026-02-16 16:27:47,183 - DistributedCognitiveCore - INFO - Concept formed: concept_4 in domain stock:TAO
+2026-02-16 16:27:47,183 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:TON
+2026-02-16 16:27:47,183 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:TRX
+2026-02-16 16:27:47,184 - DistributedCognitiveCore - INFO - Concept formed: concept_15 in domain crypto:UNI
+2026-02-16 16:27:47,184 - DistributedCognitiveCore - INFO - Concept formed: concept_80 in domain stock:PINS
+2026-02-16 16:27:47,184 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:PLTR
+2026-02-16 16:27:47,184 - DistributedCognitiveCore - INFO - Concept formed: concept_80 in domain stock:PLUG
+2026-02-16 16:27:47,185 - DistributedCognitiveCore - INFO - Concept formed: concept_80 in domain stock:RIG
+2026-02-16 16:27:47,185 - DistributedCognitiveCore - INFO - Concept formed: concept_80 in domain stock:RIVN
+2026-02-16 16:27:47,185 - DistributedCognitiveCore - INFO - Concept formed: concept_42 in domain stock:SNAP
+2026-02-16 16:27:47,185 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:TSLA
+2026-02-16 16:27:47,185 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:VALE
+2026-02-16 16:27:47,186 - DistributedCognitiveCore - INFO - Concept formed: concept_58 in domain stock:ZIM
+2026-02-16 16:27:47,186 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:^FTSE
+2026-02-16 16:27:47,186 - DistributedCognitiveCore - INFO - Concept formed: concept_8 in domain stock:^N225
+2026-02-16 16:27:50,188 - DistributedCognitiveCore - INFO - Cognitive thoughts: 3 insights (analogies, explanations, goals)

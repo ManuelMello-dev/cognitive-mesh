@@ -282,15 +282,21 @@
                 if (Object.keys(newConcepts).length !== Object.keys(concepts).length) {
                     symbolList.innerHTML = '';
                     Object.values(newConcepts).forEach(c => {
-                        const symbol = c.examples && c.examples[0] ? c.examples[0].symbol : '???';
+                        // Use the symbol field directly, fallback to examples
+                        const symbol = c.symbol || (c.examples && c.examples[0] ? c.examples[0].symbol : null);
+                        if (!symbol || c.level > 0) return; // Skip abstract concepts and unknowns
+                        
+                        const price = c.examples && c.examples[0] ? c.examples[0].price : null;
                         const div = document.createElement('div');
                         div.className = 'symbol-item';
-                        div.textContent = symbol;
+                        div.textContent = price ? `${symbol} $${Number(price).toFixed(2)}` : symbol;
+                        div.title = `${c.name} | Domain: ${c.domain} | Confidence: ${c.confidence}`;
                         symbolList.appendChild(div);
                         
                         if (!concepts[c.id]) {
                             concepts[c.id] = {
                                 symbol: symbol,
+                                confidence: c.confidence || 0.5,
                                 position: { x: (Math.random()-0.5)*100, y: (Math.random()-0.5)*100 }
                             };
                         }
