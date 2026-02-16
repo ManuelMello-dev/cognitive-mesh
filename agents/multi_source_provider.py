@@ -82,11 +82,25 @@ class YahooFinanceProvider:
             raise Exception("yfinance not available")
         
         try:
-            ticker = self.yf.Ticker(symbol)
+            # Map common crypto symbols to Yahoo format (SYMBOL-USD)
+            crypto_symbols = [
+                'BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'AVAX', 'LINK', 
+                'BNB', 'TRX', 'BCH', 'XLM', 'LTC', 'SHIB', 'UNI', 'NEAR', 'ICP', 
+                'HYPE', 'TRUMP', 'PUMP', 'PIPPIN', 'SUIS', 'TON', 'PEPE'
+            ]
+            yahoo_symbol = f"{symbol}-USD" if symbol in crypto_symbols else symbol
+            
+            ticker = self.yf.Ticker(yahoo_symbol)
             data = ticker.history(period='1d')
             
             if data.empty:
-                raise Exception(f"No data for {symbol}")
+                # Secondary fallback for tokens that might be listed differently
+                if symbol == "SOL":
+                    ticker = self.yf.Ticker("SOL1-USD")
+                    data = ticker.history(period="1d")
+                
+                if data.empty:
+                    raise Exception(f"No data for {yahoo_symbol}")
             
             latest = data.iloc[-1]
             tick = {
@@ -113,6 +127,7 @@ class BinanceProvider:
     def __init__(self):
         self.circuit = CircuitBreaker()
         self.base_url = "https://api.binance.com/api/v3"
+        self.alt_url = "https://api.binance.us/api/v3"
     
     async def fetch_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
         if not self.circuit.can_attempt():
@@ -123,17 +138,27 @@ class BinanceProvider:
             binance_symbol = f"{symbol.upper()}USDT"
             
             async with aiohttp.ClientSession() as session:
-                # Get current price
-                async with session.get(f"{self.base_url}/ticker/price?symbol={binance_symbol}") as resp:
-                    if resp.status != 200:
-                        raise Exception(f"Binance API error: {resp.status}")
-                    price_data = await resp.json()
+                # Try primary, fallback to US endpoint if blocked (451 error)
+                current_url = self.base_url
                 
-                # Get 24h stats
-                async with session.get(f"{self.base_url}/ticker/24hr?symbol={binance_symbol}") as resp:
-                    if resp.status != 200:
-                        raise Exception(f"Binance API error: {resp.status}")
-                    stats = await resp.json()
+                async def get_data(url):
+                    async with session.get(f"{url}/ticker/price?symbol={binance_symbol}") as p_resp:
+                        if p_resp.status == 451: return "RETRY_US"
+                        if p_resp.status != 200: raise Exception(f"Binance API error: {p_resp.status}")
+                        p_data = await p_resp.json()
+                    
+                    async with session.get(f"{url}/ticker/24hr?symbol={binance_symbol}") as s_resp:
+                        if s_resp.status != 200: raise Exception(f"Binance API error: {s_resp.status}")
+                        s_data = await s_resp.json()
+                    
+                    return p_data, s_data
+
+                res = await get_data(self.base_url)
+                if res == "RETRY_US":
+                    logger.info(f"Binance primary blocked for {symbol}, trying US fallback")
+                    res = await get_data(self.alt_url)
+                
+                price_data, stats = res
                 
                 tick = {
                     "symbol": symbol,
