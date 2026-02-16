@@ -3,12 +3,17 @@ import sys
 import asyncio
 import logging
 import time
+import signal
 from typing import List, Dict, Any, Set
 
-# Configure logging
+# ──────────────────────────────────────────────
+# Configure logging to STDOUT (Railway classifies stderr as errors)
+# ──────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,       # <-- Railway-safe: stdout shows as [inf]
+    force=True,
 )
 logger = logging.getLogger("CognitiveMesh")
 
@@ -37,25 +42,26 @@ try:
 except ImportError:
     RedisCache = None
 
+
 class CognitiveMeshOrchestrator:
     """Main orchestrator for the Cognitive Mesh system"""
-    
+
     def __init__(self):
         self.node_id = Config.NODE_ID
         self.symbols = self._load_symbols()
         self.update_interval = Config.UPDATE_INTERVAL
-        
+
         # Initialize components
         self.data_provider = MultiSourceDataProvider()
         self.core = DistributedCognitiveCore(node_id=self.node_id)
         self.network = ZMQNode(identity=self.node_id)
         self.pubsub = ZMQPubSub(identity=self.node_id)
-        
+
         # Optional persistence
         self.postgres = None
         self.milvus = None
         self.redis = None
-        
+
         # Initialize autonomous reasoning
         self.reasoner = AutonomousReasoner(self.core)
         self.pursuit = PursuitAgent(self.core, self.pubsub, self.reasoner)
@@ -73,7 +79,7 @@ class CognitiveMeshOrchestrator:
     async def initialize(self):
         """Initialize all system components with robust error handling"""
         logger.info(f"Initializing Cognitive Mesh: {self.node_id}")
-        
+
         # Start networking
         try:
             await self.network.start()
@@ -81,62 +87,105 @@ class CognitiveMeshOrchestrator:
             await self.pubsub.start_subscriber(["concept", "rule", "transfer", "metrics", "goal"])
         except Exception as e:
             logger.error(f"Networking initialization error: {e}")
-        
-        # Connect to databases if configured
+
+        # Connect to databases if configured (non-blocking)
         await self._init_databases()
-        
+
         # Link databases to core
         self.core.postgres = self.postgres
         self.core.milvus = self.milvus
         self.core.redis = self.redis
-            
+
         logger.info("Cognitive Mesh initialized successfully")
 
     async def _init_databases(self):
-        """Initialize database connections"""
-        try:
-            if Config.POSTGRES_URL and PostgresStore:
+        """Initialize database connections — all non-blocking with timeouts"""
+        # PostgreSQL
+        if Config.POSTGRES_URL and PostgresStore:
+            try:
                 self.postgres = PostgresStore(Config.POSTGRES_URL)
-                await self.postgres.connect()
+                await asyncio.wait_for(self.postgres.connect(), timeout=5.0)
                 logger.info("Connected to PostgreSQL")
-                
-            if Config.MILVUS_HOST and MilvusStore:
+            except asyncio.TimeoutError:
+                logger.warning("PostgreSQL connection timed out (5s) — skipping")
+                self.postgres = None
+            except Exception as e:
+                logger.warning(f"PostgreSQL connection failed: {e} — skipping")
+                self.postgres = None
+
+        # Milvus — run in executor to avoid blocking the event loop
+        if Config.MILVUS_HOST and MilvusStore:
+            try:
                 self.milvus = MilvusStore(Config.MILVUS_HOST)
-                await self.milvus.connect()
-                logger.info("Connected to Milvus")
-                
-            if Config.REDIS_URL and RedisCache:
+                await asyncio.wait_for(
+                    self._connect_milvus_nonblocking(),
+                    timeout=5.0,
+                )
+                if self.milvus and self.milvus.connected:
+                    logger.info("Connected to Milvus")
+                else:
+                    logger.warning("Milvus connection failed — running without vector store")
+                    self.milvus = None
+            except asyncio.TimeoutError:
+                logger.warning("Milvus connection timed out (5s) — running without vector store")
+                self.milvus = None
+            except Exception as e:
+                logger.warning(f"Milvus connection failed: {e} — running without vector store")
+                self.milvus = None
+
+        # Redis
+        if Config.REDIS_URL and RedisCache:
+            try:
                 self.redis = RedisCache(Config.REDIS_URL)
-                await self.redis.connect()
+                await asyncio.wait_for(self.redis.connect(), timeout=5.0)
                 logger.info("Connected to Redis")
+            except asyncio.TimeoutError:
+                logger.warning("Redis connection timed out (5s) — skipping")
+                self.redis = None
+            except Exception as e:
+                logger.warning(f"Redis connection failed: {e} — skipping")
+                self.redis = None
+
+    async def _connect_milvus_nonblocking(self):
+        """Run the blocking Milvus connect() in a thread so it doesn't freeze the event loop"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._milvus_sync_connect)
+
+    def _milvus_sync_connect(self):
+        """Synchronous Milvus connection wrapper"""
+        try:
+            from pymilvus import connections
+            connections.connect("default", host=self.milvus.host, port=self.milvus.port, timeout=3)
+            self.milvus.connected = True
         except Exception as e:
-            logger.error(f"Database initialization error: {e}")
+            logger.warning(f"Milvus sync connect error: {e}")
+            self.milvus.connected = False
 
     async def run(self):
         """Run the Cognitive Mesh with phased startup"""
         self.running = True
-        
+
         try:
-            # PHASE 1: Start HTTP server for health checks
+            # PHASE 1: Start HTTP server FIRST for Railway health checks
             logger.info("PHASE 1: Starting HTTP server...")
             http_task = asyncio.create_task(start_http_server(self.core, self.data_provider))
-            # Wait to see if it fails immediately
+            # Wait briefly to confirm it's up
             await asyncio.sleep(2)
             if http_task.done():
                 try:
                     http_task.result()
                 except Exception as e:
                     logger.error(f"HTTP server failed to start: {e}")
-                    # Don't exit, but log the error
             else:
                 logger.info("HTTP server task is running.")
-            
-            # PHASE 2: Background mesh initialization
+
+            # PHASE 2: Background mesh initialization (non-blocking DB connections)
             logger.info("PHASE 2: Mesh initialization...")
             await self.initialize()
-            
+
             # PHASE 3: Start concurrent execution loops
             logger.info("PHASE 3: Starting execution loops.")
+            logger.info("Cognitive Mesh is LIVE and ready for data.")
             loops = [
                 self._data_collection_loop(),
                 self._pursuit_loop(),
@@ -144,11 +193,11 @@ class CognitiveMeshOrchestrator:
                 self._metrics_reporter_loop(),
                 self._network_listener_loop(),
                 self._pubsub_listener_loop(),
-                http_task
+                http_task,
             ]
-            
+
             await asyncio.gather(*loops, return_exceptions=True)
-        
+
         except KeyboardInterrupt:
             logger.info("Shutting down due to user interrupt...")
         except Exception as e:
@@ -159,25 +208,25 @@ class CognitiveMeshOrchestrator:
     async def _data_collection_loop(self):
         """Continuously collect data from multiple sources with Attention Priority"""
         logger.info("Starting prioritized data collection loop")
-        
+
         while self.running:
             try:
                 # Organic discovery from core concepts
                 self._discover_new_symbols()
-                
+
                 # Prepare batch
                 current_batch = self._prepare_data_batch()
-                
+
                 if not current_batch:
                     # No symbols to fetch - mesh is idle, waiting for manual ingestion
                     await asyncio.sleep(self.update_interval)
                     continue
-                
+
                 logger.info(f"Processing Attention Batch: {current_batch}")
                 ticks = await self.data_provider.fetch_batch(current_batch)
-                
+
                 for tick in ticks:
-                    if not tick or isinstance(tick, Exception): 
+                    if not tick or isinstance(tick, Exception):
                         continue
                     # Determine domain based on symbol type
                     symbol = tick.get('symbol')
@@ -188,9 +237,9 @@ class CognitiveMeshOrchestrator:
                     await self.core.ingest(tick, domain)
                     if self.redis:
                         await self.redis.cache_tick(symbol, tick)
-                
+
                 await asyncio.sleep(self.update_interval)
-            
+
             except Exception as e:
                 logger.error(f"Error in data collection loop: {e}")
                 await asyncio.sleep(10)
@@ -210,11 +259,11 @@ class CognitiveMeshOrchestrator:
         """Prepare a batch of symbols to fetch - returns empty list if no symbols available"""
         if not self.symbols:
             return []  # No symbols to fetch - mesh operates on manual ingestion only
-        
+
         all_symbols = list(self.symbols)
         batch_size = Config.DATA_BATCH_SIZE
         current_batch = all_symbols[:batch_size]
-        
+
         # Rotate symbols for next cycle
         self.symbols = set(all_symbols[batch_size:] + all_symbols[:batch_size])
         return current_batch
@@ -281,23 +330,49 @@ class CognitiveMeshOrchestrator:
         """Shutdown all components gracefully"""
         self.running = False
         logger.info("Shutting down Cognitive Mesh...")
-        
+
         tasks = [
             self.network.stop(),
-            self.pubsub.stop()
+            self.pubsub.stop(),
         ]
-        
-        if self.postgres: tasks.append(self.postgres.disconnect())
-        if self.milvus: tasks.append(self.milvus.disconnect())
-        if self.redis: tasks.append(self.redis.disconnect())
-        
+
+        if self.postgres:
+            tasks.append(self.postgres.disconnect())
+        if self.milvus:
+            tasks.append(self.milvus.disconnect())
+        if self.redis:
+            tasks.append(self.redis.disconnect())
+
+        # Close data provider sessions
+        try:
+            await self.data_provider.close()
+        except Exception:
+            pass
+
         await asyncio.gather(*tasks, return_exceptions=True)
         logger.info("Cognitive Mesh shutdown complete")
+
 
 async def main():
     """Main entry point"""
     orchestrator = CognitiveMeshOrchestrator()
+
+    # Handle SIGTERM gracefully (Railway sends SIGTERM before stopping)
+    loop = asyncio.get_event_loop()
+
+    def handle_sigterm():
+        logger.info("Received SIGTERM — initiating graceful shutdown...")
+        orchestrator.running = False
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, handle_sigterm)
+        loop.add_signal_handler(signal.SIGINT, handle_sigterm)
+    except NotImplementedError:
+        # Windows doesn't support add_signal_handler
+        pass
+
     await orchestrator.run()
+
 
 if __name__ == "__main__":
     try:

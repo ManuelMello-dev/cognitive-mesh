@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import asyncio
 import json
@@ -220,5 +221,5 @@ async def start_http_server(core=None, data_provider=None):
         await runner.cleanup()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
     asyncio.run(start_http_server())

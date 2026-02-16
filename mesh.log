@@ -1,47 +1,22 @@
-2026-02-16 15:48:31,791 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
-2026-02-16 15:48:31,791 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
-2026-02-16 15:48:31,791 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
-2026-02-16 15:48:31,791 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
-2026-02-16 15:48:31,791 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
-2026-02-16 15:48:31,908 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:48:31,908 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
-2026-02-16 15:48:31,997 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
-2026-02-16 15:48:31,998 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
-2026-02-16 15:48:33,911 - CognitiveMesh - INFO - HTTP server task is running.
-2026-02-16 15:48:33,911 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
-2026-02-16 15:48:33,911 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
-2026-02-16 15:48:33,912 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
-2026-02-16 15:48:33,912 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
-2026-02-16 15:48:33,913 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
-2026-02-16 15:48:33,913 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
-2026-02-16 15:48:33,913 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
-2026-02-16 15:48:33,913 - CognitiveMesh - INFO - Starting prioritized data collection loop
-2026-02-16 15:48:37,419 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:48:37,448 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274917448 - Increase Concept Formation to Enhance Coherence
-2026-02-16 15:48:37,449 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274917449 - Reduce Noise Level to Optimize Signal Clarity
-2026-02-16 15:48:55,860 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → stock:KO
-2026-02-16 15:48:55,868 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:AAPL → stock:KO
-2026-02-16 15:48:55,869 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:AAPL → crypto:BTC
-2026-02-16 15:49:26,422 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:49:26,423 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274966423 - Increase PHI (Coherence) to 0.700 within 10 cycles
-2026-02-16 15:49:33,913 - CognitiveMesh - INFO - Organically discovered new asset: KO
-2026-02-16 15:49:33,913 - CognitiveMesh - INFO - Organically discovered new asset: BTC
-2026-02-16 15:49:33,914 - CognitiveMesh - INFO - Organically discovered new asset: AAPL
-2026-02-16 15:49:33,914 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'KO', 'BTC']
-2026-02-16 15:49:34,952 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:49:34,954 - PursuitAgent - INFO - Cross-domain insights generated for stock <-> crypto
-2026-02-16 15:49:34,954 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274974954 - Reduce SIGMA (Noise) to below 0.400 within 8 cycles
-2026-02-16 15:49:35,330 - MarketDataProviders - INFO - ✓ Fetched AAPL from yahoo_chart: $255.78
-2026-02-16 15:49:35,331 - MarketDataProviders - INFO - ✓ Fetched KO from yahoo_chart: $78.68
-2026-02-16 15:49:35,331 - MarketDataProviders - INFO - ✓ Fetched BTC from binance: $68,211.60
-2026-02-16 15:49:35,331 - MarketDataProviders - INFO - Batch fetch: 3/3 successful
-2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:KO → stock:AAPL
-2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:KO → crypto:BTC
-2026-02-16 15:49:35,331 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → stock:AAPL
-2026-02-16 15:50:19,954 - PursuitAgent - ERROR - Error in pursuit cycle: 'str' object has no attribute 'get'
-2026-02-16 15:50:22,433 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 15:50:35,332 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC', 'KO', 'AAPL']
-2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched BTC from binance: $68,228.92
-2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched KO from yahoo_chart: $78.68
-2026-02-16 15:50:36,907 - MarketDataProviders - INFO - ✓ Fetched AAPL from yahoo_chart: $255.78
-2026-02-16 15:50:36,907 - MarketDataProviders - INFO - Batch fetch: 3/3 successful
+2026-02-16 15:55:50,052 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
+2026-02-16 15:55:50,053 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
+2026-02-16 15:55:50,053 - MarketDataProviders - INFO -   Stock providers:  yahoo_chart, cnbc (2 active)
+2026-02-16 15:55:50,053 - MarketDataProviders - INFO -   Crypto providers: binance, coingecko, cryptocompare, kraken, kucoin, mexc (6 active)
+2026-02-16 15:55:50,053 - MarketDataProviders - WARNING -   Disabled (no key): alphavantage (ALPHA_VANTAGE_API_KEY), polygon (POLYGON_API_KEY), twelvedata (TWELVE_DATA_API_KEY), fmp (FMP_API_KEY), tiingo (TIINGO_API_KEY)
+2026-02-16 15:55:50,184 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:55:50,184 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 15:55:50,316 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:55:50,316 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 15:55:52,187 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 15:55:52,187 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 15:55:52,187 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 15:55:52,188 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 15:55:52,188 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 15:55:52,189 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 15:55:52,189 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Cognitive Mesh is LIVE and ready for data.
+2026-02-16 15:55:52,189 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 15:55:55,375 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:55:55,398 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275355398 - Increase Concept Formation to 50 within 10 Cycles
+2026-02-16 15:55:55,398 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771275355398 - Reduce Noise Level (SIGMA) from 0.100 to 0.050 in 5 Cycles
