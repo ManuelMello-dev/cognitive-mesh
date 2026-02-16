@@ -37,16 +37,30 @@ class LLMInterpreter:
             concepts = self.core.get_concepts_snapshot()
             rules = self.core.get_rules_snapshot()
             
-            # Extract RAW data for specific assets to prevent LLM hallucinations
-            # We'll include the last 10 processed ticks from the mesh for the most relevant assets
+            # Extract RAW data for ALL requested assets to prevent LLM hallucinations
+            # We'll extract the latest state for every concept currently in the mesh
             raw_data_snapshot = {}
-            for symbol, agent in list(concepts.items())[:50]: # Look at top 50 active agents
-                if hasattr(agent, 'last_tick') and agent.last_tick:
+            for cid, concept in concepts.items():
+                # The core stores concepts as dicts, we need to check if they have signature or examples
+                # For our 'Global Mind' purposes, we want the most recent 'example' which is the last tick
+                examples = concept.get("examples", [])
+                if examples:
+                    last_tick = examples[-1]
+                    symbol = last_tick.get("symbol")
+                    if not symbol:
+                        # Fallback to domain if symbol is missing
+                        domain = concept.get("domain", "")
+                        if ":" in domain:
+                            symbol = domain.split(":")[1].upper()
+                        else:
+                            symbol = cid.replace("concept_", "").upper()
+                    
                     raw_data_snapshot[symbol] = {
-                        "price": agent.last_tick.get("price"),
-                        "volume": agent.last_tick.get("volume"),
-                        "change": agent.last_tick.get("change_pct"),
-                        "timestamp": agent.last_tick.get("timestamp")
+                        "price": last_tick.get("price"),
+                        "volume": last_tick.get("volume"),
+                        "change": last_tick.get("change_pct"),
+                        "timestamp": last_tick.get("timestamp"),
+                        "confidence": concept.get("confidence", 0)
                     }
 
             # Prepare a summary of the 'brains' (the mesh)
@@ -57,13 +71,18 @@ class LLMInterpreter:
             Concepts Formed: {metrics.get('concepts_count', '0')}
             Transfers Made: {metrics.get('transfers_count', '0')}
             
-            RAW MARKET DATA (TRUTH LAYER):
+            RAW MARKET DATA (TRUTH LAYER - USE THIS ONLY):
             {raw_data_snapshot}
             
             ACTIVE DATA FEED:
             The mesh is currently processing {len(concepts)} assets.
-            Top Active Agents: {list(concepts.keys())[:20]}
+            Top Active Agents: {list(raw_data_snapshot.keys())[:30]}
             """
+            
+            # DEBUG LOG: Verify what the LLM is actually seeing
+            logger.info(f"LLM DATA SNAPSHOT: {list(raw_data_snapshot.keys())[:10]}")
+            if "AAPL" in raw_data_snapshot:
+                logger.info(f"AAPL TRUTH: {raw_data_snapshot['AAPL']}")
             
             messages = [
                 {"role": "system", "content": f"""You are the GLOBAL_MIND, the interpretive interface for the Z³ Consciousness System. 
