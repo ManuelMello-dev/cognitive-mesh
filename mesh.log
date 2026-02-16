@@ -1,0 +1,73 @@
+nohup: ignoring input
+2026-02-16 14:48:58,291 - CognitiveMesh - INFO - Loaded 175 seed symbols from file
+2026-02-16 14:49:00,322 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 14:49:00,458 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 14:49:02,325 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 14:49:02,325 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 14:49:02,325 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 14:49:02,326 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 14:49:02,326 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 14:49:02,326 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 14:49:02,326 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 14:49:02,326 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 14:49:02,326 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 14:49:02,327 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC', 'ETH', 'SOL', 'HYPE', 'TRUMP', 'PUMP', 'AAPL', 'NVDA', 'TSLA', 'KO', 'ASTER', 'QS', 'WLD', 'XPEV', 'ERIC', 'GE', 'TAO', 'ONDO', 'COST', 'BAC', 'ACB', 'RUN', 'SBUX', 'USDe', 'BGB', 'ATOM', 'RIVN', 'PYPL', 'ZEC']
+2026-02-16 14:49:03,223 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,292 - yfinance - ERROR - Failed to get ticker 'SOL-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,376 - yfinance - ERROR - Failed to get ticker 'TRUMP' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,536 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,547 - yfinance - ERROR - Failed to get ticker 'HYPE' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,556 - yfinance - ERROR - Failed to get ticker 'PUMP' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,730 - yfinance - ERROR - Failed to get ticker 'NVDA' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:03,741 - yfinance - ERROR - Failed to get ticker 'TSLA' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:04,071 - yfinance - ERROR - Failed to get ticker 'KO' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:04,197 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:04,283 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:04,414 - yfinance - ERROR - NVDA: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:04,650 - yfinance - ERROR - PUMP: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:04,662 - yfinance - ERROR - SOL-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:04,667 - yfinance - ERROR - TRUMP: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:04,945 - yfinance - ERROR - HYPE: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:05,240 - yfinance - ERROR - TSLA: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:05,244 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:05,426 - yfinance - ERROR - KO: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:05,568 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:05,742 - yfinance - ERROR - Failed to get ticker 'ERIC' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,125 - yfinance - ERROR - Failed to get ticker 'WLD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,160 - yfinance - ERROR - Failed to get ticker 'ASTER' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,161 - yfinance - ERROR - Failed to get ticker 'QS' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,263 - yfinance - ERROR - Failed to get ticker 'GE' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,439 - yfinance - ERROR - Failed to get ticker 'XPEV' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,535 - yfinance - ERROR - Failed to get ticker 'BAC' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,898 - yfinance - ERROR - Failed to get ticker 'TAO' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:06,899 - yfinance - ERROR - Failed to get ticker 'ONDO' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:07,257 - yfinance - ERROR - ERIC: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:07,287 - yfinance - ERROR - Failed to get ticker 'COST' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:07,459 - yfinance - ERROR - GE: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:07,742 - yfinance - ERROR - WLD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,038 - yfinance - ERROR - QS: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,049 - yfinance - ERROR - ASTER: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,137 - yfinance - ERROR - ONDO: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,229 - yfinance - ERROR - XPEV: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,420 - yfinance - ERROR - BAC: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,684 - yfinance - ERROR - Failed to get ticker 'RUN' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:08,734 - yfinance - ERROR - COST: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,771 - yfinance - ERROR - Failed to get ticker 'ACB' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:08,772 - yfinance - ERROR - TAO: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:08,936 - yfinance - ERROR - Failed to get ticker 'SBUX' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:09,023 - yfinance - ERROR - Failed to get ticker 'USDE' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:09,405 - yfinance - ERROR - Failed to get ticker 'RIVN' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:09,469 - yfinance - ERROR - Failed to get ticker 'ATOM' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:09,592 - yfinance - ERROR - Failed to get ticker 'PYPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:09,784 - yfinance - ERROR - SBUX: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:09,908 - yfinance - ERROR - Failed to get ticker 'BGB' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:10,041 - yfinance - ERROR - RUN: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,042 - yfinance - ERROR - USDE: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,129 - yfinance - ERROR - Failed to get ticker 'ZEC' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:49:10,298 - yfinance - ERROR - ACB: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,470 - yfinance - ERROR - ATOM: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,473 - yfinance - ERROR - RIVN: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,604 - yfinance - ERROR - BGB: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,606 - yfinance - ERROR - PYPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:10,676 - yfinance - ERROR - ZEC: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:49:18,423 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"

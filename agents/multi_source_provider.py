@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from config.config import Config
+from agents.synthetic_provider import SyntheticMarketProvider
 
 logger = logging.getLogger("MultiSourceProvider")
 
@@ -137,7 +138,8 @@ class MultiSourceDataProvider:
         self.connector = aiohttp.TCPConnector(limit=50, limit_per_host=10)
         self.providers = [
             YahooFinanceProvider(),
-            BinanceProvider()
+            BinanceProvider(),
+            SyntheticMarketProvider()  # Fallback for resilience
         ]
     
     async def fetch_tick(self, symbol: str) -> Optional[Dict[str, Any]]:

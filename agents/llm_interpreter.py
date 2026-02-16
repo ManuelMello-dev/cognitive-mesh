@@ -44,12 +44,20 @@ class LLMInterpreter:
             
             # Summarize top concepts for context
             concept_summary = []
-            # Sort by confidence and take top 10
+            # Sort by confidence and take top 30 (increased for better coverage)
             sorted_concepts = sorted(concepts.values(), key=lambda x: x.get('confidence', 0), reverse=True)
-            for c in sorted_concepts[:10]:
+            for c in sorted_concepts[:30]:
+                # Extract symbol and price data from examples
+                symbol = "???"
+                price = None
+                if c.get("examples") and len(c["examples"]) > 0:
+                    symbol = c["examples"][0].get("symbol", "???")
+                    price = c["examples"][0].get("price")
+                
                 concept_summary.append({
-                    "id": c.get("id"),
+                    "symbol": symbol,
                     "domain": c.get("domain"),
+                    "price": price,
                     "confidence": round(c.get("confidence", 0), 4),
                     "obs_count": c.get("observation_count")
                 })
