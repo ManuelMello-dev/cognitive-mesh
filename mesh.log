@@ -28,3 +28,151 @@ nohup: ignoring input
 2026-02-16 14:57:12,715 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
 2026-02-16 14:57:13,740 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
 2026-02-16 14:57:19,616 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 14:58:14,652 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 14:58:14,655 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:58:14,655 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:58:14,658 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:58:14,950 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:58:15,033 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:58:15,048 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:59:15,065 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 14:59:15,067 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:59:15,068 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:59:15,068 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 14:59:15,348 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:59:15,441 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 14:59:15,499 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:00:15,513 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:00:15,515 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:00:15,516 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:00:15,516 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:00:15,780 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:00:15,856 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:00:15,864 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:01:15,878 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:01:15,881 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:01:15,883 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:01:15,885 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:01:16,170 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:01:16,277 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:01:16,283 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:02:16,300 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:02:16,302 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:02:16,303 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:02:16,306 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:02:16,607 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:02:16,715 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:02:16,718 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:03:16,738 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:03:16,740 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:03:16,741 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:03:16,742 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:03:17,067 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:03:17,159 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:03:17,183 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:04:17,196 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:04:17,198 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:04:17,199 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:04:17,199 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:04:17,478 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:04:17,562 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:04:17,630 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:05:17,643 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:05:17,645 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:05:17,647 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:05:17,649 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:05:18,001 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:05:18,105 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:05:18,111 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:06:18,128 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:06:18,130 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:06:18,131 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:06:18,132 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:06:18,415 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:06:18,508 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:06:18,514 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:07:18,532 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:07:18,533 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:07:18,534 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:07:18,534 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:07:18,808 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:07:18,910 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:07:18,915 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:08:18,928 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:08:18,930 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:08:18,933 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:08:18,934 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:08:22,099 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:08:23,309 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:08:24,207 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:09:25,109 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:09:25,111 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:09:25,112 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:09:25,114 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:09:27,349 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:09:28,478 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:09:29,465 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:10:30,401 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:10:30,404 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:10:30,404 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:10:30,405 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:10:30,717 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:10:30,794 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:10:30,800 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:11:30,815 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:11:30,817 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:11:30,818 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:11:30,819 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:11:31,158 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:11:31,258 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:11:31,341 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:12:31,354 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:12:31,356 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:12:31,358 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:12:31,360 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:12:33,286 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:12:33,842 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:12:33,910 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:12:34,778 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → stock:AAPL
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → crypto:BTC
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → crypto:ETH
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → stock:AAPL
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → stock:BTC
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → crypto:BTC
+2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → crypto:ETH
+2026-02-16 15:13:34,780 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:13:34,781 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:13:34,783 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:13:34,785 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:13:38,471 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:13:39,630 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:13:39,655 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:13:41,555 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → stock:ETH
+2026-02-16 15:14:41,556 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:14:41,557 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:14:41,558 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:14:41,558 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:14:43,626 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:14:44,193 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:14:44,423 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:15:45,276 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:15:45,278 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:15:45,278 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:15:45,280 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:15:49,323 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:15:50,757 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:15:50,828 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:16:52,379 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:16:52,381 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:16:52,382 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:16:52,382 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:16:55,782 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:16:57,029 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:16:57,057 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:17:58,604 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
+2026-02-16 15:17:58,606 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:17:58,606 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:17:58,607 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
+2026-02-16 15:18:02,529 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:18:03,896 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:18:04,063 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)

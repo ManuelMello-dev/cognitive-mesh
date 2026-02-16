@@ -4,6 +4,7 @@ import asyncio
 import json
 from aiohttp import web
 from agents.llm_interpreter import LLMInterpreter
+from agents.autonomous_reasoner import AutonomousReasoner
 from config.config import Config
 
 logger = logging.getLogger("HttpServer")
@@ -89,19 +90,105 @@ async def handle_state(request):
         logger.error(f"State query error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
+async def handle_analyze_patterns(request):
+    """Autonomous Reasoning: Deep pattern analysis across concepts and rules"""
+    try:
+        core = request.app.get('core')
+        reasoner = request.app.get('reasoner')
+        
+        if not core or not reasoner:
+            return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
+        
+        concepts = core.get_concepts_snapshot()
+        rules = core.get_rules_snapshot()
+        
+        analysis = await reasoner.analyze_patterns(concepts, rules)
+        return web.json_response(analysis)
+    except Exception as e:
+        logger.error(f"Pattern analysis error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def handle_generate_hypotheses(request):
+    """Autonomous Reasoning: Generate testable hypotheses from recent observations"""
+    try:
+        core = request.app.get('core')
+        reasoner = request.app.get('reasoner')
+        
+        if not core or not reasoner:
+            return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
+        
+        # Get recent observations from concepts
+        concepts = core.get_concepts_snapshot()
+        recent_obs = []
+        for c in concepts.values():
+            if c.get("examples"):
+                recent_obs.extend(c["examples"][:3])  # Top 3 examples per concept
+        
+        hypotheses = await reasoner.generate_hypotheses(recent_obs[:50])  # Limit to 50 most recent
+        return web.json_response({"hypotheses": hypotheses})
+    except Exception as e:
+        logger.error(f"Hypothesis generation error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def handle_formulate_goals(request):
+    """Autonomous Reasoning: Formulate strategic goals based on current mesh state"""
+    try:
+        core = request.app.get('core')
+        reasoner = request.app.get('reasoner')
+        
+        if not core or not reasoner:
+            return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
+        
+        metrics = core.get_metrics()
+        concepts = core.get_concepts_snapshot()
+        
+        goals = await reasoner.formulate_goals(metrics, concepts)
+        return web.json_response({"goals": goals})
+    except Exception as e:
+        logger.error(f"Goal formulation error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def handle_synthesize_insights(request):
+    """Autonomous Reasoning: Generate cross-domain insights"""
+    try:
+        data = await request.json()
+        domain_a = data.get("domain_a")
+        domain_b = data.get("domain_b")
+        
+        if not domain_a or not domain_b:
+            return web.json_response({"error": "Missing 'domain_a' or 'domain_b'"}, status=400)
+        
+        reasoner = request.app.get('reasoner')
+        if not reasoner:
+            return web.json_response({"error": "Reasoner not initialized"}, status=503)
+        
+        insights = await reasoner.synthesize_insights(domain_a, domain_b)
+        return web.json_response({"insights": insights})
+    except Exception as e:
+        logger.error(f"Insight synthesis error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
 async def start_http_server(core=None):
-    """Start the aiohttp web server with GPT I/O support"""
+    """Start the aiohttp web server with GPT I/O and Autonomous Reasoning support"""
     app = web.Application()
     
     if core:
         app['core'] = core
         app['interpreter'] = LLMInterpreter(core)
+        app['reasoner'] = AutonomousReasoner(core)
         
+    # Core endpoints
     app.router.add_get('/', handle_dashboard)
     app.router.add_get('/api/metrics', handle_metrics)
     app.router.add_get('/api/state', handle_state)
     app.router.add_post('/api/chat', handle_chat)
     app.router.add_post('/api/ingest', handle_ingest)
+    
+    # Autonomous Reasoning endpoints
+    app.router.add_get('/api/analyze', handle_analyze_patterns)
+    app.router.add_get('/api/hypotheses', handle_generate_hypotheses)
+    app.router.add_get('/api/goals', handle_formulate_goals)
+    app.router.add_post('/api/insights', handle_synthesize_insights)
     
     port = Config.PORT
     logger.info(f"Starting HTTP server on 0.0.0.0:{port}...")

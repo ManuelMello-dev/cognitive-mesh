@@ -19,6 +19,7 @@ from config.config import Config
 from core.distributed_core import DistributedCognitiveCore
 from agents.multi_source_provider import MultiSourceDataProvider
 from agents.pursuit_agent import PursuitAgent
+from agents.autonomous_reasoner import AutonomousReasoner
 from shared.network_zeromq import ZMQNode, ZMQPubSub
 from http_server import start_http_server
 
@@ -55,7 +56,9 @@ class CognitiveMeshOrchestrator:
         self.milvus = None
         self.redis = None
         
-        self.pursuit = PursuitAgent(self.core, self.pubsub)
+        # Initialize autonomous reasoning
+        self.reasoner = AutonomousReasoner(self.core)
+        self.pursuit = PursuitAgent(self.core, self.pubsub, self.reasoner)
         self.running = False
 
     def _load_symbols(self) -> Set[str]:
