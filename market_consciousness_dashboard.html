@@ -530,7 +530,8 @@
         let lastTime = Date.now();
         function simulate() {
             const currentTime = Date.now();
-            const dt = (currentTime - lastTime) / 1000;
+            // Cap dt to prevent massive jumps if tab was inactive
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
             lastTime = currentTime;
             
             // Update all agents
@@ -557,8 +558,11 @@
         }
 
         // Initialize
-        metrics.conceptsFormed = SYMBOLS.length;
-        simulate();
+        window.onload = () => {
+            resizeCanvas();
+            metrics.conceptsFormed = SYMBOLS.length;
+            simulate();
+        };
 
         // Add some initial transfers for visual effect
         setTimeout(() => {
