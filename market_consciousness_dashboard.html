@@ -571,14 +571,14 @@
                 log.removeChild(log.lastChild);
             }
         }
-
         // Main simulation loop
         let lastTime = Date.now();
+        let frameCount = 0;
         function simulate() {
             const currentTime = Date.now();
-            // Cap dt to prevent massive jumps if tab was inactive
             const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
             lastTime = currentTime;
+            frameCount++;
             
             // Update all agents
             Object.values(concepts).forEach(concept => {
@@ -592,13 +592,18 @@
             if (Math.random() < 0.1) {
                 simulateTransfers();
             }
-
-            // Occasional goal generation
-            if (Math.random() < 0.02) {
-                const goals = [
-                    "Refining rule coherence for AAPL",
-                    "Exploring cross-domain transfer: BTC -> NVDA",
-                    "Optimizing pursuit agent for market noise",
+            
+            // Vary noise (market volatility)
+            metrics.noiseLevel = 5 + Math.sin(currentTime / 5000) * 3;
+            
+            // Draw every frame, but update UI only every 10 frames for performance
+            draw();
+            if (frameCount % 10 === 0) {
+                updateUI();
+            }
+            
+            requestAnimationFrame(simulate);
+        }r market noise",
                     "Analyzing emergent concept covariance",
                     "Stabilizing phi-drift in global mind",
                     "Pursuing new asset discovery: SOL",

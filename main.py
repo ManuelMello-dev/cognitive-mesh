@@ -178,12 +178,14 @@ class CognitiveMeshOrchestrator:
                 await asyncio.sleep(10)
     
     async def _data_collection_loop(self):
-        """Continuously collect data from multiple sources"""
+        """Continuously collect data from multiple sources in staggered batches"""
         logger.info(f"Starting data collection for symbols: {list(self.symbols)}")
+        
+        batch_size = 20  # Process symbols in smaller batches
         
         while self.running:
             try:
-                # Organic discovery: check for new domains/concepts in the core
+                # Organic discovery
                 active_concepts = self.core.get_concepts_snapshot()
                 for cid, concept in active_concepts.items():
                     domain = concept.get("domain", "")
@@ -193,24 +195,26 @@ class CognitiveMeshOrchestrator:
                             logger.info(f"Organically discovered new asset: {symbol}")
                             self.symbols.add(symbol)
                 
-                # Fetch data for all symbols
-                ticks = await self.data_provider.fetch_batch(list(self.symbols))
-                
-                # Process each tick
-                for tick in ticks:
-                    if isinstance(tick, Exception):
-                        logger.error(f"Data fetch error: {tick}")
-                        continue
+                symbol_list = list(self.symbols)
+                for i in range(0, len(symbol_list), batch_size):
+                    if not self.running: break
                     
-                    # Ingest into core
-                    domain = f"stock:{tick.get('symbol')}"
-                    result = await self.core.ingest(tick, domain)
+                    batch = symbol_list[i:i + batch_size]
+                    logger.info(f"Processing batch {i//batch_size + 1}: {batch}")
                     
-                    # Cache the tick
-                    if self.redis:
-                        await self.redis.cache_tick(tick.get('symbol'), tick)
+                    ticks = await self.data_provider.fetch_batch(batch)
                     
-                    logger.debug(f"Processed tick for {tick.get('symbol')}")
+                    for tick in ticks:
+                        if isinstance(tick, Exception): continue
+                        
+                        domain = f"stock:{tick.get('symbol')}"
+                        await self.core.ingest(tick, domain)
+                        
+                        if self.redis:
+                            await self.redis.cache_tick(tick.get('symbol'), tick)
+                    
+                    # Small delay between batches to keep the event loop free for the UI
+                    await asyncio.sleep(2)
                 
                 # Log metrics periodically
                 metrics = self.core.get_metrics()
