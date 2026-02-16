@@ -8,6 +8,7 @@ import aiohttp
 import time
 import logging
 import os
+import tempfile
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -65,8 +66,14 @@ class YahooFinanceProvider:
         try:
             import yfinance
             self.yf = yfinance
+            # Production Hardening: Set a custom cache location to avoid permission issues in containers
+            cache_dir = os.path.join(tempfile.gettempdir(), "yfinance_cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            self.yf.set_tz_cache_location(cache_dir)
         except ImportError:
             logger.warning("yfinance not installed.")
+        except Exception as e:
+            logger.warning(f"Failed to set yfinance cache location: {e}")
     
     async def fetch_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
         if not self.circuit.can_attempt(): return None
@@ -126,6 +133,8 @@ class BinanceProvider:
 
 class MultiSourceDataProvider:
     def __init__(self):
+        # Production Hardening: Configure a shared session with connection pooling
+        self.connector = aiohttp.TCPConnector(limit=50, limit_per_host=10)
         self.providers = [
             YahooFinanceProvider(),
             BinanceProvider()

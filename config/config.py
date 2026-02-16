@@ -30,7 +30,7 @@ class Config:
     
     # LLM Config
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
+    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4.1-mini")
 
     @classmethod
     def get_symbols(cls) -> Set[str]:

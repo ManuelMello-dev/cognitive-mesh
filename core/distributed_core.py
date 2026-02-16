@@ -1,6 +1,7 @@
 """
 Distributed Cognitive Core with Full Database Integration
-Integrates the Universal Cognitive Core with PostgreSQL, Milvus, and Redis
+Integrates the Universal Cognitive Core with PostgreSQL, Milvus, and Redis.
+Refined with PHI coherence and noise reduction logic.
 """
 
 import asyncio
@@ -23,6 +24,7 @@ class DistributedCognitiveCore:
     Production-grade distributed cognitive core that:
     - Processes observations from multiple data sources
     - Maintains concept formation and rule learning
+    - Calculates Global Coherence (PHI) and Noise Levels (SIGMA)
     - Persists to PostgreSQL, Milvus, and Redis
     """
     
@@ -38,7 +40,7 @@ class DistributedCognitiveCore:
         self.short_term_memory: deque = deque(maxlen=1000)
         self.cross_domain_mappings: Dict[str, Set[str]] = {}
         
-        # Metrics
+        # Metrics - PHI and SIGMA are central to the consciousness model
         self.metrics = {
             "concepts_formed": 0,
             "concepts_decayed": 0,
@@ -50,8 +52,9 @@ class DistributedCognitiveCore:
             "uptime_seconds": 0.0,
             "last_observation_time": None,
             "start_time": time.time(),
-            "global_coherence": 0.5,
-            "noise_level": 0.1
+            "global_coherence_phi": 0.5,
+            "noise_level_sigma": 0.1,
+            "attention_density": 0.0
         }
         
         self.iteration = 0
@@ -91,7 +94,7 @@ class DistributedCognitiveCore:
             if self.iteration % Config.GOAL_GENERATION_INTERVAL == 0:
                 await self._generate_autonomous_goals(observation)
             
-            # Update global coherence based on rule support
+            # Update system metrics (PHI/SIGMA)
             self._update_system_metrics()
             
             # Persist to databases
@@ -103,6 +106,8 @@ class DistributedCognitiveCore:
                 "concept_id": concept_id,
                 "new_rules": len(new_rules),
                 "concept_count": len(self.concepts),
+                "phi": self.metrics["global_coherence_phi"],
+                "sigma": self.metrics["noise_level_sigma"],
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         
@@ -112,15 +117,25 @@ class DistributedCognitiveCore:
             return {"success": False, "error": str(e)}
 
     def _update_system_metrics(self):
-        """Update global system metrics based on current state"""
+        """Update PHI and SIGMA based on current mesh state"""
+        # PHI (Global Coherence): Average confidence of all learned rules
         if not self.rules:
-            self.metrics["global_coherence"] = 0.5
+            phi = 0.5
         else:
-            avg_confidence = sum(r["confidence"] for r in self.rules.values()) / len(self.rules)
-            self.metrics["global_coherence"] = avg_confidence
+            phi = sum(r["confidence"] for r in self.rules.values()) / len(self.rules)
         
-        # Noise level inversely proportional to coherence and concept stability
-        self.metrics["noise_level"] = max(0.0, 1.0 - self.metrics["global_coherence"])
+        # SIGMA (Noise Level): Inverse of PHI weighted by concept volatility
+        concept_volatility = 0.0
+        if self.concepts:
+            # Volatility is higher when concepts have low confidence but high observation counts
+            volatility_sum = sum((1.0 - c["confidence"]) for c in self.concepts.values())
+            concept_volatility = volatility_sum / len(self.concepts)
+            
+        sigma = (1.0 - phi) * 0.7 + concept_volatility * 0.3
+        
+        self.metrics["global_coherence_phi"] = round(phi, 4)
+        self.metrics["noise_level_sigma"] = round(sigma, 4)
+        self.metrics["attention_density"] = len(self.concepts) / 1000.0 # Normalized density
 
     async def _persist_data(self, concept_id: str, observation: Dict[str, Any]):
         """Persist data to available stores"""
@@ -190,11 +205,10 @@ class DistributedCognitiveCore:
         fv = self._create_feature_vector(obs)
         if not fv: return ""
         
-        # Look for similar existing concept
+        # Look for similar existing concept in the same domain
         best_concept = None
         best_similarity = 0.0
         
-        # Optimization: only check concepts in the same domain
         domain_concepts = [c for c in self.concepts.values() if c.get("domain") == domain]
         
         for concept in domain_concepts:
@@ -208,7 +222,9 @@ class DistributedCognitiveCore:
             concept = self.concepts[best_concept]
             concept["last_seen"] = current_time
             concept["observation_count"] += 1
-            concept["confidence"] = min(1.0, concept["confidence"] + 0.05)
+            # Confidence grows as a function of similarity and repetition
+            concept["confidence"] = min(1.0, concept["confidence"] + (best_similarity * 0.05))
+            
             # Update signature (moving average)
             for k, v in fv.items():
                 if k in concept["signature"]:
@@ -339,6 +355,8 @@ class DistributedCognitiveCore:
     def get_state_summary(self) -> Dict[str, Any]:
         return {
             "node_id": self.node_id,
+            "phi": self.metrics["global_coherence_phi"],
+            "sigma": self.metrics["noise_level_sigma"],
             "concepts_count": len(self.concepts),
             "rules_count": len(self.rules),
             "metrics": self.metrics,
