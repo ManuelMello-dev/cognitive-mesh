@@ -737,7 +737,12 @@
         }
 
         chatSend.onclick = sendMessage;
-        chatInput.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
 
         // Initialize
         window.onload = () => {
