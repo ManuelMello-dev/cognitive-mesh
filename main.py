@@ -74,16 +74,16 @@ class CognitiveMeshOrchestrator:
         await self.pubsub.start_publisher()
         await self.pubsub.start_subscriber(["concept", "rule", "transfer", "metrics", "goal"])
         
-        # Connect to databases if configured
-        if os.getenv("POSTGRES_URL"):
+        # Connect to databases if configured and classes are available
+        if os.getenv("POSTGRES_URL") and PostgresStore:
             self.postgres = PostgresStore(os.getenv("POSTGRES_URL"))
             await self.postgres.connect()
             
-        if os.getenv("MILVUS_HOST"):
+        if os.getenv("MILVUS_HOST") and MilvusStore:
             self.milvus = MilvusStore(os.getenv("MILVUS_HOST"))
             await self.milvus.connect()
             
-        if os.getenv("REDIS_URL"):
+        if os.getenv("REDIS_URL") and RedisCache:
             self.redis = RedisCache(os.getenv("REDIS_URL"))
             await self.redis.connect()
             

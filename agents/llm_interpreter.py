@@ -18,11 +18,19 @@ class LLMInterpreter:
     
     def __init__(self, core):
         self.core = core
-        self.client = OpenAI() # Uses OPENAI_API_KEY from environment
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not found. LLM Interpreter will run in 'Offline Mode'.")
+            self.client = None
+        else:
+            self.client = OpenAI(api_key=api_key)
         self.model = "gpt-4o"
         
     async def chat(self, user_message: str, history: List[Dict[str, str]] = None) -> str:
         """Process user message using the mesh state as context"""
+        if not self.client:
+            return "Interpreter is in Offline Mode. Please set OPENAI_API_KEY in Railway variables to enable the Global Mind interface."
+            
         try:
             # Gather current system context
             metrics = self.core.get_metrics()
