@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.config import Config
 from core.distributed_core import DistributedCognitiveCore
-from agents.multi_source_provider import MultiSourceDataProvider
+from agents.market_data_providers import MultiSourceDataProvider
 from agents.pursuit_agent import PursuitAgent
 from agents.autonomous_reasoner import AutonomousReasoner
 from shared.network_zeromq import ZMQNode, ZMQPubSub
@@ -179,10 +179,15 @@ class CognitiveMeshOrchestrator:
                 for tick in ticks:
                     if not tick or isinstance(tick, Exception): 
                         continue
-                    domain = f"stock:{tick.get('symbol')}"
+                    # Determine domain based on symbol type
+                    symbol = tick.get('symbol')
+                    if self.data_provider.is_crypto(symbol):
+                        domain = f"crypto:{symbol}"
+                    else:
+                        domain = f"stock:{symbol}"
                     await self.core.ingest(tick, domain)
                     if self.redis:
-                        await self.redis.cache_tick(tick.get('symbol'), tick)
+                        await self.redis.cache_tick(symbol, tick)
                 
                 await asyncio.sleep(self.update_interval)
             

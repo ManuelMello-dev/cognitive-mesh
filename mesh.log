@@ -1,178 +1,95 @@
-nohup: ignoring input
-2026-02-16 14:54:57,008 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
-2026-02-16 14:54:59,249 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
-2026-02-16 14:54:59,388 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
-2026-02-16 14:55:01,251 - CognitiveMesh - INFO - HTTP server task is running.
-2026-02-16 14:55:01,251 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
-2026-02-16 14:55:01,251 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
-2026-02-16 14:55:01,252 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
-2026-02-16 14:55:01,252 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
-2026-02-16 14:55:01,253 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
-2026-02-16 14:55:01,253 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
-2026-02-16 14:55:01,253 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
-2026-02-16 14:55:01,253 - CognitiveMesh - INFO - Starting prioritized data collection loop
-2026-02-16 14:56:01,253 - CognitiveMesh - INFO - Organically discovered new asset: AAPL
-2026-02-16 14:56:01,253 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL']
-2026-02-16 14:56:03,946 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:56:05,420 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:57:00,245 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → stock:AAPL
-2026-02-16 14:57:00,256 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → stock:AAPL
-2026-02-16 14:57:00,256 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:BTC
-2026-02-16 14:57:05,943 - CognitiveMesh - INFO - Organically discovered new asset: BTC
-2026-02-16 14:57:05,943 - CognitiveMesh - INFO - Organically discovered new asset: ETH
-2026-02-16 14:57:05,943 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 14:57:05,946 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:57:08,619 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:57:09,751 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:57:09,815 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:57:12,715 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:57:13,740 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:57:19,616 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
-2026-02-16 14:58:14,652 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 14:58:14,655 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:58:14,655 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:58:14,658 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:58:14,950 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:58:15,033 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:58:15,048 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:59:15,065 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 14:59:15,067 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:59:15,068 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:59:15,068 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 14:59:15,348 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:59:15,441 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 14:59:15,499 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:00:15,513 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:00:15,515 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:00:15,516 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:00:15,516 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:00:15,780 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:00:15,856 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:00:15,864 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:01:15,878 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:01:15,881 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:01:15,883 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:01:15,885 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:01:16,170 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:01:16,277 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:01:16,283 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:02:16,300 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:02:16,302 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:02:16,303 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:02:16,306 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:02:16,607 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:02:16,715 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:02:16,718 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:03:16,738 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:03:16,740 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:03:16,741 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:03:16,742 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:03:17,067 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:03:17,159 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:03:17,183 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:04:17,196 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:04:17,198 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:04:17,199 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:04:17,199 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:04:17,478 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:04:17,562 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:04:17,630 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:05:17,643 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:05:17,645 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:05:17,647 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:05:17,649 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:05:18,001 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:05:18,105 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:05:18,111 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:06:18,128 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:06:18,130 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:06:18,131 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:06:18,132 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:06:18,415 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:06:18,508 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:06:18,514 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:07:18,532 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:07:18,533 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:07:18,534 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:07:18,534 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:07:18,808 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:07:18,910 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:07:18,915 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:08:18,928 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:08:18,930 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:08:18,933 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:08:18,934 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:08:22,099 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:08:23,309 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:08:24,207 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:09:25,109 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:09:25,111 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:09:25,112 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:09:25,114 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:09:27,349 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:09:28,478 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:09:29,465 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:10:30,401 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:10:30,404 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:10:30,404 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:10:30,405 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:10:30,717 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:10:30,794 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:10:30,800 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:11:30,815 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:11:30,817 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:11:30,818 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:11:30,819 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:11:31,158 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:11:31,258 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:11:31,341 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:12:31,354 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:12:31,356 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:12:31,358 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:12:31,360 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:12:33,286 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:12:33,842 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:12:33,910 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:12:34,778 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → stock:AAPL
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → crypto:BTC
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → crypto:ETH
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → stock:AAPL
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → stock:BTC
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → crypto:BTC
-2026-02-16 15:12:34,779 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:ETH → crypto:ETH
-2026-02-16 15:13:34,780 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:13:34,781 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:13:34,783 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:13:34,785 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:13:38,471 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:13:39,630 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:13:39,655 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:13:41,555 - DistributedCognitiveCore - INFO - Cross-domain Transfer: stock:BTC → stock:ETH
-2026-02-16 15:14:41,556 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:14:41,557 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:14:41,558 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:14:41,558 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:14:43,626 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:14:44,193 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:14:44,423 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:15:45,276 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:15:45,278 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:15:45,278 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:15:45,280 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:15:49,323 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:15:50,757 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:15:50,828 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:16:52,379 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:16:52,381 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:16:52,382 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:16:52,382 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:16:55,782 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:16:57,029 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:16:57,057 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:17:58,604 - CognitiveMesh - INFO - Processing Attention Batch: ['AAPL', 'BTC', 'ETH']
-2026-02-16 15:17:58,606 - yfinance - ERROR - Failed to get ticker 'BTC-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:17:58,606 - yfinance - ERROR - Failed to get ticker 'ETH-USD' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:17:58,607 - yfinance - ERROR - Failed to get ticker 'AAPL' reason: Expecting value: line 1 column 1 (char 0)
-2026-02-16 15:18:02,529 - yfinance - ERROR - ETH-USD: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:18:03,896 - yfinance - ERROR - AAPL: No price data found, symbol may be delisted (period=1d)
-2026-02-16 15:18:04,063 - yfinance - ERROR - BTC-USD: No price data found, symbol may be delisted (period=1d)
+2026-02-16 15:36:42,214 - CognitiveMesh - INFO - No seed symbols configured. Mesh will operate on organically discovered or manually injected data only.
+2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - AlphaVantage disabled: ALPHA_VANTAGE_API_KEY not set
+2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - Polygon disabled: POLYGON_API_KEY not set
+2026-02-16 15:36:42,214 - MarketDataProviders - WARNING - TwelveData disabled: TWELVE_DATA_API_KEY not set
+2026-02-16 15:36:42,214 - MarketDataProviders - INFO - MultiSourceDataProvider initialized
+2026-02-16 15:36:42,214 - MarketDataProviders - INFO - Crypto providers: 2 active
+2026-02-16 15:36:42,214 - MarketDataProviders - INFO - Stock providers: 0 enabled
+2026-02-16 15:36:42,330 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:36:42,330 - CognitiveMesh - INFO - PHASE 1: Starting HTTP server...
+2026-02-16 15:36:42,420 - AutonomousReasoner - INFO - AutonomousReasoner initialized with OpenAI client
+2026-02-16 15:36:42,421 - HttpServer - INFO - Starting HTTP server on 0.0.0.0:8080...
+2026-02-16 15:36:44,331 - CognitiveMesh - INFO - HTTP server task is running.
+2026-02-16 15:36:44,332 - CognitiveMesh - INFO - PHASE 2: Mesh initialization...
+2026-02-16 15:36:44,332 - CognitiveMesh - INFO - Initializing Cognitive Mesh: global_mind_01
+2026-02-16 15:36:44,332 - ZeroMQNetwork - INFO - ZeroMQ Node global_mind_01 listening on port 5555
+2026-02-16 15:36:44,333 - ZeroMQNetwork - INFO - PubSub Publisher global_mind_01 listening on port 5556
+2026-02-16 15:36:44,333 - ZeroMQNetwork - INFO - PubSub Subscriber global_mind_01 subscribed to ['concept', 'rule', 'transfer', 'metrics', 'goal']
+2026-02-16 15:36:44,333 - CognitiveMesh - INFO - Cognitive Mesh initialized successfully
+2026-02-16 15:36:44,333 - CognitiveMesh - INFO - PHASE 3: Starting execution loops.
+2026-02-16 15:36:44,333 - CognitiveMesh - INFO - Starting prioritized data collection loop
+2026-02-16 15:36:47,709 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:36:47,731 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274207731 - Increase PHI to 0.65 within 4 weeks
+2026-02-16 15:36:47,731 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274207731 - Reduce SIGMA noise level to below 0.05 in 6 weeks
+2026-02-16 15:37:35,039 - httpx - INFO - HTTP Request: POST https://api.manus.im/api/llm-proxy/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-16 15:37:35,040 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274255040 - Increase PHI to 0.75 within 30 cycles
+2026-02-16 15:37:35,040 - PursuitAgent - INFO - Executing Autonomous Goal: pursuit_1771274255040 - Reduce SIGMA noise level to below 0.4 in 20 cycles
+2026-02-16 15:37:44,334 - CognitiveMesh - INFO - Organically discovered new asset: BTC
+2026-02-16 15:37:44,334 - CognitiveMesh - INFO - Processing Attention Batch: ['BTC']
+2026-02-16 15:37:46,165 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68155
+2026-02-16 15:37:46,165 - MarketDataProviders - INFO - Batch fetch: 1/1 successful
+2026-02-16 15:38:42,873 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:BTC
+2026-02-16 15:38:42,881 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:ETH
+2026-02-16 15:38:42,881 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:BTC
+2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:SOL
+2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:ETH
+2026-02-16 15:38:42,890 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:BTC
+2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:SOL
+2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:BNB
+2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:ETH
+2026-02-16 15:38:42,899 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:BTC
+2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:SOL
+2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:BNB
+2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:ETH
+2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:ADA
+2026-02-16 15:38:42,909 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:DOGE → crypto:BTC
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: ETH
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: SOL
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: BNB
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: ADA
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Organically discovered new asset: DOGE
+2026-02-16 15:38:46,166 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
+2026-02-16 15:38:53,122 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.98
+2026-02-16 15:38:56,176 - MarketDataProviders - ERROR - CoinGecko fetch error for BTC: Cannot connect to host api.coingecko.com:443 ssl:default [None]
+2026-02-16 15:38:56,177 - MarketDataProviders - ERROR - CoinGecko fetch error for ADA: Cannot connect to host api.coingecko.com:443 ssl:default [None]
+2026-02-16 15:38:56,178 - MarketDataProviders - ERROR - CoinGecko fetch error for BNB: Cannot connect to host api.coingecko.com:443 ssl:default [None]
+2026-02-16 15:38:56,191 - MarketDataProviders - WARNING - All providers failed for BTC
+2026-02-16 15:38:56,193 - MarketDataProviders - WARNING - All providers failed for ADA
+2026-02-16 15:38:56,194 - MarketDataProviders - WARNING - All providers failed for BNB
+2026-02-16 15:38:56,960 - MarketDataProviders - ERROR - CoinGecko fetch error for DOGE: 
+2026-02-16 15:38:56,960 - MarketDataProviders - ERROR - CoinGecko fetch error for ETH: 
+2026-02-16 15:38:56,989 - MarketDataProviders - WARNING - All providers failed for DOGE
+2026-02-16 15:38:56,991 - MarketDataProviders - WARNING - All providers failed for ETH
+2026-02-16 15:38:56,991 - MarketDataProviders - INFO - Batch fetch: 1/6 successful
+2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:BNB
+2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:ADA
+2026-02-16 15:38:56,991 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:SOL → crypto:DOGE
+2026-02-16 15:39:56,993 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
+2026-02-16 15:39:58,465 - MarketDataProviders - INFO - ✓ Fetched DOGE from coingecko: $0.100405
+2026-02-16 15:39:58,592 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68134
+2026-02-16 15:39:58,607 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.99
+2026-02-16 15:39:58,609 - MarketDataProviders - INFO - ✓ Fetched ETH from coingecko: $1981.89
+2026-02-16 15:39:58,628 - MarketDataProviders - INFO - ✓ Fetched BNB from coingecko: $618.95
+2026-02-16 15:39:58,907 - MarketDataProviders - INFO - ✓ Fetched ADA from coingecko: $0.283361
+2026-02-16 15:39:58,907 - MarketDataProviders - INFO - Batch fetch: 6/6 successful
+2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:SOL
+2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:BNB
+2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:ADA
+2026-02-16 15:39:58,907 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ETH → crypto:DOGE
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:ADA → crypto:DOGE
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:SOL
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:BNB
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:ETH
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:ADA
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BTC → crypto:DOGE
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:ADA
+2026-02-16 15:39:58,908 - DistributedCognitiveCore - INFO - Cross-domain Transfer: crypto:BNB → crypto:DOGE
+2026-02-16 15:40:35,045 - PursuitAgent - ERROR - Error in pursuit cycle: 'str' object has no attribute 'get'
+2026-02-16 15:40:58,909 - CognitiveMesh - INFO - Processing Attention Batch: ['ETH', 'ADA', 'BTC', 'DOGE', 'SOL', 'BNB']
+2026-02-16 15:40:59,670 - MarketDataProviders - INFO - ✓ Fetched DOGE from coingecko: $0.100405
+2026-02-16 15:40:59,712 - MarketDataProviders - INFO - ✓ Fetched ETH from coingecko: $1979.94
+2026-02-16 15:40:59,798 - MarketDataProviders - INFO - ✓ Fetched ADA from coingecko: $0.283352
+2026-02-16 15:40:59,841 - MarketDataProviders - INFO - ✓ Fetched SOL from coingecko: $84.97
+2026-02-16 15:40:59,844 - MarketDataProviders - INFO - ✓ Fetched BTC from coingecko: $68110
+2026-02-16 15:40:59,861 - MarketDataProviders - INFO - ✓ Fetched BNB from coingecko: $618.56
+2026-02-16 15:40:59,861 - MarketDataProviders - INFO - Batch fetch: 6/6 successful
