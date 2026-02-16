@@ -122,11 +122,6 @@
             padding: 5px;
         }
 
-        .transfer-entry {
-            margin-bottom: 4px;
-            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-        }
-
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -175,7 +170,6 @@
             font-weight: bold;
         }
 
-        /* Mobile Adjustments */
         @media (max-width: 768px) {
             .dashboard { grid-template-columns: 1fr; }
             .metric-value { font-size: 1.2rem; }
@@ -204,11 +198,11 @@
                     <div class="metric-value" id="transfersMade">0</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-label">COHERENCE SCORE</div>
+                    <div class="metric-label">PHI COHERENCE</div>
                     <div class="metric-value" id="coherenceScore">0.00</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-label">NOISE LEVEL (σ²)</div>
+                    <div class="metric-label">SIGMA NOISE</div>
                     <div class="metric-value" id="noiseLevel">0.00</div>
                 </div>
             </div>
@@ -218,30 +212,22 @@
         </div>
 
         <div class="panel">
-            <h3>Active Concepts (Agents)</h3>
+            <h3>Active Concepts (Attention Field)</h3>
             <div class="symbol-list" id="symbolList"></div>
         </div>
 
         <div class="panel">
-            <h3>Coherence Field (Z₃ Attractor)</h3>
+            <h3>Coherence Field (Z³ Attractor)</h3>
             <canvas id="coherenceCanvas"></canvas>
         </div>
 
         <div class="panel">
-            <h3>Transfer Network Activity</h3>
+            <h3>System Status Log</h3>
             <div class="transfer-log" id="transferLog"></div>
         </div>
 
-        <div class="panel">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Goals & Pursuits Log</h3>
-                <span id="goalsCount" style="color: #ff00ff; font-weight: bold;">[0]</span>
-            </div>
-            <div class="transfer-log" id="goalsLog" style="border-color: #ff00ff;"></div>
-        </div>
-
         <div class="panel" style="grid-column: 1 / -1;">
-            <h3>Interpretive Interface (GPT-4o Layer)</h3>
+            <h3>Interpretive Interface (Global Mind GPT I/O)</h3>
             <div class="chat-container">
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-message ai-message">
@@ -257,18 +243,13 @@
     </div>
 
     <script>
-        // Constants
-        const PHI = 1.618033988749;
-        
         // Simulation State
         let concepts = {};
-        let attractor = { x: 0, y: 0 };
         let metrics = {
             conceptsFormed: 0,
             transfersMade: 0,
-            goalsGenerated: 0,
-            coherenceScore: 0,
-            noiseLevel: 0
+            phi: 0,
+            sigma: 0
         };
 
         // Canvas setup
@@ -282,55 +263,57 @@
         resizeCanvas();
 
         // Data Fetching
-        async function fetchMetrics() {
+        async function fetchState() {
             try {
-                const response = await fetch('/api/metrics');
+                const response = await fetch('/api/state');
                 const data = await response.json();
                 
-                // Update global metrics
-                metrics.conceptsFormed = data.concepts_count || 0;
-                metrics.transfersMade = data.transfers_count || 0;
-                metrics.coherenceScore = data.global_coherence || 0;
-                metrics.noiseLevel = data.noise_level || 0;
+                // Update global metrics from hardened schema
+                metrics.conceptsFormed = data.metrics.concepts_formed || 0;
+                metrics.transfersMade = data.metrics.transfers_made || 0;
+                metrics.phi = data.metrics.global_coherence_phi || 0;
+                metrics.sigma = data.metrics.noise_level_sigma || 0;
                 
                 // Update symbols/concepts
-                if (data.active_symbols) {
-                    data.active_symbols.forEach(symbol => {
-                        if (!concepts[symbol]) {
-                            concepts[symbol] = {
-                                position: { x: (Math.random()-0.5)*100, y: (Math.random()-0.5)*100 },
-                                coherence: Math.random()
+                const newConcepts = data.concepts || {};
+                const symbolList = document.getElementById('symbolList');
+                
+                // Clear and rebuild symbol list if count changed
+                if (Object.keys(newConcepts).length !== Object.keys(concepts).length) {
+                    symbolList.innerHTML = '';
+                    Object.values(newConcepts).forEach(c => {
+                        const symbol = c.examples && c.examples[0] ? c.examples[0].symbol : '???';
+                        const div = document.createElement('div');
+                        div.className = 'symbol-item';
+                        div.textContent = symbol;
+                        symbolList.appendChild(div);
+                        
+                        if (!concepts[c.id]) {
+                            concepts[c.id] = {
+                                symbol: symbol,
+                                position: { x: (Math.random()-0.5)*100, y: (Math.random()-0.5)*100 }
                             };
                         }
                     });
                 }
-
+                
                 // Update UI state
-                const state = metrics.coherenceScore > 0.7 ? 'ordered' : (metrics.coherenceScore > 0.3 ? 'critical' : 'chaos');
+                const state = metrics.phi > 0.7 ? 'ordered' : (metrics.phi > 0.4 ? 'critical' : 'chaos');
                 const stateEl = document.getElementById('consciousnessState');
                 stateEl.className = `consciousness-state ${state}`;
                 stateEl.textContent = state.toUpperCase() + ' REGIME';
 
                 updateUI();
             } catch (e) {
-                console.error("Failed to fetch metrics", e);
+                console.error("Failed to fetch state", e);
             }
         }
 
         function updateUI() {
             document.getElementById('conceptsFormed').textContent = metrics.conceptsFormed;
             document.getElementById('transfersMade').textContent = metrics.transfersMade;
-            document.getElementById('coherenceScore').textContent = metrics.coherenceScore.toFixed(3);
-            document.getElementById('noiseLevel').textContent = metrics.noiseLevel.toFixed(3);
-
-            const symbolList = document.getElementById('symbolList');
-            symbolList.innerHTML = '';
-            Object.keys(concepts).forEach(symbol => {
-                const div = document.createElement('div');
-                div.className = 'symbol-item';
-                div.textContent = symbol;
-                symbolList.appendChild(div);
-            });
+            document.getElementById('coherenceScore').textContent = metrics.phi.toFixed(3);
+            document.getElementById('noiseLevel').textContent = metrics.sigma.toFixed(3);
         }
 
         // Visualization
@@ -349,7 +332,7 @@
             ctx.fill();
 
             // Draw concepts
-            Object.entries(concepts).forEach(([symbol, concept]) => {
+            Object.values(concepts).forEach(concept => {
                 const x = centerX + concept.position.x * scale;
                 const y = centerY + concept.position.y * scale;
                 
@@ -359,8 +342,8 @@
                 ctx.fill();
                 
                 // Move them slightly for visual "life"
-                concept.position.x += (Math.random()-0.5);
-                concept.position.y += (Math.random()-0.5);
+                concept.position.x += (Math.random()-0.5) * 0.5;
+                concept.position.y += (Math.random()-0.5) * 0.5;
             });
 
             requestAnimationFrame(draw);
@@ -403,7 +386,7 @@
         chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
         // Loops
-        setInterval(fetchMetrics, 3000);
+        setInterval(fetchState, 3000);
         draw();
     </script>
 </body>
