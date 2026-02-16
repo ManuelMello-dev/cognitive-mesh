@@ -1,14 +1,56 @@
+import os
+import logging
+from aiohttp import web
 import asyncio
-from http_server import start_http_server
 
-# In your async main or run_forever method:
-async def main():
-    # Start HTTP dashboards (Railway's PORT)
-    asyncio.create_task(start_http_server())
+logger = logging.getLogger("HttpServer")
+
+async def handle_dashboard(request):
+    """Serve the Market Consciousness Dashboard"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), 'market_consciousness_dashboard.html')
+        with open(path, 'r') as f:
+            content = f.read()
+        return web.Response(text=content, content_type='text/html')
+    except Exception as e:
+        logger.error(f"Error serving dashboard: {e}")
+        return web.Response(text="Dashboard file not found", status=404)
+
+async def handle_eeg(request):
+    """Serve the Market EEG Monitor"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), 'market_eeg_monitor.html')
+        with open(path, 'r') as f:
+            content = f.read()
+        return web.Response(text=content, content_type='text/html')
+    except Exception as e:
+        logger.error(f"Error serving EEG monitor: {e}")
+        return web.Response(text="EEG Monitor file not found", status=404)
+
+async def start_http_server():
+    """Start the aiohttp web server"""
+    app = web.Application()
+    app.router.add_get('/', handle_dashboard)
+    app.router.add_get('/dashboard', handle_dashboard)
+    app.router.add_get('/eeg', handle_eeg)
     
-    # Your existing cognitive mesh on ZeroMQ (5555, 5556)
-    mesh = CognitiveMesh(node_id="global_mind_01")
-    await mesh.run_forever()
+    port = int(os.getenv("PORT", 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    
+    logger.info(f"Starting HTTP server on port {port}...")
+    await site.start()
+    
+    # Keep the runner alive
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # For standalone testing
+    logging.basicConfig(level=logging.INFO)
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(start_http_server())
+    except KeyboardInterrupt:
+        pass

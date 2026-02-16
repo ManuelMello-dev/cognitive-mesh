@@ -24,6 +24,7 @@ from agents.multi_source_provider import MultiSourceDataProvider
 from core.distributed_core import DistributedCognitiveCore
 from shared.gossip_amfg import AMFGProtocol
 from shared.network_zeromq import ZMQNode, ZMQAgent, ZMQPubSub
+from http_server import start_http_server
 
 # Optional database components
 try:
@@ -181,9 +182,8 @@ class CognitiveMeshOrchestrator:
                     logger.debug(f"Processed tick for {tick.get('symbol')}")
                 
                 # Log metrics periodically
-                if self.core.iteration % 10 == 0:
-                    metrics = self.core.get_metrics()
-                    logger.info(f"Metrics: {metrics}")
+                metrics = self.core.get_metrics()
+                logger.info(f"Metrics: {metrics}")
                 
                 await asyncio.sleep(self.update_interval)
             
@@ -249,6 +249,7 @@ class CognitiveMeshOrchestrator:
                 self._metrics_reporter_loop(),
                 self._network_listener_loop(),
                 self._pubsub_listener_loop(),
+                start_http_server(),
                 return_exceptions=True
             )
         
