@@ -19,10 +19,49 @@ from datetime import datetime, timezone
 logger = logging.getLogger("MarketScanner")
 
 
+# Symbols that look like crypto but are unfetchable on any exchange
+# (stablecoins with no USDT pair, wrapped tokens, governance tokens with
+# non-standard tickers, or CoinGecko-only slugs that don't map to any pair)
+_UNFETCHABLE_CRYPTO = {
+    "USD1", "USDF", "USDG", "USDS", "USDE", "PYUSD", "BUIDL",
+    "WLFI", "FIGR_HELOC", "CC", "M",
+}
+
+# Minimum symbol length (single-char tickers are almost always garbage)
+_MIN_SYMBOL_LEN = 2
+
+
+def _is_valid_crypto_symbol(symbol: str) -> bool:
+    """Return True if the symbol is likely fetchable on at least one exchange."""
+    s = symbol.upper()
+    if len(s) < _MIN_SYMBOL_LEN:
+        return False
+    if s in _UNFETCHABLE_CRYPTO:
+        return False
+    if "_" in s or "." in s:  # e.g. FIGR_HELOC
+        return False
+    if not s.isalpha() and not s.replace("1", "").isalpha():  # allow 1INCH
+        return False
+    return True
+
+
+def _is_valid_stock_symbol(symbol: str) -> bool:
+    """Return True if the symbol looks like a real US equity ticker."""
+    s = symbol.upper()
+    if len(s) < 1 or len(s) > 5:
+        return False
+    if "." in s or "=" in s or "_" in s:
+        return False
+    if not s.isalpha():
+        return False
+    return True
+
+
 class MarketScanner:
     """
     Autonomously discovers market assets from free public APIs.
     No hardcoded symbols — everything is dynamically discovered.
+    Filters out unfetchable/garbage symbols before returning.
     """
 
     def __init__(self):
@@ -66,7 +105,7 @@ class MarketScanner:
         for result in crypto_results:
             if isinstance(result, set):
                 for symbol in result:
-                    if symbol not in self._discovered_crypto:
+                    if symbol not in self._discovered_crypto and _is_valid_crypto_symbol(symbol):
                         new_crypto.add(symbol)
                         self._discovered_crypto.add(symbol)
 
@@ -80,7 +119,7 @@ class MarketScanner:
         for result in stock_results:
             if isinstance(result, set):
                 for symbol in result:
-                    if symbol not in self._discovered_stocks:
+                    if symbol not in self._discovered_stocks and _is_valid_stock_symbol(symbol):
                         new_stocks.add(symbol)
                         self._discovered_stocks.add(symbol)
 

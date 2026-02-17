@@ -515,7 +515,29 @@ class MultiSourceDataProvider:
     """
     Orchestrates all providers with circuit breaker cascade.
     For each symbol, tries providers in order until one succeeds.
+
+    Key design decisions:
+      - Crypto cascade: CryptoCompare first (no rate limit), then Kraken,
+        KuCoin, MEXC, CoinGecko (rate-limited), Binance last (geo-blocked
+        from most cloud datacenters — HTTP 451).
+      - Per-provider semaphores prevent flooding any single API.
+      - Batch fetches use a global concurrency limiter (10 concurrent).
     """
+
+    # Max concurrent requests across all providers in a batch
+    BATCH_CONCURRENCY = 10
+
+    # Per-provider concurrency limits (name → max simultaneous requests)
+    _PROVIDER_LIMITS = {
+        "coingecko": 3,      # 10-30 req/min free tier
+        "binance": 8,        # generous but geo-blocked
+        "cryptocompare": 8,  # no hard limit on basic endpoint
+        "kraken": 5,
+        "kucoin": 5,
+        "mexc": 5,
+        "yahoo_chart": 8,
+        "cnbc": 5,
+    }
 
     def __init__(self):
         # Stock providers — order = priority
@@ -529,15 +551,29 @@ class MultiSourceDataProvider:
             TiingoProvider(),
         ]
 
-        # Crypto providers — order = priority
+        # Crypto providers — reordered for reliability on cloud hosts
+        #   CryptoCompare: no rate limit, very reliable
+        #   Kraken/KuCoin/MEXC: reliable, moderate limits
+        #   CoinGecko: aggressive rate limiting on free tier
+        #   Binance: geo-blocked (451) from most cloud IPs — last resort
         self.crypto_providers: List[BaseProvider] = [
-            BinanceProvider(),
-            CoinGeckoProvider(),
             CryptoCompareProvider(),
             KrakenProvider(),
             KuCoinProvider(),
             MEXCProvider(),
+            CoinGeckoProvider(),
+            BinanceProvider(),
         ]
+
+        # Per-provider semaphores (created lazily to avoid event loop issues)
+        self._provider_semas: Dict[str, asyncio.Semaphore] = {}
+
+        # Global batch semaphore (created lazily)
+        self._batch_sema: Optional[asyncio.Semaphore] = None
+
+        # Track symbols that consistently fail (all providers) to skip them
+        self._fail_counts: Dict[str, int] = {}  # symbol → consecutive failures
+        self._SKIP_THRESHOLD = 5  # skip symbol after N consecutive full failures
 
         # Log status
         active_stock = [p.NAME for p in self.stock_providers if p.enabled]
@@ -545,10 +581,23 @@ class MultiSourceDataProvider:
         disabled_stock = [f"{p.NAME} ({p.KEY_ENV})" for p in self.stock_providers if not p.enabled]
 
         logger.info(f"MultiSourceDataProvider initialized")
-        logger.info(f"  Stock providers:  {', '.join(active_stock)} ({len(active_stock)} active)")
-        logger.info(f"  Crypto providers: {', '.join(active_crypto)} ({len(active_crypto)} active)")
+        logger.info(f"  Stock cascade:  {', '.join(active_stock)} ({len(active_stock)} active)")
+        logger.info(f"  Crypto cascade: {', '.join(active_crypto)} ({len(active_crypto)} active)")
         if disabled_stock:
             logger.warning(f"  Disabled (no key): {', '.join(disabled_stock)}")
+
+    def _get_provider_sema(self, name: str) -> asyncio.Semaphore:
+        """Get or create per-provider semaphore."""
+        if name not in self._provider_semas:
+            limit = self._PROVIDER_LIMITS.get(name, 6)
+            self._provider_semas[name] = asyncio.Semaphore(limit)
+        return self._provider_semas[name]
+
+    def _get_batch_sema(self) -> asyncio.Semaphore:
+        """Get or create global batch semaphore."""
+        if self._batch_sema is None:
+            self._batch_sema = asyncio.Semaphore(self.BATCH_CONCURRENCY)
+        return self._batch_sema
 
     def is_crypto(self, symbol: str) -> bool:
         return symbol.upper() in _KNOWN_CRYPTO
@@ -556,15 +605,23 @@ class MultiSourceDataProvider:
     async def fetch(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch a single symbol through the circuit breaker cascade."""
         symbol = symbol.upper()
+
+        # Skip symbols that consistently fail across all providers
+        if self._fail_counts.get(symbol, 0) >= self._SKIP_THRESHOLD:
+            return None
+
         providers = self.crypto_providers if self.is_crypto(symbol) else self.stock_providers
 
         for provider in providers:
             if not provider.available:
                 continue
+            sema = self._get_provider_sema(provider.NAME)
             try:
-                result = await provider.fetch(symbol)
+                async with sema:
+                    result = await provider.fetch(symbol)
                 if result and result.get("price", 0) > 0:
                     provider.breaker.record_success()
+                    self._fail_counts[symbol] = 0  # reset on success
                     return result
                 else:
                     provider.breaker.record_failure()
@@ -572,15 +629,31 @@ class MultiSourceDataProvider:
                 provider.breaker.record_failure()
                 logger.debug(f"  [{provider.NAME}] failed for {symbol}: {e}")
 
-        logger.warning(f"All providers failed for {symbol}")
+        # All providers failed for this symbol
+        self._fail_counts[symbol] = self._fail_counts.get(symbol, 0) + 1
+        fc = self._fail_counts[symbol]
+        if fc >= self._SKIP_THRESHOLD:
+            logger.warning(f"All providers failed for {symbol} ({fc}x) — will skip in future batches")
+        else:
+            logger.warning(f"All providers failed for {symbol} ({fc}/{self._SKIP_THRESHOLD})")
         return None
 
     async def fetch_batch(self, symbols: List[str]) -> List[Dict[str, Any]]:
-        """Fetch multiple symbols concurrently."""
+        """
+        Fetch multiple symbols with controlled concurrency.
+        Uses a global semaphore to limit simultaneous in-flight requests,
+        preventing API flooding that triggers rate limits.
+        """
         if not symbols:
             return []
 
-        tasks = [self.fetch(s) for s in symbols]
+        batch_sema = self._get_batch_sema()
+
+        async def _rate_limited_fetch(sym: str) -> Optional[Dict[str, Any]]:
+            async with batch_sema:
+                return await self.fetch(sym)
+
+        tasks = [_rate_limited_fetch(s) for s in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         ticks = []
@@ -589,12 +662,18 @@ class MultiSourceDataProvider:
             if isinstance(result, Exception):
                 logger.error(f"Exception fetching {sym}: {result}")
             elif result:
-                logger.info(f"✓ Fetched {sym} from {result.get('source', '?')}: ${result['price']:,.2f}")
                 ticks.append(result)
                 success += 1
 
         logger.info(f"Batch fetch: {success}/{len(symbols)} successful")
         return ticks
+
+    def reset_skip_list(self):
+        """Reset the skip list (e.g., after a rescan discovers new providers)."""
+        cleared = [s for s, c in self._fail_counts.items() if c >= self._SKIP_THRESHOLD]
+        self._fail_counts.clear()
+        if cleared:
+            logger.info(f"Reset skip list: {cleared}")
 
     async def close(self):
         """Close all provider sessions."""
@@ -604,7 +683,7 @@ class MultiSourceDataProvider:
 
     def get_provider_status(self) -> Dict[str, Any]:
         """Return status of all providers for monitoring."""
-        status = {"stock": [], "crypto": []}
+        status = {"stock": [], "crypto": [], "skipped_symbols": []}
         for p in self.stock_providers:
             status["stock"].append({
                 "name": p.NAME,
@@ -621,4 +700,7 @@ class MultiSourceDataProvider:
                 "state": p.breaker.state.value,
                 "failures": p.breaker.failures,
             })
+        status["skipped_symbols"] = [
+            s for s, c in self._fail_counts.items() if c >= self._SKIP_THRESHOLD
+        ]
         return status
