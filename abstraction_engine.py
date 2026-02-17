@@ -86,7 +86,22 @@ class AbstractionEngine:
         self.observation_buffer: List[Dict[str, Any]] = []
         
         logger.info("Abstraction Engine initialized")
-    
+
+    @property
+    def patterns(self) -> Dict[str, Dict]:
+        """Derive patterns from formed concepts for goal generation context."""
+        result = {}
+        for cid, concept in self.concepts.items():
+            result[cid] = {
+                'pattern_id': cid,
+                'name': concept.name,
+                'confidence': concept.confidence,
+                'level': concept.level,
+                'examples_count': len(concept.examples),
+                'attributes': dict(concept.attributes) if concept.attributes else {},
+            }
+        return result
+
     def observe(self, observation: Dict[str, Any]) -> Optional[str]:
         """
         Process observation and potentially form concepts

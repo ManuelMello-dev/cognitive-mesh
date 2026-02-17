@@ -278,6 +278,25 @@ async def handle_synthesize_insights(request):
 
 
 # ──────────────────────────────────────────────
+# Prediction Engine
+# ──────────────────────────────────────────────
+
+async def handle_predictions(request):
+    """Get prediction engine state: accuracy, trends, per-symbol performance"""
+    try:
+        core = request.app.get('core')
+        if not core:
+            return web.json_response({"error": "Core not initialized"}, status=503)
+
+        predictions = core.get_prediction_snapshot()
+        body = json.dumps(predictions, default=json_serial)
+        return web.Response(text=body, content_type='application/json')
+    except Exception as e:
+        logger.error(f"Predictions error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+
+# ──────────────────────────────────────────────
 # Data Provider Status
 # ──────────────────────────────────────────────
 
@@ -328,6 +347,9 @@ async def start_http_server(core=None, data_provider=None):
     app.router.add_get('/api/introspection', handle_introspection)
     app.router.add_get('/api/goals', handle_goals)
     app.router.add_get('/api/learning', handle_learning)
+
+    # Predictions
+    app.router.add_get('/api/predictions', handle_predictions)
 
     # Autonomous reasoning
     app.router.add_get('/api/analyze', handle_analyze_patterns)

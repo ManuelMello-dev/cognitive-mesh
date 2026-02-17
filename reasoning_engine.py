@@ -22,6 +22,9 @@ class RuleType(Enum):
     CORRELATION = "correlates"
     CONSTRAINT = "must"
 
+# Keep legacy alias
+IF_THEN = RuleType.IMPLICATION
+
 
 @dataclass
 class Rule:
@@ -90,6 +93,18 @@ class Plan:
         }
 
 
+# Keys to use for rule mining (categorical/boolean, not raw floats)
+_RULE_MINING_KEYS = {
+    'direction', 'above_ma5', 'asset_type',
+}
+
+# Keys whose values should be discretized into buckets
+_DISCRETIZE_KEYS = {
+    'pct_change': [(-100, -5, 'big_drop'), (-5, -1, 'drop'), (-1, 1, 'flat'), (1, 5, 'rise'), (5, 100, 'big_rise')],
+    'volatility_5': [(0, 1, 'low_vol'), (1, 5, 'med_vol'), (5, 100, 'high_vol')],
+}
+
+
 class ReasoningEngine:
     """
     Performs logical inference, causal reasoning, and planning
@@ -118,17 +133,18 @@ class ReasoningEngine:
         self.observation_history: List[Dict[str, Any]] = []
         self.rule_counter = 0
         
+        # Dedup: track which rule signatures already exist
+        self._rule_signatures: Set[str] = set()
+        
         logger.info("Reasoning Engine initialized")
     
     def assert_fact(self, fact: str):
         """Add a fact to knowledge base"""
         self.facts.add(fact)
-        logger.debug(f"Asserted fact: {fact}")
     
     def retract_fact(self, fact: str):
         """Remove a fact from knowledge base"""
         self.facts.discard(fact)
-        logger.debug(f"Retracted fact: {fact}")
     
     def add_rule(
         self,
@@ -136,8 +152,21 @@ class ReasoningEngine:
         consequent: str,
         rule_type: RuleType = RuleType.IMPLICATION,
         confidence: float = 1.0
-    ) -> str:
-        """Add reasoning rule"""
+    ) -> Optional[str]:
+        """Add reasoning rule (deduplicates by signature)"""
+        # Create a canonical signature
+        sig = "|".join(sorted(antecedents)) + "=>" + consequent
+        
+        # If rule already exists, update confidence if higher
+        if sig in self._rule_signatures:
+            for rule in self.rules.values():
+                if "|".join(sorted(rule.antecedents)) + "=>" + rule.consequent == sig:
+                    if confidence > rule.confidence:
+                        rule.confidence = confidence
+                        rule.support_count += 1
+                    return rule.rule_id
+            return None
+        
         if len(self.rules) >= self.max_rules:
             self._prune_weak_rules()
         
@@ -153,6 +182,7 @@ class ReasoningEngine:
         )
         
         self.rules[rule_id] = rule
+        self._rule_signatures.add(sig)
         logger.info(f"Added rule: {rule}")
         
         return rule_id
@@ -232,143 +262,171 @@ class ReasoningEngine:
         
         return explanation
     
+    def _discretize_observation(self, obs: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Convert a raw observation into a set of categorical key=value items
+        suitable for association rule mining.
+        """
+        items = {}
+        
+        for key in _RULE_MINING_KEYS:
+            if key in obs:
+                val = obs[key]
+                if isinstance(val, bool):
+                    items[key] = str(val)
+                else:
+                    items[key] = str(val)
+        
+        for key, buckets in _DISCRETIZE_KEYS.items():
+            if key in obs:
+                val = obs[key]
+                if isinstance(val, (int, float)):
+                    for lo, hi, label in buckets:
+                        if lo <= val < hi:
+                            items[key] = label
+                            break
+        
+        return items
+    
     def learn_rules_from_observations(
         self,
         observations: List[Dict[str, Any]],
         min_support: int = 3
     ):
         """
-        Learn rules from observation data
-        Uses association rule mining approach
+        Learn rules from observation data using association rule mining.
+        
+        This version discretizes continuous values into categorical buckets
+        so that frequent itemsets can actually be found.
+        
+        Example rules learned:
+          IF asset_type=crypto AND direction=up THEN above_ma5=True
+          IF pct_change=big_rise THEN direction=up
+          IF volatility_5=high_vol AND asset_type=crypto THEN pct_change=big_rise
         """
         if len(observations) < min_support:
             return
         
-        # Extract all attributes and values
-        all_conditions = set()
+        # Discretize all observations
+        discretized = []
         for obs in observations:
-            for key, value in obs.items():
-                all_conditions.add(f"{key}={value}")
+            d = self._discretize_observation(obs)
+            if d:
+                discretized.append(d)
         
-        # Find frequent itemsets
-        frequent_sets = self._find_frequent_itemsets(
-            observations,
-            all_conditions,
-            min_support
-        )
+        if len(discretized) < min_support:
+            return
         
-        # Generate rules from frequent sets
-        for itemset in frequent_sets:
-            if len(itemset) < 2:
-                continue
-            
-            # Try different antecedent/consequent splits
-            for i in range(1, len(itemset)):
-                antecedents = list(itemset[:i])
-                consequent = itemset[i]
-                
-                # Calculate confidence
-                confidence = self._calculate_rule_confidence(
-                    observations,
-                    antecedents,
-                    consequent
-                )
-                
-                if confidence >= self.min_confidence:
-                    self.add_rule(
-                        antecedents,
-                        consequent,
-                        RuleType.IMPLICATION,
-                        confidence
-                    )
-    
-    def _find_frequent_itemsets(
-        self,
-        observations: List[Dict[str, Any]],
-        conditions: Set[str],
-        min_support: int
-    ) -> List[Tuple[str, ...]]:
-        """Find frequent itemsets using Apriori algorithm"""
-        frequent = []
+        # Collect all unique items (key=value pairs)
+        all_items: Set[str] = set()
+        for d in discretized:
+            for k, v in d.items():
+                all_items.add(f"{k}={v}")
         
-        # Single items
-        for cond in conditions:
-            support = sum(
-                1 for obs in observations
-                if self._condition_matches(cond, obs)
-            )
-            
-            if support >= min_support:
-                frequent.append((cond,))
+        # Find frequent single items
+        item_support: Dict[str, int] = defaultdict(int)
+        for d in discretized:
+            items_in_obs = {f"{k}={v}" for k, v in d.items()}
+            for item in items_in_obs:
+                item_support[item] += 1
         
-        # Grow itemsets
-        k = 1
-        while k < 3:  # Limit to pairs/triples
-            k += 1
-            candidates = []
-            
-            # Generate candidates
-            for i, set1 in enumerate(frequent):
-                if len(set1) != k - 1:
+        frequent_1 = [item for item, count in item_support.items() if count >= min_support]
+        
+        if not frequent_1:
+            return
+        
+        # Find frequent pairs
+        frequent_pairs = []
+        for i in range(len(frequent_1)):
+            for j in range(i + 1, len(frequent_1)):
+                a, b = frequent_1[i], frequent_1[j]
+                # Don't pair items from the same key
+                key_a = a.split('=')[0]
+                key_b = b.split('=')[0]
+                if key_a == key_b:
                     continue
-                    
-                for set2 in frequent[i+1:]:
-                    if len(set2) != k - 1:
-                        continue
-                    
-                    # Merge if they share k-2 elements
-                    combined = tuple(sorted(set(set1) | set(set2)))
-                    if len(combined) == k and combined not in candidates:
-                        candidates.append(combined)
-            
-            # Check support for candidates
-            for candidate in candidates:
-                support = sum(
-                    1 for obs in observations
-                    if all(self._condition_matches(cond, obs) for cond in candidate)
-                )
                 
-                if support >= min_support:
-                    frequent.append(candidate)
+                pair_support = 0
+                for d in discretized:
+                    items_in_obs = {f"{k}={v}" for k, v in d.items()}
+                    if a in items_in_obs and b in items_in_obs:
+                        pair_support += 1
+                
+                if pair_support >= min_support:
+                    frequent_pairs.append((a, b, pair_support))
         
-        return frequent
-    
-    def _condition_matches(self, condition: str, observation: Dict[str, Any]) -> bool:
-        """Check if condition matches observation"""
-        if '=' not in condition:
-            return False
+        # Generate rules from frequent pairs
+        rules_added = 0
+        for a, b, support in frequent_pairs:
+            # Rule: a => b
+            a_count = item_support[a]
+            conf_ab = support / a_count if a_count > 0 else 0
+            if conf_ab >= self.min_confidence:
+                rid = self.add_rule([a], b, RuleType.IMPLICATION, round(conf_ab, 3))
+                if rid:
+                    rules_added += 1
+            
+            # Rule: b => a
+            b_count = item_support[b]
+            conf_ba = support / b_count if b_count > 0 else 0
+            if conf_ba >= self.min_confidence:
+                rid = self.add_rule([b], a, RuleType.IMPLICATION, round(conf_ba, 3))
+                if rid:
+                    rules_added += 1
         
-        key, value = condition.split('=', 1)
+        # Find frequent triples (limited)
+        if len(frequent_pairs) >= 2:
+            frequent_triple_items = set()
+            for a, b, _ in frequent_pairs:
+                frequent_triple_items.add(a)
+                frequent_triple_items.add(b)
+            
+            triple_items = list(frequent_triple_items)
+            triples_checked = 0
+            max_triples = 50
+            
+            for i in range(len(triple_items)):
+                if triples_checked >= max_triples:
+                    break
+                for j in range(i + 1, len(triple_items)):
+                    if triples_checked >= max_triples:
+                        break
+                    for k in range(j + 1, len(triple_items)):
+                        if triples_checked >= max_triples:
+                            break
+                        
+                        a, b, c = triple_items[i], triple_items[j], triple_items[k]
+                        keys = {x.split('=')[0] for x in [a, b, c]}
+                        if len(keys) < 3:
+                            continue
+                        
+                        triples_checked += 1
+                        
+                        triple_support = 0
+                        for d in discretized:
+                            items_in_obs = {f"{kk}={vv}" for kk, vv in d.items()}
+                            if a in items_in_obs and b in items_in_obs and c in items_in_obs:
+                                triple_support += 1
+                        
+                        if triple_support >= min_support:
+                            # Generate rules: (a,b) => c, (a,c) => b, (b,c) => a
+                            for ant_pair, cons in [([a, b], c), ([a, c], b), ([b, c], a)]:
+                                ant_support = 0
+                                for d in discretized:
+                                    items_in_obs = {f"{kk}={vv}" for kk, vv in d.items()}
+                                    if all(x in items_in_obs for x in ant_pair):
+                                        ant_support += 1
+                                
+                                conf = triple_support / ant_support if ant_support > 0 else 0
+                                if conf >= self.min_confidence:
+                                    rid = self.add_rule(ant_pair, cons, RuleType.IMPLICATION, round(conf, 3))
+                                    if rid:
+                                        rules_added += 1
         
-        # Convert value to appropriate type
-        if key in observation:
-            obs_value = str(observation[key])
-            return obs_value == value
+        if rules_added > 0:
+            logger.info(f"Rule mining: learned {rules_added} rules from {len(discretized)} observations")
         
-        return False
-    
-    def _calculate_rule_confidence(
-        self,
-        observations: List[Dict[str, Any]],
-        antecedents: List[str],
-        consequent: str
-    ) -> float:
-        """Calculate confidence of a rule"""
-        antecedent_count = sum(
-            1 for obs in observations
-            if all(self._condition_matches(ant, obs) for ant in antecedents)
-        )
-        
-        if antecedent_count == 0:
-            return 0.0
-        
-        both_count = sum(
-            1 for obs in observations
-            if all(self._condition_matches(ant, obs) for ant in antecedents)
-            and self._condition_matches(consequent, obs)
-        )
-        
-        return both_count / antecedent_count
+        return rules_added
     
     def discover_causal_relationships(
         self,
@@ -391,8 +449,8 @@ class ReasoningEngine:
                     continue
                 
                 # Extract time series
-                cause_series = [d[cause_var] for d in time_series_data]
-                effect_series = [d[effect_var] for d in time_series_data]
+                cause_series = [d.get(cause_var, 0) for d in time_series_data]
+                effect_series = [d.get(effect_var, 0) for d in time_series_data]
                 
                 # Simple correlation with lag
                 strength = self._test_lagged_correlation(
@@ -431,7 +489,10 @@ class ReasoningEngine:
         if len(cause_lagged) < 2:
             return 0.0
         
-        return np.corrcoef(cause_lagged, effect_current)[0, 1]
+        try:
+            return float(np.corrcoef(cause_lagged, effect_current)[0, 1])
+        except Exception:
+            return 0.0
     
     def predict_effect(self, cause_var: str, cause_value: float) -> Dict[str, float]:
         """Predict effects of setting a variable to a value"""
@@ -556,6 +617,8 @@ class ReasoningEngine:
         ]
         
         for rid in to_remove:
+            sig = "|".join(sorted(self.rules[rid].antecedents)) + "=>" + self.rules[rid].consequent
+            self._rule_signatures.discard(sig)
             del self.rules[rid]
         
         if to_remove:
@@ -568,7 +631,7 @@ class ReasoningEngine:
             'total_rules': len(self.rules),
             'causal_links': sum(len(links) for links in self.causal_graph.values()),
             'plans_created': len(self.plans),
-            'avg_rule_confidence': np.mean([r.confidence for r in self.rules.values()])
+            'avg_rule_confidence': float(np.mean([r.confidence for r in self.rules.values()]))
             if self.rules else 0
         }
     
@@ -584,82 +647,9 @@ class ReasoningEngine:
             'plans': {k: v.to_dict() for k, v in self.plans.items()}
         }
         
-        with open(filepath, 'w') as f:
-            json.dump(state, f, indent=2, default=str)
-        
-        logger.info(f"Reasoning state saved to {filepath}")
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    
-    # Demo
-    engine = ReasoningEngine()
-    
-    print("=== Logical Inference Demo ===\n")
-    
-    # Add facts
-    engine.assert_fact("raining")
-    engine.assert_fact("cloudy")
-    
-    # Add rules
-    engine.add_rule(["raining"], "ground_wet", confidence=0.95)
-    engine.add_rule(["ground_wet", "cold"], "icy", confidence=0.8)
-    engine.add_rule(["cloudy", "cold"], "might_snow", confidence=0.6)
-    
-    # Infer
-    print("Initial facts:", engine.facts)
-    new_facts = engine.infer()
-    print("Inferred facts:", new_facts)
-    print("All facts now:", engine.facts)
-    
-    # Explain
-    print("\nExplanation for 'ground_wet':")
-    explanation = engine.explain("ground_wet")
-    for line in explanation:
-        print(f"  {line}")
-    
-    print("\n=== Causal Discovery Demo ===\n")
-    
-    # Generate time series data
-    time_series = []
-    for t in range(50):
-        x = np.sin(t / 10)
-        y = x * 0.8 + np.random.randn() * 0.1  # y caused by x
-        z = np.random.randn()  # independent
-        time_series.append({'x': x, 'y': y, 'z': z})
-    
-    engine.discover_causal_relationships(time_series, lag=1)
-    
-    print("Causal graph:")
-    for cause, links in engine.causal_graph.items():
-        for link in links:
-            print(f"  {cause} -> {link.effect} (strength: {link.strength:.2f})")
-    
-    print("\n=== Planning Demo ===\n")
-    
-    # Clear facts
-    engine.facts.clear()
-    
-    # Setup scenario
-    engine.assert_fact("have_ingredients")
-    engine.add_rule(["have_ingredients", "have_recipe"], "can_cook", confidence=0.9)
-    engine.add_rule(["can_cook", "have_time"], "meal_ready", confidence=0.85)
-    
-    # Create plan
-    plan = engine.create_plan(
-        goal="meal_ready",
-        current_state={},
-        available_actions=[]
-    )
-    
-    if plan:
-        print(f"Plan created: {plan.plan_id}")
-        print(f"Goal: {plan.goal}")
-        print("Steps:")
-        for i, step in enumerate(plan.steps):
-            print(f"  {i+1}. {step}")
-    
-    print("\nInsights:")
-    insights = engine.get_insights()
-    print(json.dumps(insights, indent=2))
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(state, f, indent=2, default=str)
+            logger.info(f"Reasoning state saved to {filepath}")
+        except Exception as e:
+            logger.warning(f"Failed to save reasoning state: {e}")

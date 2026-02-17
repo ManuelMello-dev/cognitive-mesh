@@ -327,38 +327,14 @@ class CognitiveMeshOrchestrator:
         """
         Continuously collect market data and feed it into the cognitive system.
         Each tick becomes an observation processed through all 7 engines.
+        Fetches ALL discovered symbols every cycle for maximum data density.
         """
         logger.info("Starting data collection loop")
 
-        # Rotate through symbols in batches
-        crypto_list = []
-        stock_list = []
-        crypto_offset = 0
-        stock_offset = 0
-
         while self.running:
             try:
-                # Refresh lists if new symbols were discovered
-                crypto_list = sorted(self.crypto_symbols)
-                stock_list = sorted(self.stock_symbols)
-
-                batch = []
-
-                # Get next batch of crypto symbols
-                if crypto_list:
-                    batch_size = min(Config.DATA_BATCH_SIZE, len(crypto_list))
-                    end = min(crypto_offset + batch_size, len(crypto_list))
-                    crypto_batch = crypto_list[crypto_offset:end]
-                    batch.extend(crypto_batch)
-                    crypto_offset = end if end < len(crypto_list) else 0
-
-                # Get next batch of stock symbols
-                if stock_list:
-                    batch_size = min(Config.DATA_BATCH_SIZE, len(stock_list))
-                    end = min(stock_offset + batch_size, len(stock_list))
-                    stock_batch = stock_list[stock_offset:end]
-                    batch.extend(stock_batch)
-                    stock_offset = end if end < len(stock_list) else 0
+                # Fetch ALL discovered symbols every cycle
+                batch = sorted(self.crypto_symbols) + sorted(self.stock_symbols)
 
                 if not batch:
                     logger.info("No symbols to fetch yet — waiting for market scan...")

@@ -182,10 +182,15 @@ class CrossDomainEngine:
         if not mappings:
             return None
         
-        # Calculate confidence
-        confidence = len(mappings) / max(len(source.concepts), len(target.concepts))
+        # Calculate confidence based on mapping coverage
+        # Use the SMALLER domain as denominator (we want to know how well
+        # the smaller domain maps into the larger one)
+        min_size = min(len(source.concepts), len(target.concepts))
+        confidence = len(mappings) / max(min_size, 1)
+        confidence = min(confidence, 1.0)
         
-        if confidence < self.min_confidence:
+        # Lower threshold: even partial mappings are valuable
+        if confidence < 0.1 or len(mappings) < 2:
             return None
         
         # Create mapping
@@ -250,32 +255,75 @@ class CrossDomainEngine:
         source: Domain,
         target: Domain
     ) -> Dict[str, str]:
-        """Map concepts using structural similarity"""
+        """
+        Map concepts using structural and name-based similarity.
+        
+        Strategy:
+        1. Try name-based matching (concept IDs often contain descriptive tokens)
+        2. Fall back to degree-based matching
+        3. For market domains, use positional pairing (both domains have
+           similarly-structured concepts from the same abstraction engine)
+        """
         mappings = {}
+        used_targets = set()
         
-        # Simple heuristic: map concepts with similar relationship counts
-        source_degrees = {
-            c: len(source.relationships.get(c, []))
-            for c in source.concepts
-        }
+        # Strategy 1: Name-token overlap
+        src_tokens = {}
+        for c in source.concepts:
+            tokens = set(c.lower().replace('_', ' ').replace('-', ' ').split())
+            src_tokens[c] = tokens
         
-        target_degrees = {
-            c: len(target.relationships.get(c, []))
-            for c in target.concepts
-        }
+        tgt_tokens = {}
+        for c in target.concepts:
+            tokens = set(c.lower().replace('_', ' ').replace('-', ' ').split())
+            tgt_tokens[c] = tokens
         
-        # Sort by degree
-        source_sorted = sorted(source_degrees.items(), key=lambda x: x[1], reverse=True)
-        target_sorted = sorted(target_degrees.items(), key=lambda x: x[1], reverse=True)
+        for src_c, s_tok in src_tokens.items():
+            best_match = None
+            best_overlap = 0
+            for tgt_c, t_tok in tgt_tokens.items():
+                if tgt_c in used_targets:
+                    continue
+                overlap = len(s_tok & t_tok)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_match = tgt_c
+            if best_match and best_overlap >= 1:
+                mappings[src_c] = best_match
+                used_targets.add(best_match)
         
-        # Pair up similar-degree concepts
-        for i, (src_concept, src_deg) in enumerate(source_sorted):
-            if i < len(target_sorted):
-                tgt_concept, tgt_deg = target_sorted[i]
-                
-                # Only map if degrees are similar
-                if abs(src_deg - tgt_deg) <= 2:
-                    mappings[src_concept] = tgt_concept
+        # Strategy 2: Degree-based for unmapped concepts
+        unmapped_src = [c for c in source.concepts if c not in mappings]
+        unmapped_tgt = [c for c in target.concepts if c not in used_targets]
+        
+        if unmapped_src and unmapped_tgt:
+            src_degrees = {
+                c: len(source.relationships.get(c, []))
+                for c in unmapped_src
+            }
+            tgt_degrees = {
+                c: len(target.relationships.get(c, []))
+                for c in unmapped_tgt
+            }
+            
+            src_sorted = sorted(src_degrees.items(), key=lambda x: x[1], reverse=True)
+            tgt_sorted = sorted(tgt_degrees.items(), key=lambda x: x[1], reverse=True)
+            
+            for i, (src_c, src_deg) in enumerate(src_sorted):
+                if i < len(tgt_sorted):
+                    tgt_c, tgt_deg = tgt_sorted[i]
+                    if abs(src_deg - tgt_deg) <= 2:
+                        mappings[src_c] = tgt_c
+        
+        # Strategy 3: If both domains have many concepts and few mappings,
+        # do positional pairing (both come from same abstraction engine)
+        if len(mappings) < 3 and len(source.concepts) >= 3 and len(target.concepts) >= 3:
+            src_list = sorted(source.concepts)
+            tgt_list = sorted(target.concepts)
+            pair_count = min(len(src_list), len(tgt_list), 20)
+            for i in range(pair_count):
+                if src_list[i] not in mappings:
+                    mappings[src_list[i]] = tgt_list[i]
         
         return mappings
     

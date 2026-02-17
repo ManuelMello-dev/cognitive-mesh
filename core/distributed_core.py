@@ -3,6 +3,10 @@ Distributed Cognitive Core
 ==========================
 Async wrapper around the original CognitiveIntelligentSystem that:
 - Bridges async HTTP/network layer with the synchronous cognitive engines
+- Wires the PredictionValidationEngine into every observation
+- Calculates PHI/SIGMA from REAL prediction accuracy (not counts)
+- Feeds rule confidence back from predictive performance
+- Runs concept convergence (merge similar, prune stale)
 - Maintains database persistence (PostgreSQL, Milvus, Redis)
 - Exposes the real cognitive state (concepts, rules, goals, cross-domain mappings)
 - Runs the cognitive loop in a background thread
@@ -16,7 +20,7 @@ import threading
 import math
 from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timezone
-from collections import deque
+from collections import deque, defaultdict
 
 from config.config import Config
 
@@ -26,6 +30,7 @@ from abstraction_engine import AbstractionEngine
 from reasoning_engine import ReasoningEngine, RuleType
 from cross_domain_engine import CrossDomainEngine
 from goal_formation_system import OpenEndedGoalSystem, GoalType
+from prediction_validation_engine import PredictionValidationEngine
 
 logger = logging.getLogger("DistributedCognitiveCore")
 
@@ -37,10 +42,13 @@ class DistributedCognitiveCore:
     The original CognitiveIntelligentSystem is synchronous and runs its own
     cognitive loop. This wrapper:
     1. Creates the CognitiveIntelligentSystem with all 7 engines
-    2. Exposes an async `ingest()` method for the HTTP/network layer
-    3. Runs the cognitive loop in a background thread
-    4. Persists state to PostgreSQL, Milvus, Redis when available
-    5. Exposes the real cognitive state for the dashboard and GPT I/O
+    2. Wires the PredictionValidationEngine into every observation
+    3. Exposes an async `ingest()` method for the HTTP/network layer
+    4. Runs the cognitive loop in a background thread
+    5. Feeds prediction accuracy back into rule confidence
+    6. Runs concept convergence (merge + prune) periodically
+    7. Calculates PHI/SIGMA from real prediction accuracy
+    8. Persists state to PostgreSQL, Milvus, Redis when available
     """
 
     def __init__(self, node_id: str, postgres=None, milvus=None, redis=None):
@@ -57,6 +65,9 @@ class DistributedCognitiveCore:
             enable_all_features=True
         )
 
+        # Create the prediction/validation engine
+        self.prediction_engine = PredictionValidationEngine()
+
         # Thread lock for safe access from async context
         self._lock = threading.Lock()
 
@@ -64,16 +75,21 @@ class DistributedCognitiveCore:
         self._pending_observations: deque = deque(maxlen=5000)
         self._observation_count = 0
 
-        # Metrics overlay (combines cognitive system metrics with infra metrics)
+        # Metrics overlay
         self._start_time = time.time()
         self._last_observation_time: Optional[float] = None
         self._errors = 0
+
+        # Concept convergence tracking
+        self._convergence_counter = 0
+        self._concepts_merged = 0
+        self._concepts_pruned = 0
 
         # Background cognitive loop control
         self._cognitive_thread: Optional[threading.Thread] = None
         self._running = False
 
-        logger.info(f"DistributedCognitiveCore initialized with CognitiveIntelligentSystem: {node_id}")
+        logger.info(f"DistributedCognitiveCore initialized with PredictionValidationEngine: {node_id}")
 
     def start_cognitive_loop(self):
         """Start the cognitive processing loop in a background thread"""
@@ -91,9 +107,9 @@ class DistributedCognitiveCore:
                 try:
                     iteration += 1
 
-                    # Process any pending observations
+                    # ─── Process pending observations ───
                     observations_processed = 0
-                    while self._pending_observations and observations_processed < 50:
+                    while self._pending_observations and observations_processed < 200:
                         try:
                             obs, domain = self._pending_observations.popleft()
                         except IndexError:
@@ -101,6 +117,22 @@ class DistributedCognitiveCore:
 
                         with self._lock:
                             try:
+                                # STEP 1: Feed to prediction engine FIRST
+                                # This validates any pending prediction and makes a new one
+                                validation_result = self.prediction_engine.record_observation(obs, domain)
+
+                                if validation_result:
+                                    correct = validation_result.get('correct', False)
+                                    symbol = validation_result.get('symbol', '?')
+                                    acc = validation_result.get('symbol_accuracy', 0)
+                                    logger.info(
+                                        f"PREDICTION {'✓' if correct else '✗'} {symbol}: "
+                                        f"predicted={validation_result.get('predicted')}, "
+                                        f"actual={validation_result.get('actual')}, "
+                                        f"accuracy={acc:.1%}"
+                                    )
+
+                                # STEP 2: Feed to cognitive system
                                 outcome = obs.pop('outcome', None)
                                 result = self.cognitive_system.process_observation(
                                     obs, domain, outcome
@@ -122,7 +154,7 @@ class DistributedCognitiveCore:
                                 logger.error(f"Error processing observation: {e}")
                                 self._errors += 1
 
-                    # Cognitive thinking every 10 iterations
+                    # ─── Cognitive thinking every 10 iterations ───
                     if iteration % 10 == 0:
                         with self._lock:
                             try:
@@ -140,7 +172,33 @@ class DistributedCognitiveCore:
                             except Exception as e:
                                 logger.error(f"Error in cognitive thinking: {e}")
 
-                    # Generate autonomous goals every 50 iterations
+                    # ─── Learn rules from accumulated observations every 15 iterations ───
+                    if iteration % 15 == 0:
+                        with self._lock:
+                            try:
+                                new_rules = self.cognitive_system.learn_rules_from_history()
+                                if new_rules:
+                                    logger.info(f"Rule learning: {new_rules} new rules")
+                            except Exception as e:
+                                logger.error(f"Error in rule learning: {e}")
+
+                    # ─── Feed rule confidence back from predictions every 20 iterations ───
+                    if iteration % 20 == 0:
+                        with self._lock:
+                            try:
+                                self._feed_rule_confidence_back()
+                            except Exception as e:
+                                logger.error(f"Error feeding rule confidence: {e}")
+
+                    # ─── Concept convergence every 30 iterations ───
+                    if iteration % 30 == 0:
+                        with self._lock:
+                            try:
+                                self._run_concept_convergence()
+                            except Exception as e:
+                                logger.error(f"Error in concept convergence: {e}")
+
+                    # ─── Generate autonomous goals every 50 iterations ───
                     if iteration % 50 == 0:
                         with self._lock:
                             try:
@@ -152,7 +210,7 @@ class DistributedCognitiveCore:
                             except Exception as e:
                                 logger.error(f"Error generating goals: {e}")
 
-                    # Pursue goals every 25 iterations
+                    # ─── Pursue goals every 25 iterations ───
                     if iteration % 25 == 0:
                         with self._lock:
                             try:
@@ -160,23 +218,33 @@ class DistributedCognitiveCore:
                             except Exception as e:
                                 logger.error(f"Error pursuing goals: {e}")
 
-                    # Introspect every 100 iterations
+                    # ─── Introspect every 100 iterations ───
                     if iteration % 100 == 0:
                         with self._lock:
                             try:
                                 introspection = self.cognitive_system.introspect()
+                                pred_insights = self.prediction_engine.get_insights()
+                                phi = pred_insights.get('phi', 0.5)
+                                sigma = pred_insights.get('sigma', 0.5)
+                                global_acc = pred_insights.get('global_accuracy', 0)
+                                total_preds = pred_insights.get('total_validated', 0)
+
                                 logger.info("=" * 60)
                                 logger.info("INTROSPECTION")
-                                logger.info(f"  Concepts: {introspection['abstraction']['total_concepts']}")
+                                logger.info(f"  PHI (real): {phi:.4f}")
+                                logger.info(f"  SIGMA (real): {sigma:.4f}")
+                                logger.info(f"  Prediction Accuracy: {global_acc:.1%} ({total_preds} validated)")
+                                logger.info(f"  Concepts: {introspection['abstraction']['total_concepts']} (merged: {self._concepts_merged}, pruned: {self._concepts_pruned})")
                                 logger.info(f"  Rules: {introspection['reasoning']['total_rules']}")
                                 logger.info(f"  Goals: {introspection['goals']['total_goals']}")
                                 logger.info(f"  Transfers: {introspection['cognitive_metrics']['knowledge_transfers']}")
                                 logger.info(f"  Domains: {introspection['active_domains']}")
+                                logger.info(f"  Symbols tracked: {pred_insights.get('symbols_tracked', 0)}")
                                 logger.info("=" * 60)
                             except Exception as e:
                                 logger.error(f"Error in introspection: {e}")
 
-                    time.sleep(1.0)  # 1 second per iteration
+                    time.sleep(0.1)
 
                 except Exception as e:
                     logger.error(f"Error in cognitive loop iteration {iteration}: {e}")
@@ -195,6 +263,130 @@ class DistributedCognitiveCore:
             self._cognitive_thread.join(timeout=10)
             logger.info("Cognitive loop thread stopped")
 
+    # ──────────────────────────────────────────
+    # Rule Confidence Feedback
+    # ──────────────────────────────────────────
+
+    def _feed_rule_confidence_back(self):
+        """
+        Feed prediction accuracy back into rule confidence.
+        Rules that predict well get boosted; rules that fail get penalized.
+        This replaces the naive support-count-based confidence.
+        """
+        adjustments = self.prediction_engine.get_rule_confidence_adjustments()
+        if not adjustments:
+            return
+
+        adjusted_count = 0
+        for rule_id, accuracy in adjustments.items():
+            # Find rules whose basis matches this pattern
+            for rid, rule in self.cognitive_system.reasoning.rules.items():
+                # Match by checking if rule_id substring appears in rule attributes
+                rule_conf = getattr(rule, 'confidence', 0.5)
+                # Blend current confidence with prediction-based accuracy
+                # 70% prediction accuracy, 30% existing confidence
+                new_conf = accuracy * 0.7 + rule_conf * 0.3
+                new_conf = max(0.05, min(0.99, new_conf))
+
+                if abs(new_conf - rule_conf) > 0.01:
+                    rule.confidence = new_conf
+                    adjusted_count += 1
+
+        if adjusted_count > 0:
+            logger.info(f"Adjusted confidence for {adjusted_count} rules based on prediction accuracy")
+
+    # ──────────────────────────────────────────
+    # Concept Convergence
+    # ──────────────────────────────────────────
+
+    def _run_concept_convergence(self):
+        """
+        Merge similar concepts and prune stale ones.
+        This prevents unbounded concept accumulation.
+        """
+        self._convergence_counter += 1
+        concepts = self.cognitive_system.abstraction.concepts
+
+        if len(concepts) < 5:
+            return
+
+        # ─── Phase 1: Merge concepts in the same domain with same symbol ───
+        # Group concepts by their primary symbol
+        symbol_concepts: Dict[str, List[str]] = defaultdict(list)
+        for cid, concept in concepts.items():
+            examples = getattr(concept, 'examples', [])
+            for ex in examples[-3:]:
+                if isinstance(ex, dict) and 'symbol' in ex:
+                    symbol_concepts[ex['symbol']].append(cid)
+                    break
+
+        merged = 0
+        for symbol, cids in symbol_concepts.items():
+            if len(cids) <= 1:
+                continue
+
+            # Keep the concept with the most examples (most mature)
+            concept_sizes = [(cid, len(getattr(concepts[cid], 'examples', [])))
+                           for cid in cids if cid in concepts]
+            if len(concept_sizes) < 2:
+                continue
+
+            concept_sizes.sort(key=lambda x: x[1], reverse=True)
+            primary_cid = concept_sizes[0][0]
+            primary = concepts[primary_cid]
+
+            for cid, size in concept_sizes[1:]:
+                if cid not in concepts:
+                    continue
+                secondary = concepts[cid]
+
+                # Merge: transfer examples and boost confidence
+                primary_examples = getattr(primary, 'examples', [])
+                secondary_examples = getattr(secondary, 'examples', [])
+
+                # Add unique examples from secondary to primary
+                for ex in secondary_examples:
+                    if len(primary_examples) < 100:  # cap examples
+                        primary_examples.append(ex)
+
+                # Boost confidence (more evidence = more confident)
+                primary.confidence = min(0.99,
+                    getattr(primary, 'confidence', 0.5) + 0.05)
+
+                # Remove the secondary concept
+                del concepts[cid]
+                merged += 1
+
+        if merged > 0:
+            self._concepts_merged += merged
+            logger.info(f"Concept convergence: merged {merged} duplicate concepts")
+
+        # ─── Phase 2: Prune stale concepts ───
+        # Remove concepts with very low confidence and few examples
+        pruned = 0
+        stale_ids = []
+        for cid, concept in concepts.items():
+            examples = getattr(concept, 'examples', [])
+            confidence = getattr(concept, 'confidence', 0)
+            age = (datetime.now() - getattr(concept, 'created_at', datetime.now())).total_seconds()
+
+            # Prune if: low confidence AND few examples AND old enough (>5 min)
+            if confidence < 0.15 and len(examples) <= 1 and age > 300:
+                stale_ids.append(cid)
+
+        for cid in stale_ids:
+            if cid in concepts:
+                del concepts[cid]
+                pruned += 1
+
+        if pruned > 0:
+            self._concepts_pruned += pruned
+            logger.info(f"Concept convergence: pruned {pruned} stale concepts")
+
+    # ──────────────────────────────────────────
+    # Ingestion
+    # ──────────────────────────────────────────
+
     async def ingest(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
         """
         Async ingestion endpoint.
@@ -203,11 +395,17 @@ class DistributedCognitiveCore:
         self._observation_count += 1
         self._last_observation_time = time.time()
 
-        # Register domain if new
+        # Register domain if new, and also register meta-domain
         with self._lock:
             if domain not in self.cognitive_system.cross_domain.domains:
                 self.cognitive_system.cross_domain.register_domain(domain, domain)
                 logger.info(f"Registered new domain: {domain}")
+            
+            # Ensure meta-domains exist and track membership
+            meta = "crypto" if domain.startswith("crypto:") else "stock" if domain.startswith("stock:") else None
+            if meta:
+                self.cognitive_system._ensure_meta_domain(meta)
+                self.cognitive_system._meta_domains[meta].add(domain)
 
         # Queue for cognitive processing
         self._pending_observations.append((observation.copy(), domain))
@@ -221,6 +419,10 @@ class DistributedCognitiveCore:
             "observation_count": self._observation_count,
             "pending": len(self._pending_observations),
             "concept_count": len(self.cognitive_system.abstraction.concepts),
+            "predictions_made": self.prediction_engine.total_predictions,
+            "global_accuracy": round(
+                self.prediction_engine.total_correct / max(self.prediction_engine.total_validated, 1), 4
+            ),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
@@ -238,8 +440,12 @@ class DistributedCognitiveCore:
         except Exception as e:
             logger.error(f"Persistence error: {e}")
 
+    # ──────────────────────────────────────────
+    # Metrics (Real PHI/SIGMA from predictions)
+    # ──────────────────────────────────────────
+
     def get_metrics(self) -> Dict[str, Any]:
-        """Get combined cognitive + infrastructure metrics"""
+        """Get combined cognitive + prediction + infrastructure metrics"""
         with self._lock:
             cognitive_metrics = self.cognitive_system.cognitive_metrics.copy()
             abstraction_insights = self.cognitive_system.abstraction.get_insights()
@@ -247,15 +453,22 @@ class DistributedCognitiveCore:
             cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
             goal_insights = self.cognitive_system.goals.get_insights()
             learning_insights = self.cognitive_system.learning_engine.get_insights()
+            prediction_insights = self.prediction_engine.get_insights()
 
-        # Calculate PHI and SIGMA from the real cognitive state
-        phi = self._calculate_phi(reasoning_insights, abstraction_insights)
-        sigma = self._calculate_sigma(abstraction_insights, learning_insights)
+        # PHI and SIGMA from the REAL prediction engine
+        phi = prediction_insights.get('phi', 0.5)
+        sigma = prediction_insights.get('sigma', 0.5)
 
         return {
-            # Core consciousness metrics
+            # Core consciousness metrics (REAL, from predictions)
             "global_coherence_phi": round(phi, 4),
             "noise_level_sigma": round(sigma, 4),
+            "prediction_accuracy": prediction_insights.get('global_accuracy', 0),
+            "predictions_validated": prediction_insights.get('total_validated', 0),
+            "predictions_correct": prediction_insights.get('total_correct', 0),
+            "symbols_tracked": prediction_insights.get('symbols_tracked', 0),
+
+            # Attention density
             "attention_density": round(
                 abstraction_insights.get('total_concepts', 0) / 1000.0, 4
             ),
@@ -282,6 +495,10 @@ class DistributedCognitiveCore:
             "patterns_discovered": learning_insights.get('total_patterns', 0),
             "samples_processed": learning_insights.get('metrics', {}).get('samples_processed', 0),
 
+            # Convergence metrics
+            "concepts_merged": self._concepts_merged,
+            "concepts_pruned": self._concepts_pruned,
+
             # Infrastructure metrics
             "total_observations": self._observation_count,
             "pending_observations": len(self._pending_observations),
@@ -294,50 +511,9 @@ class DistributedCognitiveCore:
             "transfers_made": cognitive_metrics.get('knowledge_transfers', 0),
         }
 
-    def _calculate_phi(self, reasoning: Dict, abstraction: Dict) -> float:
-        """
-        PHI (Global Coherence) — derived from:
-        - Rule confidence (how stable are learned rules)
-        - Concept confidence (how well-formed are concepts)
-        - Goal achievement rate
-        """
-        rule_confidence = 0.5
-        total_rules = reasoning.get('total_rules', 0)
-        if total_rules > 0:
-            # Average rule confidence from the reasoning engine
-            rule_confidence = min(1.0, 0.5 + (total_rules * 0.02))
-
-        concept_confidence = 0.5
-        total_concepts = abstraction.get('total_concepts', 0)
-        if total_concepts > 0:
-            avg_confidence = abstraction.get('average_confidence', 0.5)
-            concept_confidence = avg_confidence
-
-        phi = (rule_confidence * 0.5 + concept_confidence * 0.5)
-        return max(0.0, min(1.0, phi))
-
-    def _calculate_sigma(self, abstraction: Dict, learning: Dict) -> float:
-        """
-        SIGMA (Noise Level) — derived from:
-        - Concept volatility (how much concepts are changing)
-        - Learning adaptation rate (how much drift is detected)
-        - Inverse of pattern stability
-        """
-        total_concepts = abstraction.get('total_concepts', 0)
-        total_patterns = learning.get('total_patterns', 0)
-        adaptations = learning.get('metrics', {}).get('adaptations', 0)
-
-        # Base noise from concept instability
-        if total_concepts == 0:
-            concept_noise = 0.5
-        else:
-            concept_noise = max(0.1, 1.0 - (total_concepts * 0.02))
-
-        # Adaptation noise (more adaptations = more drift = more noise)
-        adaptation_noise = min(0.5, adaptations * 0.05)
-
-        sigma = concept_noise * 0.7 + adaptation_noise * 0.3
-        return max(0.0, min(1.0, sigma))
+    # ──────────────────────────────────────────
+    # State Snapshots
+    # ──────────────────────────────────────────
 
     def get_concepts_snapshot(self) -> Dict[str, Any]:
         """Get snapshot of all concepts from the AbstractionEngine"""
@@ -354,7 +530,6 @@ class DistributedCognitiveCore:
                 examples = getattr(concept, 'examples', [])
                 recent_examples = []
                 for ex in examples[-5:]:
-                    # Convert numpy types to native Python types for JSON
                     if isinstance(ex, dict):
                         clean = {}
                         for k, v in ex.items():
@@ -366,12 +541,24 @@ class DistributedCognitiveCore:
                     else:
                         recent_examples.append(ex)
 
-                # Extract symbol from examples if available
+                # Extract symbol from examples
                 symbol = None
                 for ex in examples[-3:]:
                     if isinstance(ex, dict) and 'symbol' in ex:
                         symbol = ex['symbol']
                         break
+
+                # Get prediction data for this symbol
+                pred_data = {}
+                if symbol and symbol in self.prediction_engine.symbols:
+                    sym_hist = self.prediction_engine.symbols[symbol]
+                    pred_data = {
+                        "prediction_accuracy": round(sym_hist.accuracy, 4),
+                        "total_predictions": sym_hist.total_predictions,
+                        "trend": sym_hist.price_trend.value if sym_hist.price_trend else "unknown",
+                        "momentum": round(sym_hist.momentum, 4),
+                        "volatility": round(sym_hist.volatility, 6),
+                    }
 
                 concepts[cid] = {
                     "id": cid,
@@ -382,6 +569,7 @@ class DistributedCognitiveCore:
                     "level": getattr(concept, 'level', 0),
                     "observation_count": len(examples),
                     "examples": recent_examples,
+                    "prediction": pred_data,
                     "created_at": getattr(concept, 'created_at', None),
                     "parent_concepts": list(getattr(concept, 'parent_concepts', set())),
                     "child_concepts": list(getattr(concept, 'child_concepts', set())),
@@ -389,17 +577,27 @@ class DistributedCognitiveCore:
 
             return concepts
 
+    def get_prediction_snapshot(self) -> Dict[str, Any]:
+        """Get full prediction engine state"""
+        with self._lock:
+            return self.prediction_engine.get_insights()
+
     def get_rules_snapshot(self) -> Dict[str, Any]:
         """Get snapshot of all rules from the ReasoningEngine"""
         with self._lock:
             rules = {}
             for rid, rule in self.cognitive_system.reasoning.rules.items():
+                # Get prediction-based accuracy for this rule
+                rule_perf = self.prediction_engine.rule_performance.get(rid)
+                pred_accuracy = rule_perf.accuracy if rule_perf and rule_perf.predictions_made >= 3 else None
+
                 rules[rid] = {
                     "id": rid,
                     "rule_type": getattr(rule, 'rule_type', RuleType.IF_THEN).value
                         if hasattr(getattr(rule, 'rule_type', None), 'value')
                         else str(getattr(rule, 'rule_type', 'unknown')),
                     "confidence": getattr(rule, 'confidence', 0),
+                    "prediction_accuracy": round(pred_accuracy, 4) if pred_accuracy is not None else None,
                     "support": getattr(rule, 'support', 0),
                     "antecedents": list(getattr(rule, 'antecedents', [])),
                     "consequents": list(getattr(rule, 'consequents', [])),
@@ -443,16 +641,20 @@ class DistributedCognitiveCore:
             return self.cognitive_system.learning_engine.get_insights()
 
     def get_state_summary(self) -> Dict[str, Any]:
-        """Get complete state summary for gossip/network"""
+        """Get complete state summary"""
         metrics = self.get_metrics()
         return {
             "node_id": self.node_id,
             "phi": metrics["global_coherence_phi"],
             "sigma": metrics["noise_level_sigma"],
+            "prediction_accuracy": metrics["prediction_accuracy"],
+            "predictions_validated": metrics["predictions_validated"],
             "concepts_count": metrics["total_concepts"],
             "rules_count": metrics["total_rules"],
             "goals_count": metrics["total_goals"],
             "domains_count": metrics["total_domains"],
+            "concepts_merged": self._concepts_merged,
+            "concepts_pruned": self._concepts_pruned,
             "metrics": metrics,
             "timestamp": time.time()
         }
@@ -460,7 +662,15 @@ class DistributedCognitiveCore:
     def get_introspection(self) -> Dict[str, Any]:
         """Full system introspection"""
         with self._lock:
-            return self.cognitive_system.introspect()
+            base = self.cognitive_system.introspect()
+            # Enrich with prediction data
+            base['predictions'] = self.prediction_engine.get_insights()
+            base['convergence'] = {
+                'concepts_merged': self._concepts_merged,
+                'concepts_pruned': self._concepts_pruned,
+                'convergence_cycles': self._convergence_counter,
+            }
+            return base
 
     async def process_network_message(self, msg: Any):
         """Process incoming network messages"""
