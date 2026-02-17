@@ -479,6 +479,7 @@ class DistributedCognitiveCore:
             "analogies_found": cognitive_metrics.get('analogies_found', 0),
             "goals_achieved": cognitive_metrics.get('goals_achieved', 0),
             "knowledge_transfers": cognitive_metrics.get('knowledge_transfers', 0),
+            "causal_links_discovered": cognitive_metrics.get('causal_links_discovered', 0),
 
             # Engine-specific state
             "total_concepts": abstraction_insights.get('total_concepts', 0),
@@ -658,6 +659,87 @@ class DistributedCognitiveCore:
             "metrics": metrics,
             "timestamp": time.time()
         }
+
+    # ──────────────────────────────────────────
+    # NEW: Hidden Intelligence Snapshots
+    # ──────────────────────────────────────────
+
+    def get_causal_graph(self) -> Dict[str, Any]:
+        """Get causal graph snapshot"""
+        with self._lock:
+            return self.cognitive_system.get_causal_graph_snapshot()
+
+    def get_concept_hierarchy(self) -> Dict[str, Any]:
+        """Get concept hierarchy snapshot"""
+        with self._lock:
+            return self.cognitive_system.get_concept_hierarchy_snapshot()
+
+    def get_analogies(self) -> list:
+        """Get recent analogies"""
+        with self._lock:
+            return self.cognitive_system.get_analogies_snapshot()
+
+    def get_explanations(self) -> list:
+        """Get recent rule explanations"""
+        with self._lock:
+            return self.cognitive_system.get_explanations_snapshot()
+
+    def get_plans(self) -> list:
+        """Get recent plans"""
+        with self._lock:
+            return self.cognitive_system.get_plans_snapshot()
+
+    def get_pursuit_log(self) -> list:
+        """Get autonomous pursuit log"""
+        with self._lock:
+            return self.cognitive_system.get_pursuit_log()
+
+    def get_transfer_suggestions(self) -> list:
+        """Get transfer opportunity suggestions"""
+        with self._lock:
+            return self.cognitive_system.get_transfer_suggestions()
+
+    def get_strategy_performance(self) -> Dict[str, Any]:
+        """Get goal strategy performance"""
+        with self._lock:
+            return self.cognitive_system.get_strategy_performance()
+
+    def get_feature_importances(self) -> list:
+        """Get learned feature importances from the online model"""
+        with self._lock:
+            return self.cognitive_system.learning_engine.get_feature_importances()
+
+    def get_drift_events(self) -> list:
+        """Get distribution drift events"""
+        with self._lock:
+            return list(self.cognitive_system.learning_engine.drift_events)[-20:]
+
+    def get_toggles(self) -> Dict[str, Any]:
+        """Get current toggle states"""
+        with self._lock:
+            return self.cognitive_system.toggles.copy()
+
+    def set_toggle(self, key: str, value) -> Dict[str, Any]:
+        """Set a toggle value"""
+        with self._lock:
+            if key in self.cognitive_system.toggles:
+                self.cognitive_system.toggles[key] = value
+                # If prediction horizon changed, update the prediction engine
+                if key == 'prediction_horizon' and isinstance(value, int):
+                    self.prediction_engine.default_horizon = max(3, min(30, value))
+                if key == 'dead_zone_sensitivity':
+                    multiplier = {'aggressive': 0.5, 'normal': 1.0, 'conservative': 2.0}
+                    self.prediction_engine.dead_zone_multiplier = multiplier.get(value, 1.0)
+                return self.cognitive_system.toggles.copy()
+            return {'error': f'Unknown toggle: {key}'}
+
+    def get_orchestrator_status(self) -> Dict[str, Any]:
+        """Get orchestrator health status"""
+        with self._lock:
+            try:
+                return self.cognitive_system.orchestrator.get_status()
+            except Exception:
+                return {'running': False, 'error': 'Orchestrator not available'}
 
     def get_introspection(self) -> Dict[str, Any]:
         """Full system introspection"""

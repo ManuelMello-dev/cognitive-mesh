@@ -100,6 +100,10 @@ class ContinuousLearningEngine:
         self.feature_vars: Dict[str, float] = defaultdict(lambda: 1.0)
         self.sample_count = 0
 
+        # --- NEW: Drift event log ---
+        self.drift_events: deque = deque(maxlen=200)
+        self._current_lr_history: deque = deque(maxlen=200)
+
         logger.info(
             f"ContinuousLearningEngine initialized: "
             f"dim={feature_dim}, lr={learning_rate}, "
@@ -261,26 +265,59 @@ class ContinuousLearningEngine:
                 if isinstance(value, (int, float)):
                     recent_means[key] += value / len(recent)
 
-        # Check for significant drift
+        # Check for significant drift and collect per-feature z-scores
         drift_detected = False
+        drift_details = []
         for key, recent_mean in recent_means.items():
             if key in self.feature_means:
                 global_mean = self.feature_means[key]
                 global_std = max(np.sqrt(self.feature_vars[key]), 1e-6)
-                z_score = abs(recent_mean - global_mean) / global_std
-
-                if z_score > 3.0:  # Significant drift
+                z = abs(recent_mean - global_mean) / global_std
+                if z > 2.0:
+                    drift_details.append({
+                        'feature': key,
+                        'z_score': round(float(z), 3),
+                        'recent_mean': round(float(recent_mean), 6),
+                        'global_mean': round(float(global_mean), 6),
+                    })
+                if z > 3.0:
                     drift_detected = True
-                    break
 
         if drift_detected:
             # Increase learning rate temporarily
+            old_lr = self.learning_rate
             self.learning_rate = min(self.learning_rate * 1.5, 0.1)
             self.metrics.adaptations += 1
+            event = {
+                'timestamp': datetime.now().isoformat(),
+                'type': 'drift',
+                'old_lr': round(old_lr, 6),
+                'new_lr': round(self.learning_rate, 6),
+                'drifted_features': sorted(drift_details, key=lambda d: d['z_score'], reverse=True)[:5],
+            }
+            self.drift_events.append(event)
             logger.info(f"Distribution drift detected. Adapted learning rate to {self.learning_rate:.4f}")
         else:
             # Decay learning rate back
             self.learning_rate = max(self.learning_rate * 0.99, 0.001)
+
+        self._current_lr_history.append({
+            'timestamp': datetime.now().isoformat(),
+            'lr': round(self.learning_rate, 6),
+        })
+
+    def get_feature_importances(self) -> List[Dict[str, Any]]:
+        """Return learned feature importances from the weight vector."""
+        importances = []
+        for i, name in enumerate(self.feature_names):
+            if i < len(self.weights):
+                importances.append({
+                    'feature': name,
+                    'weight': round(float(self.weights[i]), 6),
+                    'abs_weight': round(float(abs(self.weights[i])), 6),
+                })
+        importances.sort(key=lambda x: x['abs_weight'], reverse=True)
+        return importances
 
     def get_insights(self) -> Dict[str, Any]:
         """Get learning engine insights"""
@@ -296,7 +333,10 @@ class ContinuousLearningEngine:
                     key=lambda p: p.hit_count,
                     reverse=True
                 )[:5]
-            ]
+            ],
+            'feature_importances': self.get_feature_importances()[:15],
+            'drift_events': list(self.drift_events)[-20:],
+            'lr_history': list(self._current_lr_history)[-20:],
         }
 
     def save_state(self, filepath: str):

@@ -119,9 +119,28 @@ class CognitiveIntelligentSystem:
             'rules_learned': 0,
             'analogies_found': 0,
             'goals_achieved': 0,
-            'knowledge_transfers': 0
+            'knowledge_transfers': 0,
+            'causal_links_discovered': 0,
         }
-        
+
+        # --- NEW: Toggles for optional engines ---
+        self.toggles = {
+            'causal_discovery': True,
+            'self_evolution': False,
+            'autonomous_reasoning': False,
+            'prediction_horizon': 5,
+            'dead_zone_sensitivity': 'normal',  # aggressive / normal / conservative
+        }
+
+        # --- NEW: Caches for hidden intelligence ---
+        from collections import deque
+        self._recent_analogies: deque = deque(maxlen=100)
+        self._recent_explanations: deque = deque(maxlen=100)
+        self._recent_plans: deque = deque(maxlen=50)
+        self._causal_discovery_log: deque = deque(maxlen=50)
+        self._transfer_suggestions_cache: List[Dict] = []
+        self._pursuit_log: deque = deque(maxlen=100)
+
         logger.info("System initialized with all cognitive capabilities")
     
     def _ensure_meta_domain(self, meta_domain: str):
@@ -324,31 +343,39 @@ class CognitiveIntelligentSystem:
         - Abstract thinking
         - Analogical reasoning
         - Goal-directed planning
+        - Causal discovery (NEW)
         """
         thoughts = {}
-        
-        # Abstract reasoning
+
+        # Abstract reasoning — find and LOG analogies
         if len(self.active_concepts) > 0:
-            # Find analogies between recent concepts
             recent_concepts = list(self.active_concepts)[-5:]
-            
             if len(recent_concepts) >= 2:
                 analogies = self.abstraction.find_analogies(recent_concepts[0])
                 if analogies:
                     thoughts['analogies'] = [a.to_dict() for a in analogies[:3]]
                     self.cognitive_metrics['analogies_found'] += len(analogies)
-        
-        # Logical reasoning
+                    # Cache for API exposure
+                    for a in analogies[:3]:
+                        self._recent_analogies.append({
+                            'timestamp': datetime.now().isoformat(),
+                            **a.to_dict()
+                        })
+
+        # Logical reasoning — explain and CACHE explanations
         if self.reasoning.facts:
-            # Try to explain recent facts
             recent_facts = list(self.reasoning.facts)[-5:]
             thoughts['explanations'] = {}
-            
             for fact in recent_facts:
                 explanation = self.reasoning.explain(fact)
                 if explanation:
                     thoughts['explanations'][fact] = explanation
-        
+                    self._recent_explanations.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'fact': fact,
+                        'explanation': explanation,
+                    })
+
         # Goal-oriented thinking
         if len(self.goals.goals) > 0:
             active_goals = [
@@ -356,7 +383,34 @@ class CognitiveIntelligentSystem:
                 for gid in self.goals.active_goals
             ]
             thoughts['active_goals'] = [g.to_dict() for g in active_goals]
-        
+
+        # --- NEW: Causal discovery (if toggled on) ---
+        if self.toggles.get('causal_discovery', False) and len(self._observation_history) >= 30:
+            try:
+                new_links = self.reasoning.discover_causal_relationships(
+                    self._observation_history[-100:]
+                )
+                if new_links:
+                    self.cognitive_metrics['causal_links_discovered'] += new_links
+                    self._causal_discovery_log.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'new_links': new_links,
+                        'total_causal_links': sum(
+                            len(v) for v in self.reasoning.causal_graph.values()
+                        ),
+                    })
+                    logger.info(f"Causal discovery: {new_links} new links")
+            except Exception as e:
+                logger.warning(f"Causal discovery error: {e}")
+
+        # --- NEW: Transfer suggestions ---
+        try:
+            suggestions = self.cross_domain.suggest_transfer_opportunities()
+            if suggestions:
+                self._transfer_suggestions_cache = suggestions
+        except Exception as e:
+            logger.debug(f"Transfer suggestion error: {e}")
+
         return thoughts
     
     def set_goal(self, goal_description: str, goal_type: GoalType, criteria: Dict[str, Any]):
@@ -410,37 +464,50 @@ class CognitiveIntelligentSystem:
         return [g.goal_id for g in new_goals]
     
     def pursue_goals(self) -> Dict[str, Any]:
-        """Actively pursue current goals"""
-        
-        # Select which goals to work on
+        """Actively pursue current goals — now logs plans and pursuits."""
+
         active_goal_ids = self.goals.select_active_goals()
-        
         results = {}
-        
+
         for goal_id in active_goal_ids:
             goal = self.goals.goals[goal_id]
-            
-            # Create plan for goal
+
             plan = self.reasoning.create_plan(
                 goal=goal.description,
                 current_state={},
                 available_actions=[]
             )
-            
+
             if plan:
-                # Execute plan
+                # Cache the plan for API exposure
+                self._recent_plans.append({
+                    'timestamp': datetime.now().isoformat(),
+                    'goal_id': goal_id,
+                    'goal': goal.description,
+                    'plan_id': getattr(plan, 'plan_id', str(goal_id)),
+                    'steps': getattr(plan, 'steps', []),
+                })
+
                 execution_result = self.reasoning.execute_plan(plan)
                 results[goal_id] = execution_result
-                
-                # Update goal progress
+
+                # Log the pursuit
+                self._pursuit_log.append({
+                    'timestamp': datetime.now().isoformat(),
+                    'goal_id': goal_id,
+                    'goal': goal.description,
+                    'success': execution_result.get('success', False),
+                    'steps_completed': execution_result.get('steps_completed', 0),
+                })
+
                 self.goals.update_goal_progress(
                     goal_id,
                     {'achieved': execution_result['success']}
                 )
-                
+
                 if execution_result['success']:
                     self.cognitive_metrics['goals_achieved'] += 1
-        
+
         return results
     
     def _check_cross_domain_opportunities(self, current_domain: str):
@@ -555,32 +622,106 @@ class CognitiveIntelligentSystem:
                 except Exception as e:
                     logger.warning(f"Transfer error: {e}")
     
+    def get_causal_graph_snapshot(self) -> Dict[str, Any]:
+        """Return the full causal graph for API exposure."""
+        graph = {}
+        for cause, links in self.reasoning.causal_graph.items():
+            graph[cause] = [
+                {
+                    'effect': getattr(link, 'effect', str(link)),
+                    'lag': getattr(link, 'lag', 0),
+                    'correlation': round(getattr(link, 'correlation', 0), 4),
+                    'p_value': round(getattr(link, 'p_value', 1.0), 6),
+                }
+                for link in links
+            ]
+        return {
+            'total_links': sum(len(v) for v in self.reasoning.causal_graph.values()),
+            'graph': graph,
+            'discovery_log': list(self._causal_discovery_log)[-20:],
+        }
+
+    def get_concept_hierarchy_snapshot(self) -> Dict[str, Any]:
+        """Return the concept hierarchy for API exposure."""
+        try:
+            hierarchy = self.abstraction.get_concept_hierarchy()
+            return hierarchy
+        except Exception:
+            return {'levels': {}, 'total_concepts': len(self.abstraction.concepts)}
+
+    def get_analogies_snapshot(self) -> List[Dict]:
+        """Return recent analogies for API exposure."""
+        return list(self._recent_analogies)[-20:]
+
+    def get_explanations_snapshot(self) -> List[Dict]:
+        """Return recent rule explanations for API exposure."""
+        return list(self._recent_explanations)[-20:]
+
+    def get_plans_snapshot(self) -> List[Dict]:
+        """Return recent plans for API exposure."""
+        return list(self._recent_plans)[-20:]
+
+    def get_pursuit_log(self) -> List[Dict]:
+        """Return the autonomous pursuit log for API exposure."""
+        return list(self._pursuit_log)[-30:]
+
+    def get_transfer_suggestions(self) -> List[Dict]:
+        """Return cached transfer suggestions."""
+        return self._transfer_suggestions_cache
+
+    def get_strategy_performance(self) -> Dict[str, Any]:
+        """Return goal strategy performance from the goal system."""
+        try:
+            perf = {}
+            for strategy, stats in self.goals.strategy_performance.items():
+                perf[strategy] = {
+                    'attempts': getattr(stats, 'attempts', 0),
+                    'successes': getattr(stats, 'successes', 0),
+                    'success_rate': round(
+                        getattr(stats, 'successes', 0) / max(getattr(stats, 'attempts', 1), 1), 3
+                    ),
+                }
+            return perf
+        except Exception:
+            return {}
+
     def introspect(self) -> Dict[str, Any]:
-        """Perform system introspection"""
-        
+        """Perform system introspection — now includes all hidden intelligence."""
+
         return {
             'system_id': self.system_id,
             'iteration': self.iteration,
             'cognitive_metrics': self.cognitive_metrics,
-            
+
             # Learning state
             'learning': self.learning_engine.get_insights(),
-            
+
             # Abstraction state
             'abstraction': self.abstraction.get_insights(),
-            
+
             # Reasoning state
             'reasoning': self.reasoning.get_insights(),
-            
+
             # Cross-domain state
             'cross_domain': self.cross_domain.get_insights(),
-            
+
             # Goal state
             'goals': self.goals.get_insights(),
-            
+
             # Active elements
             'active_concepts': len(self.active_concepts),
-            'active_domains': len(self.cross_domain.domains)
+            'active_domains': len(self.cross_domain.domains),
+
+            # --- NEW: Hidden intelligence now exposed ---
+            'causal_graph': self.get_causal_graph_snapshot(),
+            'concept_hierarchy': self.get_concept_hierarchy_snapshot(),
+            'recent_analogies': self.get_analogies_snapshot(),
+            'recent_explanations': self.get_explanations_snapshot(),
+            'recent_plans': self.get_plans_snapshot(),
+            'pursuit_log': self.get_pursuit_log(),
+            'transfer_suggestions': self.get_transfer_suggestions(),
+            'strategy_performance': self.get_strategy_performance(),
+            'toggles': self.toggles,
         }
     
     def run_cognitive_loop(

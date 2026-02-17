@@ -8,392 +8,1189 @@
         :root {
             --matrix-green: #00ff41;
             --deep-space: #0a0e27;
-            --panel-bg: rgba(13, 20, 58, 0.8);
+            --panel-bg: rgba(13, 20, 58, 0.85);
             --neon-blue: #00d4ff;
-            --neon-purple: #ff00ff;
+            --neon-purple: #b44dff;
             --gold: #ffd700;
+            --red: #ff4b2b;
+            --dim: rgba(0,255,65,0.35);
+            --border: rgba(0,255,65,0.25);
         }
-
+        * { box-sizing: border-box; }
         body {
-            background-color: var(--deep-space);
+            background: var(--deep-space);
             color: var(--matrix-green);
             font-family: 'Courier New', Courier, monospace;
-            margin: 0;
-            padding: 10px;
+            margin: 0; padding: 8px;
             overflow-x: hidden;
+            font-size: 13px;
         }
+        /* ── Navigation Tabs ── */
+        .nav-tabs {
+            display: flex; gap: 4px; flex-wrap: wrap;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+        .nav-tab {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--dim);
+            padding: 6px 14px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px 4px 0 0;
+            transition: all 0.2s;
+        }
+        .nav-tab:hover { color: var(--matrix-green); border-color: var(--matrix-green); }
+        .nav-tab.active {
+            color: var(--gold);
+            border-color: var(--gold);
+            background: rgba(255,215,0,0.08);
+        }
+        .tab-page { display: none; }
+        .tab-page.active { display: block; }
 
+        /* ── Grid ── */
         .dashboard {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 15px;
-            max-width: 1400px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 10px;
+            max-width: 1600px;
             margin: 0 auto;
         }
-
         .panel {
             background: var(--panel-bg);
-            border: 1px solid var(--matrix-green);
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            box-shadow: 0 0 12px rgba(0,255,65,0.06);
+            overflow: hidden;
         }
-
-        h1, h2, h3 {
-            margin-top: 0;
+        .panel.wide { grid-column: 1 / -1; }
+        .panel.span2 { grid-column: span 2; }
+        h2, h3 {
+            margin: 0 0 8px 0;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            border-bottom: 1px solid var(--matrix-green);
-            padding-bottom: 5px;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .metric {
-            text-align: center;
-            padding: 10px;
-            background: rgba(0, 255, 65, 0.05);
-            border-radius: 4px;
-        }
-
-        .metric-label {
+            letter-spacing: 1.5px;
             font-size: 0.8rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 4px;
             color: var(--neon-blue);
         }
 
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-top: 5px;
+        /* ── Metrics ── */
+        .metrics-row {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 8px;
         }
-
-        .consciousness-state {
-            margin-top: 15px;
-            padding: 10px;
+        .metric {
+            flex: 1 1 100px;
             text-align: center;
-            font-weight: bold;
-            border: 2px solid;
+            padding: 8px 4px;
+            background: rgba(0,255,65,0.04);
             border-radius: 4px;
+            border: 1px solid rgba(0,255,65,0.1);
+        }
+        .metric-label { font-size: 0.65rem; color: var(--neon-blue); margin-bottom: 2px; }
+        .metric-value { font-size: 1.3rem; font-weight: bold; }
+        .metric-value.good { color: var(--matrix-green); }
+        .metric-value.warn { color: var(--gold); }
+        .metric-value.bad { color: var(--red); }
+
+        /* ── Consciousness State ── */
+        .consciousness-state {
+            text-align: center; font-weight: bold;
+            padding: 6px; border: 2px solid; border-radius: 4px;
             animation: pulse 2s infinite;
+            font-size: 0.85rem;
         }
-
-        @keyframes pulse {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
-        }
-
-        .chaos { border-color: #ff4b2b; color: #ff4b2b; }
+        @keyframes pulse { 0%,100%{opacity:0.7} 50%{opacity:1} }
+        .chaos { border-color: var(--red); color: var(--red); }
         .critical { border-color: var(--gold); color: var(--gold); }
         .ordered { border-color: var(--matrix-green); color: var(--matrix-green); }
 
-        #coherenceCanvas {
-            width: 100%;
-            height: 300px;
-            background: #000;
-            border-radius: 4px;
+        /* ── Tables ── */
+        .data-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.75rem;
         }
+        .data-table th {
+            text-align: left; padding: 4px 6px;
+            border-bottom: 1px solid var(--border);
+            color: var(--neon-blue);
+            font-weight: normal;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+        }
+        .data-table td {
+            padding: 3px 6px;
+            border-bottom: 1px solid rgba(0,255,65,0.06);
+        }
+        .data-table tr:hover td { background: rgba(0,255,65,0.04); }
 
-        .symbol-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 5px;
-            max-height: 200px;
+        /* ── Scrollable containers ── */
+        .scroll-box {
+            max-height: 220px;
             overflow-y: auto;
-            padding: 5px;
+            border: 1px solid rgba(0,255,65,0.1);
+            border-radius: 4px;
+            padding: 4px;
         }
+        .scroll-box::-webkit-scrollbar { width: 4px; }
+        .scroll-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-        .symbol-item {
+        /* ── Symbol Grid ── */
+        .symbol-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+            gap: 4px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .symbol-card {
             font-size: 0.7rem;
-            padding: 3px;
-            border: 1px solid rgba(0, 255, 65, 0.2);
+            padding: 4px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
             text-align: center;
         }
+        .symbol-card .sym { font-weight: bold; color: var(--gold); }
+        .symbol-card .price { color: var(--matrix-green); }
+        .symbol-card .acc { font-size: 0.6rem; color: var(--dim); }
 
-        .transfer-log {
-            height: 150px;
-            overflow-y: auto;
-            font-size: 0.8rem;
-            border: 1px solid rgba(0, 255, 65, 0.2);
-            padding: 5px;
+        /* ── Canvas ── */
+        #coherenceCanvas {
+            width: 100%; height: 280px;
+            background: #000; border-radius: 4px;
         }
 
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 300px;
+        /* ── Toggles ── */
+        .toggle-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(0,255,65,0.06);
+        }
+        .toggle-label { font-size: 0.75rem; }
+        .toggle-switch {
+            position: relative; width: 36px; height: 18px;
+            background: rgba(255,75,43,0.3);
+            border-radius: 9px; cursor: pointer;
+            transition: background 0.3s;
+        }
+        .toggle-switch.on { background: rgba(0,255,65,0.4); }
+        .toggle-switch::after {
+            content: ''; position: absolute;
+            width: 14px; height: 14px;
+            background: var(--matrix-green);
+            border-radius: 50%;
+            top: 2px; left: 2px;
+            transition: left 0.3s;
+        }
+        .toggle-switch.on::after { left: 20px; }
+        select.toggle-select, input.toggle-input {
+            background: #000; color: var(--matrix-green);
+            border: 1px solid var(--border);
+            padding: 3px 6px; font-family: inherit;
+            font-size: 0.75rem; border-radius: 3px;
         }
 
+        /* ── Mini bar chart ── */
+        .bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 60px; }
+        .bar {
+            flex: 1; background: var(--matrix-green);
+            border-radius: 2px 2px 0 0;
+            min-width: 4px;
+            transition: height 0.3s;
+            position: relative;
+        }
+        .bar.negative { background: var(--red); }
+
+        /* ── Log entries ── */
+        .log-entry {
+            font-size: 0.7rem;
+            padding: 3px 4px;
+            border-bottom: 1px solid rgba(0,255,65,0.04);
+            line-height: 1.3;
+        }
+        .log-entry .ts { color: var(--dim); margin-right: 6px; }
+
+        /* ── Chat ── */
+        .chat-container { display: flex; flex-direction: column; height: 280px; }
         .chat-messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid var(--matrix-green);
-            margin-bottom: 10px;
-            background: rgba(0, 0, 0, 0.3);
+            flex-grow: 1; overflow-y: auto; padding: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 6px;
+            background: rgba(0,0,0,0.3);
         }
-
-        .chat-message {
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 4px;
-            line-height: 1.4;
-        }
-
+        .chat-message { margin-bottom: 8px; padding: 6px; border-radius: 4px; line-height: 1.3; font-size: 0.8rem; }
         .user-message { border-left: 3px solid var(--neon-blue); }
         .ai-message { border-left: 3px solid var(--gold); }
-
-        .chat-input-area {
-            display: flex;
-            gap: 10px;
-        }
-
+        .chat-input-area { display: flex; gap: 6px; }
         .chat-input {
-            flex-grow: 1;
-            background: #000;
-            border: 1px solid var(--matrix-green);
+            flex-grow: 1; background: #000;
+            border: 1px solid var(--border);
             color: var(--matrix-green);
-            padding: 10px;
+            padding: 8px; font-family: inherit;
+        }
+        .chat-send {
+            background: var(--matrix-green); color: #000;
+            border: none; padding: 0 16px;
+            cursor: pointer; font-weight: bold;
             font-family: inherit;
         }
 
-        .chat-send {
-            background: var(--matrix-green);
-            color: #000;
-            border: none;
-            padding: 0 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
+        /* ── Responsive ── */
         @media (max-width: 768px) {
             .dashboard { grid-template-columns: 1fr; }
-            .metric-value { font-size: 1.2rem; }
-            #coherenceCanvas { height: 200px; }
+            .panel.span2 { grid-column: span 1; }
+            .metric-value { font-size: 1rem; }
+            #coherenceCanvas { height: 180px; }
         }
     </style>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="panel">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 2rem;">⚡</span>
-                <h2>MARKET CONSCIOUSNESS MONITOR</h2>
-            </div>
-            <div style="text-align: center; font-size: 2.5rem; margin: 15px 0; color: var(--gold);">
-                φ = 1.618
-            </div>
-            
-            <div class="metrics-grid">
-                <div class="metric">
-                    <div class="metric-label">CONCEPTS FORMED</div>
-                    <div class="metric-value" id="conceptsFormed">0</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">TRANSFERS MADE</div>
-                    <div class="metric-value" id="transfersMade">0</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">PHI COHERENCE</div>
-                    <div class="metric-value" id="coherenceScore">0.00</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">SIGMA NOISE</div>
-                    <div class="metric-value" id="noiseLevel">0.00</div>
-                </div>
-            </div>
-            <div id="consciousnessState" class="consciousness-state chaos">
-                INITIALIZING...
-            </div>
-        </div>
 
-        <div class="panel">
-            <h3>Active Concepts (Attention Field)</h3>
-            <div class="symbol-list" id="symbolList"></div>
-        </div>
+<!-- ═══ Navigation ═══ -->
+<div class="nav-tabs">
+    <button class="nav-tab active" data-tab="overview">Overview</button>
+    <button class="nav-tab" data-tab="predictions">Predictions</button>
+    <button class="nav-tab" data-tab="learning">Learning</button>
+    <button class="nav-tab" data-tab="reasoning">Reasoning</button>
+    <button class="nav-tab" data-tab="crossdomain">Cross-Domain</button>
+    <button class="nav-tab" data-tab="causal">Causal</button>
+    <button class="nav-tab" data-tab="goals">Goals</button>
+    <button class="nav-tab" data-tab="providers">Providers</button>
+    <button class="nav-tab" data-tab="toggles">Toggles</button>
+    <button class="nav-tab" data-tab="chat">Chat</button>
+</div>
 
-        <div class="panel">
-            <h3>Coherence Field (Z³ Attractor)</h3>
-            <canvas id="coherenceCanvas"></canvas>
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Overview                               -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-overview" class="tab-page active">
+<div class="dashboard">
+    <!-- Core Metrics -->
+    <div class="panel span2">
+        <h2>Market Consciousness Monitor</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">PHI Coherence</div><div class="metric-value" id="mPhi">0.00</div></div>
+            <div class="metric"><div class="metric-label">SIGMA Noise</div><div class="metric-value" id="mSigma">0.00</div></div>
+            <div class="metric"><div class="metric-label">Prediction Acc</div><div class="metric-value" id="mAcc">0%</div></div>
+            <div class="metric"><div class="metric-label">Concepts</div><div class="metric-value" id="mConcepts">0</div></div>
+            <div class="metric"><div class="metric-label">Rules</div><div class="metric-value" id="mRules">0</div></div>
+            <div class="metric"><div class="metric-label">Transfers</div><div class="metric-value" id="mTransfers">0</div></div>
+            <div class="metric"><div class="metric-label">Causal Links</div><div class="metric-value" id="mCausal">0</div></div>
+            <div class="metric"><div class="metric-label">Analogies</div><div class="metric-value" id="mAnalogies">0</div></div>
+            <div class="metric"><div class="metric-label">Goals Achieved</div><div class="metric-value" id="mGoals">0</div></div>
+            <div class="metric"><div class="metric-label">Patterns</div><div class="metric-value" id="mPatterns">0</div></div>
+            <div class="metric"><div class="metric-label">Drift Events</div><div class="metric-value" id="mDrift">0</div></div>
+            <div class="metric"><div class="metric-label">Uptime</div><div class="metric-value" id="mUptime">0s</div></div>
         </div>
+        <div id="consciousnessState" class="consciousness-state chaos">INITIALIZING...</div>
+    </div>
 
-        <div class="panel">
-            <h3>System Status Log</h3>
-            <div class="transfer-log" id="transferLog"></div>
-        </div>
+    <!-- Active Concepts -->
+    <div class="panel">
+        <h3>Active Concepts (Attention Field)</h3>
+        <div class="symbol-grid" id="symbolGrid"></div>
+    </div>
 
-        <div class="panel" style="grid-column: 1 / -1;">
-            <h3>Interpretive Interface (Global Mind GPT I/O)</h3>
-            <div class="chat-container">
-                <div class="chat-messages" id="chatMessages">
-                    <div class="chat-message ai-message">
-                        [GLOBAL_MIND]: Coherence established. I am the interpretive layer for your Z³ Consciousness System. How shall we explore the mesh today?
-                    </div>
-                </div>
-                <div class="chat-input-area">
-                    <input type="text" id="chatInput" class="chat-input" placeholder="Query the mesh...">
-                    <button id="chatSend" class="chat-send">SEND</button>
-                </div>
-            </div>
+    <!-- Coherence Field -->
+    <div class="panel">
+        <h3>Coherence Field (Z³ Attractor)</h3>
+        <canvas id="coherenceCanvas"></canvas>
+    </div>
+
+    <!-- PHI / SIGMA Trend -->
+    <div class="panel">
+        <h3>PHI / SIGMA Trend</h3>
+        <div style="display:flex;gap:10px;">
+            <div style="flex:1"><div class="metric-label" style="text-align:center">PHI</div><div class="bar-chart" id="phiChart"></div></div>
+            <div style="flex:1"><div class="metric-label" style="text-align:center">SIGMA</div><div class="bar-chart" id="sigmaChart"></div></div>
         </div>
     </div>
 
-    <script>
-        // Simulation State
-        let concepts = {};
-        let metrics = {
-            conceptsFormed: 0,
-            transfersMade: 0,
-            phi: 0,
-            sigma: 0
-        };
+    <!-- Recent Explanations -->
+    <div class="panel">
+        <h3>Recent Explanations</h3>
+        <div class="scroll-box" id="explanationsList"></div>
+    </div>
 
-        // Canvas setup
-        const canvas = document.getElementById('coherenceCanvas');
-        const ctx = canvas.getContext('2d');
-        function resizeCanvas() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+    <!-- System Log -->
+    <div class="panel">
+        <h3>System Log</h3>
+        <div class="scroll-box" id="systemLog"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Predictions                            -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-predictions" class="tab-page">
+<div class="dashboard">
+    <div class="panel span2">
+        <h2>Prediction Engine</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Global Accuracy</div><div class="metric-value" id="pAcc">0%</div></div>
+            <div class="metric"><div class="metric-label">Validated</div><div class="metric-value" id="pValidated">0</div></div>
+            <div class="metric"><div class="metric-label">Correct</div><div class="metric-value" id="pCorrect">0</div></div>
+            <div class="metric"><div class="metric-label">Symbols Tracked</div><div class="metric-value" id="pSymbols">0</div></div>
+            <div class="metric"><div class="metric-label">PHI</div><div class="metric-value" id="pPhi">0</div></div>
+            <div class="metric"><div class="metric-label">SIGMA</div><div class="metric-value" id="pSigma">0</div></div>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Per-Symbol Performance</h3>
+        <div class="scroll-box">
+            <table class="data-table" id="predSymbolTable">
+                <thead><tr><th>Symbol</th><th>Accuracy</th><th>Predictions</th><th>Trend</th><th>Momentum</th><th>Volatility</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Recent Predictions</h3>
+        <div class="scroll-box" id="recentPredictions"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Learning                               -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-learning" class="tab-page">
+<div class="dashboard">
+    <div class="panel">
+        <h2>Learning Engine</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Accuracy</div><div class="metric-value" id="lAcc">0%</div></div>
+            <div class="metric"><div class="metric-label">Samples</div><div class="metric-value" id="lSamples">0</div></div>
+            <div class="metric"><div class="metric-label">Patterns</div><div class="metric-value" id="lPatterns">0</div></div>
+            <div class="metric"><div class="metric-label">Learning Rate</div><div class="metric-value" id="lLR">0</div></div>
+            <div class="metric"><div class="metric-label">Adaptations</div><div class="metric-value" id="lAdapt">0</div></div>
+        </div>
+    </div>
+    <div class="panel">
+        <h3>Feature Importances (Top 15)</h3>
+        <div class="scroll-box" id="featureList"></div>
+    </div>
+    <div class="panel">
+        <h3>Distribution Drift Events</h3>
+        <div class="scroll-box" id="driftList"></div>
+    </div>
+    <div class="panel">
+        <h3>Learning Rate History</h3>
+        <div class="bar-chart" id="lrChart" style="height:80px;"></div>
+    </div>
+    <div class="panel wide">
+        <h3>Top Patterns</h3>
+        <div class="scroll-box">
+            <table class="data-table" id="patternTable">
+                <thead><tr><th>Pattern</th><th>Confidence</th><th>Hits</th><th>Examples</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Reasoning                              -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-reasoning" class="tab-page">
+<div class="dashboard">
+    <div class="panel">
+        <h2>Reasoning Engine</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Rules</div><div class="metric-value" id="rRules">0</div></div>
+            <div class="metric"><div class="metric-label">Facts</div><div class="metric-value" id="rFacts">0</div></div>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Top Rules (by confidence)</h3>
+        <div class="scroll-box">
+            <table class="data-table" id="rulesTable">
+                <thead><tr><th>Rule</th><th>Type</th><th>Confidence</th><th>Pred Acc</th><th>Support</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel">
+        <h3>Recent Explanations</h3>
+        <div class="scroll-box" id="reasonExplanations"></div>
+    </div>
+    <div class="panel">
+        <h3>Recent Plans</h3>
+        <div class="scroll-box" id="plansList"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Cross-Domain                           -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-crossdomain" class="tab-page">
+<div class="dashboard">
+    <div class="panel">
+        <h2>Cross-Domain Intelligence</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Domains</div><div class="metric-value" id="cdDomains">0</div></div>
+            <div class="metric"><div class="metric-label">Mappings</div><div class="metric-value" id="cdMappings">0</div></div>
+            <div class="metric"><div class="metric-label">Transfers</div><div class="metric-value" id="cdTransfers">0</div></div>
+        </div>
+    </div>
+    <div class="panel">
+        <h3>Domain Mappings</h3>
+        <div class="scroll-box" id="mappingsList"></div>
+    </div>
+    <div class="panel">
+        <h3>Transfer Suggestions</h3>
+        <div class="scroll-box" id="transferSuggestions"></div>
+    </div>
+    <div class="panel">
+        <h3>Recent Analogies</h3>
+        <div class="scroll-box" id="analogiesList"></div>
+    </div>
+    <div class="panel wide">
+        <h3>Concept Hierarchy</h3>
+        <div class="scroll-box" id="hierarchyView"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Causal                                 -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-causal" class="tab-page">
+<div class="dashboard">
+    <div class="panel span2">
+        <h2>Causal Influence Graph</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Total Links</div><div class="metric-value" id="causalLinks">0</div></div>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Causal Links</h3>
+        <div class="scroll-box">
+            <table class="data-table" id="causalTable">
+                <thead><tr><th>Cause</th><th>Effect</th><th>Lag</th><th>Correlation</th><th>P-Value</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Discovery Log</h3>
+        <div class="scroll-box" id="causalLog"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Goals                                  -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-goals" class="tab-page">
+<div class="dashboard">
+    <div class="panel">
+        <h2>Goal System</h2>
+        <div class="metrics-row">
+            <div class="metric"><div class="metric-label">Total Goals</div><div class="metric-value" id="gTotal">0</div></div>
+            <div class="metric"><div class="metric-label">Active</div><div class="metric-value" id="gActive">0</div></div>
+            <div class="metric"><div class="metric-label">Achieved</div><div class="metric-value" id="gAchieved">0</div></div>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>All Goals</h3>
+        <div class="scroll-box">
+            <table class="data-table" id="goalsTable">
+                <thead><tr><th>Goal</th><th>Type</th><th>Status</th><th>Priority</th><th>Progress</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel">
+        <h3>Strategy Performance</h3>
+        <div class="scroll-box" id="strategyPerf"></div>
+    </div>
+    <div class="panel">
+        <h3>Pursuit Log</h3>
+        <div class="scroll-box" id="pursuitLog"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Providers                              -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-providers" class="tab-page">
+<div class="dashboard">
+    <div class="panel wide">
+        <h2>Data Provider Status</h2>
+        <div class="scroll-box">
+            <table class="data-table" id="providerTable">
+                <thead><tr><th>Provider</th><th>State</th><th>Successes</th><th>Failures</th><th>Avg Latency</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel wide">
+        <h3>Orchestrator Status</h3>
+        <div id="orchestratorStatus"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Toggles                                -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-toggles" class="tab-page">
+<div class="dashboard">
+    <div class="panel">
+        <h2>System Toggles</h2>
+        <div id="togglesContainer"></div>
+    </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TAB: Chat                                   -->
+<!-- ═══════════════════════════════════════════ -->
+<div id="tab-chat" class="tab-page">
+<div class="dashboard">
+    <div class="panel wide">
+        <h2>Interpretive Interface (Global Mind GPT I/O)</h2>
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message ai-message">[GLOBAL_MIND]: Coherence established. I am the interpretive layer for your Z³ Consciousness System. How shall we explore the mesh today?</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Query the mesh...">
+                <button id="chatSend" class="chat-send">SEND</button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+const S = {
+    phiHistory: [], sigmaHistory: [],
+    concepts: {},
+    maxHistory: 40,
+};
+
+// ═══════════════════════════════════════════
+// Tab Navigation
+// ═══════════════════════════════════════════
+document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+});
+
+// ═══════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════
+function $(id) { return document.getElementById(id); }
+function ts(iso) { if (!iso) return ''; const d = new Date(iso); return d.toLocaleTimeString(); }
+function pct(v) { return (v * 100).toFixed(1) + '%'; }
+function renderBars(containerId, values, maxVal) {
+    const c = $(containerId); if (!c) return;
+    c.innerHTML = '';
+    const mx = maxVal || Math.max(...values, 0.01);
+    values.forEach(v => {
+        const bar = document.createElement('div');
+        bar.className = 'bar' + (v < 0 ? ' negative' : '');
+        bar.style.height = Math.max(2, Math.abs(v) / mx * 100) + '%';
+        c.appendChild(bar);
+    });
+}
+function addLog(containerId, text) {
+    const c = $(containerId); if (!c) return;
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = '<span class="ts">' + new Date().toLocaleTimeString() + '</span>' + text;
+    c.prepend(div);
+    while (c.children.length > 50) c.removeChild(c.lastChild);
+}
+
+// ═══════════════════════════════════════════
+// Canvas (Coherence Field)
+// ═══════════════════════════════════════════
+const canvas = $('coherenceCanvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function drawField() {
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const scale = Math.min(canvas.width, canvas.height) / 160;
+
+    // Attractor
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,215,0,0.4)';
+    ctx.fill();
+
+    Object.values(S.concepts).forEach(c => {
+        const x = cx + c.px * scale;
+        const y = cy + c.py * scale;
+        ctx.beginPath();
+        ctx.arc(x, y, 3 + c.conf * 3, 0, Math.PI * 2);
+        ctx.fillStyle = c.acc > 0.6 ? 'rgba(0,255,65,0.7)' : c.acc > 0.4 ? 'rgba(255,215,0,0.7)' : 'rgba(255,75,43,0.5)';
+        ctx.fill();
+        // drift toward center (coherence)
+        c.px += (Math.random() - 0.5) * 0.6 - c.px * 0.005;
+        c.py += (Math.random() - 0.5) * 0.6 - c.py * 0.005;
+    });
+    requestAnimationFrame(drawField);
+}
+drawField();
+
+// ═══════════════════════════════════════════
+// Data Fetching
+// ═══════════════════════════════════════════
+
+async function fetchJSON(url) {
+    try { const r = await fetch(url); return await r.json(); }
+    catch(e) { console.warn('Fetch failed:', url, e); return null; }
+}
+
+// ── Overview Tab ──
+async function refreshOverview() {
+    const data = await fetchJSON('/api/state');
+    if (!data) return;
+    const m = data.metrics || {};
+
+    $('mPhi').textContent = (m.global_coherence_phi || 0).toFixed(3);
+    $('mSigma').textContent = (m.noise_level_sigma || 0).toFixed(3);
+    $('mAcc').textContent = pct(m.prediction_accuracy || 0);
+    $('mConcepts').textContent = m.total_concepts || 0;
+    $('mRules').textContent = m.total_rules || 0;
+    $('mTransfers').textContent = m.knowledge_transfers || 0;
+    $('mCausal').textContent = m.causal_links_discovered || 0;
+    $('mAnalogies').textContent = m.analogies_found || 0;
+    $('mGoals').textContent = m.goals_achieved || 0;
+    $('mPatterns').textContent = m.patterns_discovered || 0;
+    $('mDrift').textContent = m.learning_adaptations || 0;
+    const up = m.uptime_seconds || 0;
+    $('mUptime').textContent = up > 3600 ? (up/3600).toFixed(1)+'h' : up > 60 ? Math.floor(up/60)+'m' : Math.floor(up)+'s';
+
+    // Color metrics
+    $('mPhi').className = 'metric-value ' + (m.global_coherence_phi > 0.7 ? 'good' : m.global_coherence_phi > 0.4 ? 'warn' : 'bad');
+    $('mSigma').className = 'metric-value ' + (m.noise_level_sigma < 0.3 ? 'good' : m.noise_level_sigma < 0.6 ? 'warn' : 'bad');
+    $('mAcc').className = 'metric-value ' + (m.prediction_accuracy > 0.6 ? 'good' : m.prediction_accuracy > 0.4 ? 'warn' : 'bad');
+
+    // Consciousness state
+    const phi = m.global_coherence_phi || 0;
+    const state = phi > 0.7 ? 'ordered' : phi > 0.4 ? 'critical' : 'chaos';
+    const stEl = $('consciousnessState');
+    stEl.className = 'consciousness-state ' + state;
+    stEl.textContent = state.toUpperCase() + ' REGIME | PHI=' + phi.toFixed(3) + ' | ACC=' + pct(m.prediction_accuracy || 0);
+
+    // PHI/SIGMA trend
+    S.phiHistory.push(phi);
+    S.sigmaHistory.push(m.noise_level_sigma || 0);
+    if (S.phiHistory.length > S.maxHistory) S.phiHistory.shift();
+    if (S.sigmaHistory.length > S.maxHistory) S.sigmaHistory.shift();
+    renderBars('phiChart', S.phiHistory, 1.0);
+    renderBars('sigmaChart', S.sigmaHistory, 1.0);
+
+    // Symbol grid
+    const concepts = data.concepts || {};
+    const grid = $('symbolGrid');
+    grid.innerHTML = '';
+    Object.values(concepts).forEach(c => {
+        const sym = c.symbol;
+        if (!sym || c.level > 0) return;
+        const price = c.examples && c.examples[0] ? c.examples[0].price : null;
+        const acc = c.prediction ? c.prediction.prediction_accuracy : 0;
+        const div = document.createElement('div');
+        div.className = 'symbol-card';
+        div.innerHTML = '<div class="sym">' + sym + '</div>'
+            + (price ? '<div class="price">$' + Number(price).toFixed(2) + '</div>' : '')
+            + '<div class="acc">' + pct(acc) + ' acc</div>';
+        grid.appendChild(div);
+
+        if (!S.concepts[c.id]) {
+            S.concepts[c.id] = { px: (Math.random()-0.5)*120, py: (Math.random()-0.5)*120, conf: c.confidence || 0.5, acc: acc };
+        } else {
+            S.concepts[c.id].conf = c.confidence || 0.5;
+            S.concepts[c.id].acc = acc;
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+    });
 
-        // Data Fetching
-        async function fetchState() {
-            try {
-                const response = await fetch('/api/state');
-                const data = await response.json();
-                
-                // Update global metrics from hardened schema
-                metrics.conceptsFormed = data.metrics.concepts_formed || 0;
-                metrics.transfersMade = data.metrics.transfers_made || 0;
-                metrics.phi = data.metrics.global_coherence_phi || 0;
-                metrics.sigma = data.metrics.noise_level_sigma || 0;
-                
-                // Update symbols/concepts
-                const newConcepts = data.concepts || {};
-                const symbolList = document.getElementById('symbolList');
-                
-                // Clear and rebuild symbol list if count changed
-                if (Object.keys(newConcepts).length !== Object.keys(concepts).length) {
-                    symbolList.innerHTML = '';
-                    Object.values(newConcepts).forEach(c => {
-                        // Use the symbol field directly, fallback to examples
-                        const symbol = c.symbol || (c.examples && c.examples[0] ? c.examples[0].symbol : null);
-                        if (!symbol || c.level > 0) return; // Skip abstract concepts and unknowns
-                        
-                        const price = c.examples && c.examples[0] ? c.examples[0].price : null;
-                        const div = document.createElement('div');
-                        div.className = 'symbol-item';
-                        div.textContent = price ? `${symbol} $${Number(price).toFixed(2)}` : symbol;
-                        div.title = `${c.name} | Domain: ${c.domain} | Confidence: ${c.confidence}`;
-                        symbolList.appendChild(div);
-                        
-                        if (!concepts[c.id]) {
-                            concepts[c.id] = {
-                                symbol: symbol,
-                                confidence: c.confidence || 0.5,
-                                position: { x: (Math.random()-0.5)*100, y: (Math.random()-0.5)*100 }
-                            };
-                        }
-                    });
-                }
-                
-                // Update UI state
-                const state = metrics.phi > 0.7 ? 'ordered' : (metrics.phi > 0.4 ? 'critical' : 'chaos');
-                const stateEl = document.getElementById('consciousnessState');
-                stateEl.className = `consciousness-state ${state}`;
-                stateEl.textContent = state.toUpperCase() + ' REGIME';
-
-                updateUI();
-            } catch (e) {
-                console.error("Failed to fetch state", e);
-            }
-        }
-
-        function updateUI() {
-            document.getElementById('conceptsFormed').textContent = metrics.conceptsFormed;
-            document.getElementById('transfersMade').textContent = metrics.transfersMade;
-            document.getElementById('coherenceScore').textContent = metrics.phi.toFixed(3);
-            document.getElementById('noiseLevel').textContent = metrics.sigma.toFixed(3);
-        }
-
-        // Visualization
-        function draw() {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const scale = Math.min(canvas.width, canvas.height) / 150;
-
-            // Draw attractor
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
-            ctx.fill();
-
-            // Draw concepts
-            Object.values(concepts).forEach(concept => {
-                const x = centerX + concept.position.x * scale;
-                const y = centerY + concept.position.y * scale;
-                
-                ctx.beginPath();
-                ctx.arc(x, y, 4, 0, Math.PI * 2);
-                ctx.fillStyle = '#00ff41';
-                ctx.fill();
-                
-                // Move them slightly for visual "life"
-                concept.position.x += (Math.random()-0.5) * 0.5;
-                concept.position.y += (Math.random()-0.5) * 0.5;
-            });
-
-            requestAnimationFrame(draw);
-        }
-
-        // Chat
-        const chatInput = document.getElementById('chatInput');
-        const chatSend = document.getElementById('chatSend');
-        const chatMessages = document.getElementById('chatMessages');
-
-        async function sendMessage() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-
-            addMessage('user', text);
-            chatInput.value = '';
-
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                });
-                const data = await response.json();
-                addMessage('ai', data.response || "Error: No response from mesh.");
-            } catch (e) {
-                addMessage('ai', "Connection failed. Is the mesh online?");
-            }
-        }
-
-        function addMessage(role, text) {
+    // Explanations
+    const expData = await fetchJSON('/api/explanations');
+    if (expData && expData.explanations) {
+        const el = $('explanationsList');
+        el.innerHTML = '';
+        expData.explanations.slice(-10).reverse().forEach(e => {
             const div = document.createElement('div');
-            div.className = `chat-message ${role}-message`;
-            div.textContent = role === 'user' ? `[USER]: ${text}` : `[GLOBAL_MIND]: ${text}`;
-            chatMessages.appendChild(div);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            div.className = 'log-entry';
+            div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span><b>' + (e.fact||'') + '</b>: ' + JSON.stringify(e.explanation).substring(0,120);
+            el.appendChild(div);
+        });
+    }
+}
+
+// ── Predictions Tab ──
+async function refreshPredictions() {
+    const data = await fetchJSON('/api/predictions');
+    if (!data) return;
+    $('pAcc').textContent = pct(data.global_accuracy || 0);
+    $('pValidated').textContent = data.total_validated || 0;
+    $('pCorrect').textContent = data.total_correct || 0;
+    $('pSymbols').textContent = data.symbols_tracked || 0;
+    $('pPhi').textContent = (data.phi || 0).toFixed(3);
+    $('pSigma').textContent = (data.sigma || 0).toFixed(3);
+
+    // Per-symbol table
+    const tbody = document.querySelector('#predSymbolTable tbody');
+    tbody.innerHTML = '';
+    const symbols = data.per_symbol || data.symbols || {};
+    Object.entries(symbols).forEach(([sym, s]) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td style="color:var(--gold)">' + sym + '</td>'
+            + '<td>' + pct(s.accuracy || 0) + '</td>'
+            + '<td>' + (s.total_predictions || 0) + '</td>'
+            + '<td>' + (s.trend || s.price_trend || '-') + '</td>'
+            + '<td>' + (s.momentum != null ? s.momentum.toFixed(4) : '-') + '</td>'
+            + '<td>' + (s.volatility != null ? s.volatility.toFixed(6) : '-') + '</td>';
+        tbody.appendChild(tr);
+    });
+
+    // Recent predictions
+    const rp = $('recentPredictions');
+    rp.innerHTML = '';
+    (data.recent_predictions || []).slice(-15).reverse().forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const correct = p.correct ? '&#10003;' : '&#10007;';
+        const color = p.correct ? 'var(--matrix-green)' : 'var(--red)';
+        div.innerHTML = '<span class="ts">' + ts(p.timestamp || p.created_at) + '</span>'
+            + '<span style="color:var(--gold)">' + (p.symbol || '') + '</span> '
+            + 'predicted <b>' + (p.predicted_direction || p.direction || '') + '</b> '
+            + '<span style="color:' + color + '">' + correct + '</span>';
+        rp.appendChild(div);
+    });
+}
+
+// ── Learning Tab ──
+async function refreshLearning() {
+    const data = await fetchJSON('/api/learning');
+    if (!data) return;
+    const m = data.metrics || {};
+    $('lAcc').textContent = pct(m.accuracy || 0);
+    $('lSamples').textContent = m.samples_processed || 0;
+    $('lPatterns').textContent = data.total_patterns || 0;
+    $('lLR').textContent = (data.learning_rate || 0).toFixed(5);
+    $('lAdapt').textContent = m.adaptations || 0;
+
+    // Feature importances
+    const fl = $('featureList');
+    fl.innerHTML = '';
+    (data.feature_importances || []).forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const w = f.weight || 0;
+        const color = w > 0 ? 'var(--matrix-green)' : 'var(--red)';
+        div.innerHTML = '<span style="color:' + color + '">' + w.toFixed(4) + '</span> ' + f.feature;
+        fl.appendChild(div);
+    });
+
+    // Drift events
+    const dl = $('driftList');
+    dl.innerHTML = '';
+    (data.drift_events || []).slice(-10).reverse().forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const features = (e.drifted_features || []).map(f => f.feature + '(z=' + f.z_score + ')').join(', ');
+        div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span>LR: ' + e.old_lr + ' → ' + e.new_lr + ' | ' + features;
+        dl.appendChild(div);
+    });
+
+    // LR history
+    const lrVals = (data.lr_history || []).map(h => h.lr);
+    renderBars('lrChart', lrVals, 0.1);
+
+    // Patterns table
+    const ptbody = document.querySelector('#patternTable tbody');
+    ptbody.innerHTML = '';
+    (data.top_patterns || []).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + p.pattern_id + '</td><td>' + (p.confidence || 0).toFixed(2) + '</td><td>' + (p.hit_count || 0) + '</td><td>' + (p.example_count || 0) + '</td>';
+        ptbody.appendChild(tr);
+    });
+}
+
+// ── Reasoning Tab ──
+async function refreshReasoning() {
+    const state = await fetchJSON('/api/state');
+    if (!state) return;
+    const rules = state.rules || {};
+    $('rRules').textContent = Object.keys(rules).length;
+    $('rFacts').textContent = state.metrics ? state.metrics.total_facts || 0 : 0;
+
+    const tbody = document.querySelector('#rulesTable tbody');
+    tbody.innerHTML = '';
+    const sorted = Object.values(rules).sort((a,b) => (b.confidence||0) - (a.confidence||0));
+    sorted.slice(0, 30).forEach(r => {
+        const tr = document.createElement('tr');
+        const ante = (r.antecedents || []).join(' & ');
+        const cons = (r.consequents || []).join(' & ');
+        tr.innerHTML = '<td>' + ante + ' → ' + cons + '</td>'
+            + '<td>' + (r.rule_type || '') + '</td>'
+            + '<td>' + (r.confidence || 0).toFixed(3) + '</td>'
+            + '<td>' + (r.prediction_accuracy != null ? r.prediction_accuracy.toFixed(3) : '-') + '</td>'
+            + '<td>' + (r.support || 0) + '</td>';
+        tbody.appendChild(tr);
+    });
+
+    // Explanations
+    const expData = await fetchJSON('/api/explanations');
+    const el = $('reasonExplanations');
+    el.innerHTML = '';
+    if (expData && expData.explanations) {
+        expData.explanations.slice(-10).reverse().forEach(e => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span><b>' + (e.fact||'') + '</b>: ' + JSON.stringify(e.explanation).substring(0,150);
+            el.appendChild(div);
+        });
+    }
+
+    // Plans
+    const planData = await fetchJSON('/api/plans');
+    const pl = $('plansList');
+    pl.innerHTML = '';
+    if (planData && planData.plans) {
+        planData.plans.slice(-10).reverse().forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = '<span class="ts">' + ts(p.timestamp) + '</span><b>' + (p.goal||'') + '</b>';
+            pl.appendChild(div);
+        });
+    }
+}
+
+// ── Cross-Domain Tab ──
+async function refreshCrossDomain() {
+    const state = await fetchJSON('/api/state');
+    if (!state) return;
+    const m = state.metrics || {};
+    $('cdDomains').textContent = m.total_domains || 0;
+    $('cdMappings').textContent = m.total_mappings || 0;
+    $('cdTransfers').textContent = m.knowledge_transfers || 0;
+
+    // Mappings
+    const ml = $('mappingsList');
+    ml.innerHTML = '';
+    const mappings = state.cross_domain || {};
+    Object.values(mappings).forEach(mp => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = '<b>' + mp.source_domain + '</b> → <b>' + mp.target_domain + '</b> (conf: ' + (mp.confidence || 0).toFixed(3) + ', pairs: ' + (mp.concept_pairs || []).length + ')';
+        ml.appendChild(div);
+    });
+
+    // Transfer suggestions
+    const ts2 = await fetchJSON('/api/transfers');
+    const tl = $('transferSuggestions');
+    tl.innerHTML = '';
+    if (ts2 && ts2.suggestions) {
+        ts2.suggestions.forEach(s => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.textContent = JSON.stringify(s).substring(0, 200);
+            tl.appendChild(div);
+        });
+    }
+    if (!tl.innerHTML) tl.innerHTML = '<div class="log-entry" style="color:var(--dim)">No transfer suggestions yet</div>';
+
+    // Analogies
+    const aData = await fetchJSON('/api/analogies');
+    const al = $('analogiesList');
+    al.innerHTML = '';
+    if (aData && aData.analogies) {
+        aData.analogies.slice(-10).reverse().forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.textContent = JSON.stringify(a).substring(0, 200);
+            al.appendChild(div);
+        });
+    }
+    if (!al.innerHTML) al.innerHTML = '<div class="log-entry" style="color:var(--dim)">No analogies discovered yet</div>';
+
+    // Hierarchy
+    const hData = await fetchJSON('/api/hierarchy');
+    const hv = $('hierarchyView');
+    hv.innerHTML = '';
+    if (hData) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = '<b>Total Concepts:</b> ' + (hData.total_concepts || 0);
+        hv.appendChild(div);
+        const levels = hData.levels || {};
+        Object.entries(levels).forEach(([level, concepts]) => {
+            const d = document.createElement('div');
+            d.className = 'log-entry';
+            d.innerHTML = '<b>Level ' + level + ':</b> ' + (Array.isArray(concepts) ? concepts.length + ' concepts' : JSON.stringify(concepts).substring(0,200));
+            hv.appendChild(d);
+        });
+    }
+}
+
+// ── Causal Tab ──
+async function refreshCausal() {
+    const data = await fetchJSON('/api/causal');
+    if (!data) return;
+    $('causalLinks').textContent = data.total_links || 0;
+
+    const tbody = document.querySelector('#causalTable tbody');
+    tbody.innerHTML = '';
+    const graph = data.graph || {};
+    Object.entries(graph).forEach(([cause, links]) => {
+        (links || []).forEach(link => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td style="color:var(--gold)">' + cause + '</td>'
+                + '<td>' + (link.effect || '') + '</td>'
+                + '<td>' + (link.lag || 0) + '</td>'
+                + '<td>' + (link.correlation || 0).toFixed(4) + '</td>'
+                + '<td>' + (link.p_value || 1).toFixed(6) + '</td>';
+            tbody.appendChild(tr);
+        });
+    });
+
+    const cl = $('causalLog');
+    cl.innerHTML = '';
+    (data.discovery_log || []).slice(-10).reverse().forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span>+' + e.new_links + ' links (total: ' + e.total_causal_links + ')';
+        cl.appendChild(div);
+    });
+    if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="5" style="color:var(--dim)">No causal links discovered yet — enable causal discovery in Toggles tab</td></tr>';
+}
+
+// ── Goals Tab ──
+async function refreshGoals() {
+    const data = await fetchJSON('/api/goals');
+    if (!data) return;
+    const goals = data.goals || {};
+    const vals = Object.values(goals);
+    $('gTotal').textContent = vals.length;
+    $('gActive').textContent = vals.filter(g => g.status === 'active' || g.status === 'GoalStatus.ACTIVE').length;
+    $('gAchieved').textContent = vals.filter(g => g.status === 'achieved' || g.status === 'GoalStatus.ACHIEVED').length;
+
+    const tbody = document.querySelector('#goalsTable tbody');
+    tbody.innerHTML = '';
+    vals.forEach(g => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + (g.description || '') + '</td>'
+            + '<td>' + (g.goal_type || '') + '</td>'
+            + '<td>' + (g.status || '') + '</td>'
+            + '<td>' + (g.priority || 0) + '</td>'
+            + '<td>' + pct(g.progress || 0) + '</td>';
+        tbody.appendChild(tr);
+    });
+
+    // Strategy performance
+    const sp = await fetchJSON('/api/strategies');
+    const spl = $('strategyPerf');
+    spl.innerHTML = '';
+    if (sp) {
+        Object.entries(sp).forEach(([strategy, stats]) => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = '<b>' + strategy + '</b>: ' + (stats.successes||0) + '/' + (stats.attempts||0) + ' (' + pct(stats.success_rate||0) + ')';
+            spl.appendChild(div);
+        });
+    }
+    if (!spl.innerHTML) spl.innerHTML = '<div class="log-entry" style="color:var(--dim)">No strategy data yet</div>';
+
+    // Pursuit log
+    const pData = await fetchJSON('/api/pursuits');
+    const pLog = $('pursuitLog');
+    pLog.innerHTML = '';
+    if (pData && pData.pursuits) {
+        pData.pursuits.slice(-10).reverse().forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            const icon = p.success ? '&#10003;' : '&#10007;';
+            const color = p.success ? 'var(--matrix-green)' : 'var(--red)';
+            div.innerHTML = '<span class="ts">' + ts(p.timestamp) + '</span><span style="color:' + color + '">' + icon + '</span> ' + (p.goal || '');
+            pLog.appendChild(div);
+        });
+    }
+    if (!pLog.innerHTML) pLog.innerHTML = '<div class="log-entry" style="color:var(--dim)">No pursuits yet</div>';
+}
+
+// ── Providers Tab ──
+async function refreshProviders() {
+    const data = await fetchJSON('/api/providers');
+    if (!data) return;
+    const tbody = document.querySelector('#providerTable tbody');
+    tbody.innerHTML = '';
+    const providers = data.providers || data;
+    (Array.isArray(providers) ? providers : Object.values(providers)).forEach(p => {
+        const tr = document.createElement('tr');
+        const stateColor = (p.state || p.circuit_state || '') === 'CLOSED' ? 'var(--matrix-green)' : 'var(--red)';
+        tr.innerHTML = '<td style="color:var(--gold)">' + (p.name || p.provider || '') + '</td>'
+            + '<td style="color:' + stateColor + '">' + (p.state || p.circuit_state || '') + '</td>'
+            + '<td>' + (p.successes || p.success_count || 0) + '</td>'
+            + '<td>' + (p.failures || p.failure_count || 0) + '</td>'
+            + '<td>' + (p.avg_latency != null ? p.avg_latency.toFixed(0) + 'ms' : '-') + '</td>';
+        tbody.appendChild(tr);
+    });
+
+    // Orchestrator
+    const oData = await fetchJSON('/api/orchestrator');
+    const oEl = $('orchestratorStatus');
+    oEl.innerHTML = '';
+    if (oData) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.textContent = JSON.stringify(oData, null, 2).substring(0, 500);
+        div.style.whiteSpace = 'pre-wrap';
+        oEl.appendChild(div);
+    }
+}
+
+// ── Toggles Tab ──
+async function refreshToggles() {
+    const data = await fetchJSON('/api/toggles');
+    if (!data) return;
+    const container = $('togglesContainer');
+    container.innerHTML = '';
+    Object.entries(data).forEach(([key, value]) => {
+        const row = document.createElement('div');
+        row.className = 'toggle-row';
+        const label = document.createElement('div');
+        label.className = 'toggle-label';
+        label.textContent = key.replace(/_/g, ' ').toUpperCase();
+        row.appendChild(label);
+
+        if (typeof value === 'boolean') {
+            const sw = document.createElement('div');
+            sw.className = 'toggle-switch' + (value ? ' on' : '');
+            sw.onclick = async () => {
+                const newVal = !value;
+                await fetch('/api/toggles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({key, value: newVal})
+                });
+                refreshToggles();
+            };
+            row.appendChild(sw);
+        } else if (key === 'dead_zone_sensitivity') {
+            const sel = document.createElement('select');
+            sel.className = 'toggle-select';
+            ['aggressive','normal','conservative'].forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt; o.textContent = opt;
+                if (opt === value) o.selected = true;
+                sel.appendChild(o);
+            });
+            sel.onchange = async () => {
+                await fetch('/api/toggles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({key, value: sel.value})
+                });
+            };
+            row.appendChild(sel);
+        } else if (key === 'prediction_horizon') {
+            const inp = document.createElement('input');
+            inp.className = 'toggle-input';
+            inp.type = 'number'; inp.min = 3; inp.max = 30; inp.value = value;
+            inp.style.width = '60px';
+            inp.onchange = async () => {
+                await fetch('/api/toggles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({key, value: parseInt(inp.value)})
+                });
+            };
+            row.appendChild(inp);
+        } else {
+            const span = document.createElement('span');
+            span.textContent = String(value);
+            row.appendChild(span);
         }
+        container.appendChild(row);
+    });
+}
 
-        chatSend.onclick = sendMessage;
-        chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+// ═══════════════════════════════════════════
+// Chat
+// ═══════════════════════════════════════════
+async function sendMessage() {
+    const text = $('chatInput').value.trim();
+    if (!text) return;
+    addChatMsg('user', text);
+    $('chatInput').value = '';
+    try {
+        const r = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: text})
+        });
+        const data = await r.json();
+        addChatMsg('ai', data.response || 'Error: No response.');
+    } catch(e) {
+        addChatMsg('ai', 'Connection failed. Is the mesh online?');
+    }
+}
+function addChatMsg(role, text) {
+    const div = document.createElement('div');
+    div.className = 'chat-message ' + role + '-message';
+    div.textContent = role === 'user' ? '[USER]: ' + text : '[GLOBAL_MIND]: ' + text;
+    $('chatMessages').appendChild(div);
+    $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+}
+$('chatSend').onclick = sendMessage;
+$('chatInput').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-        // Loops
-        setInterval(fetchState, 3000);
-        draw();
-    </script>
+// ═══════════════════════════════════════════
+// Refresh Loop
+// ═══════════════════════════════════════════
+async function refreshAll() {
+    const activeTab = document.querySelector('.nav-tab.active');
+    const tab = activeTab ? activeTab.dataset.tab : 'overview';
+
+    // Always refresh overview metrics (lightweight)
+    refreshOverview();
+
+    // Only refresh the active tab's heavy data
+    switch(tab) {
+        case 'predictions': refreshPredictions(); break;
+        case 'learning': refreshLearning(); break;
+        case 'reasoning': refreshReasoning(); break;
+        case 'crossdomain': refreshCrossDomain(); break;
+        case 'causal': refreshCausal(); break;
+        case 'goals': refreshGoals(); break;
+        case 'providers': refreshProviders(); break;
+        case 'toggles': refreshToggles(); break;
+    }
+}
+
+setInterval(refreshAll, 3000);
+refreshAll();
+</script>
 </body>
 </html>
