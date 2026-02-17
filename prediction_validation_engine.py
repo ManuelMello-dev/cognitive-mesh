@@ -5,13 +5,25 @@ The missing piece: the mesh must predict, then validate against reality.
 
 This engine:
 1. Tracks price history per symbol
-2. Makes directional predictions (up/down/stable) based on learned rules + patterns
-3. Validates predictions against actual outcomes on the NEXT observation
-4. Updates rule confidence based on predictive accuracy (not support count)
-5. Tracks accuracy over rolling time windows
-6. Feeds accuracy back into PHI calculation
+2. Makes directional predictions over an N-tick HORIZON (not single-tick)
+3. Validates predictions after N ticks have elapsed — same timescale as prediction
+4. Uses ADAPTIVE dead zones based on observed per-symbol volatility
+5. Updates rule confidence based on predictive accuracy (not support count)
+6. Tracks accuracy over rolling time windows
+7. Feeds accuracy back into PHI calculation
 
-This is what makes the system ACTUALLY LEARN — not just accumulate.
+CRITICAL FIX (2026-02-17):
+  The old engine predicted based on multi-tick momentum/trend (10-tick window)
+  but validated on single-tick movement with a fixed 0.2% dead zone.  Between
+  two ticks (30-60s apart) price moves ~0.01-0.05%, so almost everything
+  validated as STABLE regardless of the prediction.  This made the system
+  appear to be always wrong when it predicted UP or DOWN.
+
+  Now: predictions specify a horizon (default 5 ticks).  Validation waits
+  until that many ticks have arrived, then compares the price at prediction
+  time to the price N ticks later.  The dead zone is adaptive: 1× the
+  symbol's recent per-tick volatility × sqrt(horizon), which is the
+  statistically expected noise band.
 """
 
 import logging
@@ -43,6 +55,9 @@ class Prediction:
     basis: str                 # What rule/pattern generated this
     predicted_at: float        # timestamp
     predicted_price: float     # price at time of prediction
+    horizon: int = 5           # validate after this many ticks
+    ticks_remaining: int = 5   # countdown to validation
+    dead_zone_pct: float = 0.0 # adaptive dead zone (set at prediction time)
     target_price: Optional[float] = None   # what we expect
     actual_price: Optional[float] = None   # what actually happened
     actual_direction: Optional[Direction] = None
@@ -79,38 +94,61 @@ class SymbolHistory:
         if len(recent) < 2:
             return None
         change = (recent[-1] - recent[0]) / max(abs(recent[0]), 1e-8)
-        if change > 0.005:
+        # Use adaptive threshold based on volatility
+        vol = self.tick_volatility
+        threshold = max(vol * 2, 0.001)  # at least 0.1%
+        if change > threshold:
             return Direction.UP
-        elif change < -0.005:
+        elif change < -threshold:
             return Direction.DOWN
         return Direction.STABLE
 
     @property
-    def volatility(self) -> float:
-        """Calculate recent price volatility"""
-        if len(self.prices) < 3:
-            return 0.0
-        recent = list(self.prices)[-20:]
-        if len(recent) < 2:
-            return 0.0
-        returns = [(recent[i] - recent[i-1]) / max(abs(recent[i-1]), 1e-8)
-                    for i in range(1, len(recent))]
+    def tick_volatility(self) -> float:
+        """
+        Per-tick volatility: standard deviation of tick-to-tick returns.
+        This is the fundamental noise floor for this symbol.
+        """
+        if len(self.prices) < 5:
+            return 0.005  # default 0.5% until we have data
+        recent = list(self.prices)[-30:]
+        if len(recent) < 3:
+            return 0.005
+        returns = [
+            (recent[i] - recent[i - 1]) / max(abs(recent[i - 1]), 1e-8)
+            for i in range(1, len(recent))
+        ]
         if not returns:
-            return 0.0
+            return 0.005
         mean_r = sum(returns) / len(returns)
         variance = sum((r - mean_r) ** 2 for r in returns) / len(returns)
-        return math.sqrt(variance)
+        return max(math.sqrt(variance), 0.0001)
+
+    @property
+    def volatility(self) -> float:
+        """Overall recent volatility (backward compat)"""
+        return self.tick_volatility
 
     @property
     def momentum(self) -> float:
-        """Calculate price momentum (-1 to 1)"""
+        """
+        Price momentum scaled by volatility.
+        Returns a z-score: how many sigma the trend is above/below zero.
+        """
         if len(self.prices) < 5:
             return 0.0
         recent = list(self.prices)[-10:]
         if len(recent) < 2:
             return 0.0
-        change = (recent[-1] - recent[0]) / max(abs(recent[0]), 1e-8)
-        return max(-1.0, min(1.0, change * 10))  # scale to -1..1
+        raw_change = (recent[-1] - recent[0]) / max(abs(recent[0]), 1e-8)
+        vol = self.tick_volatility
+        n = len(recent) - 1
+        # Expected noise over n ticks = vol * sqrt(n)
+        expected_noise = vol * math.sqrt(n) if n > 0 else vol
+        if expected_noise < 1e-10:
+            return 0.0
+        z_score = raw_change / expected_noise
+        return max(-3.0, min(3.0, z_score))
 
 
 @dataclass
@@ -132,7 +170,16 @@ class PredictionValidationEngine:
     """
     Makes predictions and validates them against reality.
     This is the feedback loop that makes the mesh actually learn.
+
+    Key design: predictions and validations operate on the SAME timescale.
+    A prediction made over a 5-tick momentum window is validated after 5 ticks.
+    The dead zone is adaptive: 1× per-tick sigma × sqrt(horizon).
     """
+
+    # Prediction horizons (in ticks)
+    SHORT_HORIZON = 5     # ~2.5 min at 30s intervals
+    MEDIUM_HORIZON = 10   # ~5 min
+    LONG_HORIZON = 20     # ~10 min
 
     def __init__(self):
         # Per-symbol tracking
@@ -157,12 +204,12 @@ class PredictionValidationEngine:
         self.total_correct = 0
         self.total_validated = 0
 
-        logger.info("PredictionValidationEngine initialized")
+        logger.info("PredictionValidationEngine initialized (N-tick horizon mode)")
 
     def record_observation(self, observation: Dict[str, Any], domain: str) -> Optional[Dict[str, Any]]:
         """
-        Record a new observation. If there's a pending prediction for this symbol,
-        validate it. Then make a new prediction.
+        Record a new observation.  If there's a pending prediction whose
+        horizon has elapsed, validate it.  Then make a new prediction.
 
         Returns validation result if a prediction was validated, else None.
         """
@@ -184,34 +231,49 @@ class PredictionValidationEngine:
 
         history = self.symbols[symbol]
 
-        # STEP 1: Validate pending prediction (if any)
-        validation_result = None
-        if history.pending_prediction and not history.pending_prediction.validated:
-            validation_result = self._validate_prediction(history.pending_prediction, price)
-
-        # STEP 2: Record the observation
+        # STEP 1: Record the observation FIRST (so validation sees the latest price)
         history.prices.append(price)
         history.volumes.append(volume)
         history.timestamps.append(time.time())
 
-        # STEP 3: Make a new prediction for the NEXT observation
-        new_prediction = self._make_prediction(history)
-        if new_prediction:
-            history.pending_prediction = new_prediction
-            self.all_predictions.append(new_prediction)
+        # STEP 2: Check pending prediction — decrement horizon countdown
+        validation_result = None
+        if history.pending_prediction and not history.pending_prediction.validated:
+            pred = history.pending_prediction
+            pred.ticks_remaining -= 1
+
+            if pred.ticks_remaining <= 0:
+                # Horizon elapsed — validate now
+                validation_result = self._validate_prediction(pred, price)
+
+        # STEP 3: Make a new prediction only if no pending (or just validated)
+        if history.pending_prediction is None or history.pending_prediction.validated:
+            new_prediction = self._make_prediction(history)
+            if new_prediction:
+                history.pending_prediction = new_prediction
+                self.all_predictions.append(new_prediction)
 
         return validation_result
 
     def _validate_prediction(self, prediction: Prediction, actual_price: float) -> Dict[str, Any]:
-        """Validate a prediction against reality"""
+        """
+        Validate a prediction against reality after the horizon has elapsed.
+        Uses the adaptive dead zone computed at prediction time.
+        """
         prediction.actual_price = actual_price
         prediction.validated = True
         prediction.validation_time = time.time()
 
-        # Determine actual direction
-        if actual_price > prediction.predicted_price * 1.002:
+        # Price change from prediction time to now
+        price_change_pct = (actual_price - prediction.predicted_price) / max(
+            abs(prediction.predicted_price), 1e-8
+        )
+
+        # Determine actual direction using the ADAPTIVE dead zone
+        dz = prediction.dead_zone_pct
+        if price_change_pct > dz:
             prediction.actual_direction = Direction.UP
-        elif actual_price < prediction.predicted_price * 0.998:
+        elif price_change_pct < -dz:
             prediction.actual_direction = Direction.DOWN
         else:
             prediction.actual_direction = Direction.STABLE
@@ -219,14 +281,34 @@ class PredictionValidationEngine:
         # Check if prediction was correct
         prediction.correct = (prediction.direction == prediction.actual_direction)
 
-        # Update symbol accuracy
+        # Partial credit: if we predicted UP and it went UP but not past dead zone,
+        # or if we predicted a direction and the raw movement agrees even if small
+        partial_score = 0.0
+        if prediction.correct:
+            partial_score = 1.0
+        elif prediction.direction != Direction.STABLE and prediction.actual_direction == Direction.STABLE:
+            # We predicted a direction, it was in the noise band
+            # Give partial credit if the raw direction matches
+            if (prediction.direction == Direction.UP and price_change_pct > 0) or \
+               (prediction.direction == Direction.DOWN and price_change_pct < 0):
+                partial_score = 0.5  # right direction, just not strong enough
+            else:
+                partial_score = 0.0
+        elif prediction.direction == Direction.STABLE and prediction.actual_direction != Direction.STABLE:
+            # We predicted stable but it moved — wrong
+            partial_score = 0.0
+        else:
+            # Completely wrong direction
+            partial_score = 0.0
+
+        # Update symbol accuracy (using partial scores for smoother learning)
         symbol = prediction.symbol
         if symbol in self.symbols:
             history = self.symbols[symbol]
             history.total_predictions += 1
             if prediction.correct:
                 history.correct_predictions += 1
-            history.recent_accuracy.append(1.0 if prediction.correct else 0.0)
+            history.recent_accuracy.append(partial_score)
 
         # Update rule performance
         if prediction.basis:
@@ -235,7 +317,7 @@ class PredictionValidationEngine:
             perf.predictions_made += 1
             if prediction.correct:
                 perf.correct_predictions += 1
-            perf.recent_accuracy.append(1.0 if prediction.correct else 0.0)
+            perf.recent_accuracy.append(partial_score)
 
         # Update global stats
         self.total_predictions += 1
@@ -252,34 +334,58 @@ class PredictionValidationEngine:
             "predicted": prediction.direction.value,
             "actual": prediction.actual_direction.value,
             "correct": prediction.correct,
+            "partial_score": round(partial_score, 2),
             "confidence": prediction.confidence,
             "basis": prediction.basis,
             "predicted_price": prediction.predicted_price,
             "actual_price": actual_price,
-            "price_change_pct": (actual_price - prediction.predicted_price) / max(abs(prediction.predicted_price), 1e-8) * 100,
+            "price_change_pct": round(price_change_pct * 100, 4),
+            "dead_zone_pct": round(prediction.dead_zone_pct * 100, 4),
+            "horizon": prediction.horizon,
             "symbol_accuracy": self.symbols[symbol].accuracy if symbol in self.symbols else 0.5,
             "global_accuracy": global_accuracy,
         }
 
     def _make_prediction(self, history: SymbolHistory) -> Optional[Prediction]:
         """
-        Make a prediction for the next observation based on:
-        1. Price momentum (short-term trend)
-        2. Volatility (uncertainty)
-        3. Pattern matching (learned patterns)
-        4. Mean reversion (if extended)
+        Make a prediction for the next N ticks based on:
+        1. Momentum z-score (how many sigma above/below zero)
+        2. Short-term trend (5-tick direction)
+        3. Mean reversion (deviation from SMA-20)
+        4. Volume confirmation (attention spike)
+
+        The prediction horizon matches the analysis window:
+          - Momentum uses 10 ticks → predict over 5 ticks (half-window)
+          - Mean reversion uses 20 ticks → predict over 10 ticks
+          - Default horizon: 5 ticks
+
+        The dead zone is set adaptively: 1× tick_volatility × sqrt(horizon)
         """
-        if len(history.prices) < 2:
+        if len(history.prices) < 5:
             return None
 
         prices = list(history.prices)
         current_price = prices[-1]
+        tick_vol = history.tick_volatility
 
-        # --- Signal 1: Momentum ---
-        momentum = history.momentum
-        momentum_signal = Direction.UP if momentum > 0.05 else (
-            Direction.DOWN if momentum < -0.05 else Direction.STABLE
-        )
+        # Choose horizon based on data availability
+        if len(prices) >= 20:
+            horizon = self.SHORT_HORIZON  # 5 ticks
+        else:
+            horizon = self.SHORT_HORIZON
+
+        # Adaptive dead zone: expected noise over the horizon
+        # 1× sigma × sqrt(N) — anything within this band is noise
+        dead_zone = tick_vol * math.sqrt(horizon)
+
+        # --- Signal 1: Momentum z-score ---
+        momentum_z = history.momentum  # already a z-score (-3 to +3)
+        if momentum_z > 1.0:
+            momentum_signal = Direction.UP
+        elif momentum_z < -1.0:
+            momentum_signal = Direction.DOWN
+        else:
+            momentum_signal = Direction.STABLE
 
         # --- Signal 2: Short-term trend ---
         trend = history.price_trend
@@ -287,45 +393,46 @@ class PredictionValidationEngine:
             trend = Direction.STABLE
 
         # --- Signal 3: Mean reversion ---
+        deviation = 0.0
+        mean_rev_signal = Direction.STABLE
         if len(prices) >= 20:
             sma_20 = sum(prices[-20:]) / 20
             deviation = (current_price - sma_20) / max(abs(sma_20), 1e-8)
-            if deviation > 0.03:
+            # Deviation threshold: 2× the expected noise over 20 ticks
+            dev_threshold = tick_vol * math.sqrt(20) * 2
+            if deviation > dev_threshold:
                 mean_rev_signal = Direction.DOWN  # extended above mean
-            elif deviation < -0.03:
+            elif deviation < -dev_threshold:
                 mean_rev_signal = Direction.UP    # extended below mean
-            else:
-                mean_rev_signal = Direction.STABLE
-        else:
-            mean_rev_signal = Direction.STABLE
 
-        # --- Signal 4: Volume confirmation ---
+        # --- Signal 4: Volume confirmation (attention) ---
+        vol_spike = False
         if len(history.volumes) >= 5:
             recent_vol = list(history.volumes)[-5:]
             avg_vol = sum(recent_vol) / len(recent_vol)
             vol_spike = recent_vol[-1] > avg_vol * 1.5 if avg_vol > 0 else False
-        else:
-            vol_spike = False
 
         # --- Combine signals with weights ---
-        # Momentum and trend are primary; mean reversion is secondary
         signal_scores = {Direction.UP: 0.0, Direction.DOWN: 0.0, Direction.STABLE: 0.0}
 
-        # Momentum (weight: 0.4)
-        signal_scores[momentum_signal] += 0.4
+        # Momentum z-score (weight: 0.35) — strongest single predictor
+        signal_scores[momentum_signal] += 0.35
+        # Add proportional strength: strong momentum gets extra weight
+        if abs(momentum_z) > 1.5:
+            signal_scores[momentum_signal] += 0.05  # bonus for strong signal
 
-        # Trend (weight: 0.3)
-        signal_scores[trend] += 0.3
+        # Trend (weight: 0.25)
+        signal_scores[trend] += 0.25
 
-        # Mean reversion (weight: 0.2)
-        signal_scores[mean_rev_signal] += 0.2
+        # Mean reversion (weight: 0.25) — important for extended moves
+        signal_scores[mean_rev_signal] += 0.25
 
-        # Volume confirmation (weight: 0.1) — amplifies the dominant signal
+        # Volume confirmation (weight: 0.15) — amplifies dominant signal
         if vol_spike:
             dominant = max(signal_scores, key=signal_scores.get)
-            signal_scores[dominant] += 0.1
+            signal_scores[dominant] += 0.15
         else:
-            signal_scores[Direction.STABLE] += 0.1
+            signal_scores[Direction.STABLE] += 0.10
 
         # Pick the strongest signal
         predicted_direction = max(signal_scores, key=signal_scores.get)
@@ -336,10 +443,10 @@ class PredictionValidationEngine:
         adjusted_confidence = raw_confidence * 0.6 + symbol_accuracy * 0.4
 
         # Determine basis (what drove this prediction)
-        if signal_scores[momentum_signal] >= signal_scores[trend]:
-            basis = f"momentum_{momentum:.3f}"
-        elif signal_scores[mean_rev_signal] > signal_scores[trend]:
-            basis = f"mean_reversion_{deviation:.3f}" if len(prices) >= 20 else "trend"
+        if abs(momentum_z) > 1.0 and signal_scores[momentum_signal] >= signal_scores.get(trend, 0):
+            basis = f"momentum_z{momentum_z:+.2f}"
+        elif abs(deviation) > 0 and signal_scores[mean_rev_signal] > signal_scores.get(trend, 0):
+            basis = f"mean_reversion_{deviation:+.4f}"
         else:
             basis = f"trend_{trend.value}"
 
@@ -353,6 +460,9 @@ class PredictionValidationEngine:
             basis=basis,
             predicted_at=time.time(),
             predicted_price=current_price,
+            horizon=horizon,
+            ticks_remaining=horizon,
+            dead_zone_pct=dead_zone,
         )
 
         return prediction
@@ -387,10 +497,9 @@ class PredictionValidationEngine:
         if len(self.symbols) >= 2:
             directions = []
             for sym in self.symbols.values():
-                if sym.pending_prediction:
+                if sym.pending_prediction and not sym.pending_prediction.validated:
                     directions.append(sym.pending_prediction.direction)
             if len(directions) >= 2:
-                # Count most common direction
                 from collections import Counter
                 counts = Counter(directions)
                 most_common_count = counts.most_common(1)[0][1]
@@ -424,8 +533,8 @@ class PredictionValidationEngine:
         # Component 2: Average volatility across symbols
         volatilities = [s.volatility for s in self.symbols.values() if len(s.prices) >= 5]
         avg_volatility = sum(volatilities) / max(len(volatilities), 1) if volatilities else 0.0
-        # Normalize volatility (typical market vol is 0.01-0.05)
-        vol_noise = min(1.0, avg_volatility * 20)
+        # Normalize volatility (typical crypto tick vol is 0.001-0.01)
+        vol_noise = min(1.0, avg_volatility * 50)
 
         # Component 3: Accuracy variance
         if len(self.accuracy_history) >= 5:
@@ -456,7 +565,6 @@ class PredictionValidationEngine:
         adjustments = {}
         for rule_id, perf in self.rule_performance.items():
             if perf.predictions_made >= 5:
-                # Accuracy-based confidence
                 adjustments[rule_id] = perf.accuracy
         return adjustments
 
@@ -474,9 +582,14 @@ class PredictionValidationEngine:
                 "total_predictions": history.total_predictions,
                 "correct": history.correct_predictions,
                 "trend": history.price_trend.value if history.price_trend else "unknown",
-                "momentum": round(history.momentum, 4),
-                "volatility": round(history.volatility, 6),
+                "momentum_z": round(history.momentum, 4),
+                "tick_volatility": round(history.tick_volatility, 6),
                 "price_count": len(history.prices),
+                "pending_horizon": (
+                    history.pending_prediction.ticks_remaining
+                    if history.pending_prediction and not history.pending_prediction.validated
+                    else None
+                ),
             }
 
         # Accuracy trend (last 20 data points)
@@ -514,6 +627,8 @@ class PredictionValidationEngine:
                 "correct": pred.correct,
                 "validated": pred.validated,
                 "basis": pred.basis,
+                "horizon": pred.horizon,
+                "dead_zone_pct": round(pred.dead_zone_pct * 100, 4),
             })
 
         return {
