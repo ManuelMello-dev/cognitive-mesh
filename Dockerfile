@@ -1,43 +1,27 @@
-FROM python:3.11-slim
+# Use official Node.js runtime as a parent image
+FROM node:20
 
-WORKDIR /app
+# Set working directory
+WORKDIR /usr/src/app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    make \
-    libffi-dev \
-    libssl-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install pnpm
+RUN npm install -g pnpm
 
-# Upgrade pip and install wheel
-RUN pip install --upgrade pip setuptools wheel
+# Copy package.json and pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
 
-# Copy requirements
-COPY requirements.txt .
+# Install dependencies
+RUN pnpm install
 
-# Install Python dependencies with error handling
-RUN pip install --no-cache-dir -r requirements.txt || \
-    (pip install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 openai && \
-     echo "Core dependencies installed, optional DB packages may have failed")
+# Remove overriding ENV PORT and set COGNITIVE_MESH_PORT
+# ENV PORT=8080
+ENV COGNITIVE_MESH_PORT=8080
 
-# Copy application code
+# Copy the rest of the application code
 COPY . .
 
-# Create logs directory
-RUN mkdir -p /app/logs
+# Use curl for HEALTHCHECK
+HEALTHCHECK CMD curl --fail http://localhost:${COGNITIVE_MESH_PORT}/health || exit 1
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV LOG_LEVEL=INFO
-ENV PORT=8080
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import socket; socket.create_connection(('localhost', 5555), timeout=5)" || exit 1
-
-# Run the application
-CMD ["python", "main.py"]
+# Command to run the application
+CMD ["node", "openclaw-gateway.js"]
