@@ -1,22 +1,23 @@
-FROM python:3.11-slim
+FROM node:20-slim AS node-base
 
-WORKDIR /app
-
-# Install minimal system dependencies
+# Install Python and build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3-pip \
     gcc \
     make \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --upgrade pip setuptools wheel
+WORKDIR /app
 
-# Copy minimal requirements
+# Install Node.js dependencies first (better caching)
+COPY package.json pnpm-workspace.yaml ./
+RUN npm install -g pnpm && pnpm install --prod
+
+# Copy Python requirements and install
 COPY requirements-minimal.txt requirements.txt ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-minimal.txt || \
-    (pip install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 openai && \
+RUN pip3 install --no-cache-dir -r requirements-minimal.txt || \
+    (pip3 install --no-cache-dir aiohttp pyzmq yfinance requests python-dotenv pydantic structlog msgpack mmh3 openai && \
      echo "Core dependencies installed")
 
 # Copy application code
@@ -29,7 +30,10 @@ RUN mkdir -p /app/logs
 ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=INFO
 ENV PORT=8080
+ENV COGNITIVE_MESH_PORT=8081
+ENV NODE_ENV=production
+
 EXPOSE 8080
 
-# Run the application
-CMD ["python", "main.py"]
+# Run the OpenClaw gateway (which starts both Node and Python)
+CMD ["node", "openclaw-gateway.js"]

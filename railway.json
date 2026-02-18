@@ -5,8 +5,10 @@
     "dockerfile": "Dockerfile.railway"
   },
   "deploy": {
-    "startCommand": "python main.py",
+    "startCommand": "node openclaw-gateway.js",
     "restartPolicyMaxRetries": 5,
-    "restartPolicyWindowMs": 60000
+    "restartPolicyWindowMs": 60000,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30
   }
 }

@@ -2,17 +2,49 @@
 
 A sophisticated distributed cognitive system that treats financial markets as neurophysiological phenomena, using the AMFG gossip protocol for state propagation and multi-source data integration.
 
+## NEW: OpenClaw Integration 🚀
+
+Cognitive Mesh now features **OpenClaw** as a reverse proxy gateway, serving as the single public entrypoint on Railway. This integration:
+
+- **Single Service Deployment**: OpenClaw binds to the public `$PORT` and manages the internal Python server
+- **Transparent Proxying**: All existing HTTP endpoints are accessible at the same paths
+- **Agent Integration**: OpenClaw tools can read and interpret outputs from every mesh endpoint
+- **I/O Loop**: Agents can feed insights back into the mesh via `POST /api/ingest` with domain `openclaw_io`
+
+### Architecture with OpenClaw
+
+```
+Railway Public Port ($PORT)
+    ↓
+OpenClaw Gateway (Node.js)
+    ├─ Reverse Proxy → Cognitive Mesh (Python on internal port)
+    └─ OpenClaw Tools
+        ├─ callMeshEndpoint() - Generic endpoint caller
+        ├─ ingestToMesh() - Feed insights back to mesh
+        ├─ getMeshMetrics() - Get mesh metrics
+        ├─ getMeshState() - Get full mesh state
+        ├─ analyzePatterns() - Trigger pattern analysis
+        ├─ getPredictions() - Get predictions
+        └─ getIntrospection() - Get system introspection
+```
+
 ## Architecture Overview
 
 ### Core Components
 
-1. **Distributed Cognitive Core** (`core/distributed_core.py`)
+1. **OpenClaw Gateway** (`openclaw-gateway.js`) **NEW**
+   - Single public entrypoint on Railway
+   - Transparent reverse proxy to Python backend
+   - Starts and manages Python server lifecycle
+   - Provides mesh integration tools for agents
+
+2. **Distributed Cognitive Core** (`core/distributed_core.py`)
    - Concept formation and temporal decay
    - Rule inference and learning
    - Cross-domain knowledge transfer
    - Autonomous goal generation
 
-2. **Multi-Source Data Providers** (`agents/multi_source_provider.py`)
+3. **Multi-Source Data Providers** (`agents/multi_source_provider.py`)
    - Yahoo Finance (free, no key required)
    - Binance Public API (free crypto data)
    - Alpha Vantage (requires API key)
@@ -20,19 +52,19 @@ A sophisticated distributed cognitive system that treats financial markets as ne
    - Alpaca (requires API key)
    - Circuit breaker pattern for fault tolerance
 
-3. **AMFG Gossip Protocol** (`shared/gossip_amfg.py`)
+4. **AMFG Gossip Protocol** (`shared/gossip_amfg.py`)
    - Adaptive message fan-out
    - Decaying Bloom filters for deduplication
    - Merkle trees for anti-entropy
    - Epsilon-greedy weight learning
    - Priority message queuing
 
-4. **ZeroMQ Communication Layer** (`shared/network_zeromq.py`)
+5. **ZeroMQ Communication Layer** (`shared/network_zeromq.py`)
    - ROUTER/DEALER pattern for node-to-node communication
    - PUB/SUB for event broadcasting
    - Low-latency, high-throughput messaging
 
-5. **Polyglot Storage Layer**
+6. **Polyglot Storage Layer**
    - **PostgreSQL/YugabyteDB** (`storage/postgres_store.py`): Structured data, rules, metadata
    - **Milvus** (`storage/milvus_store.py`): Vector-based concept similarity search
    - **Redis** (`storage/redis_cache.py`): Low-latency caching and state management
@@ -40,6 +72,7 @@ A sophisticated distributed cognitive system that treats financial markets as ne
 ## Installation
 
 ### Prerequisites
+- **Node.js 20+** and **pnpm** (for OpenClaw gateway)
 - Python 3.11+
 - Docker & Docker Compose (for containerized deployment)
 - PostgreSQL 15+
@@ -54,24 +87,33 @@ A sophisticated distributed cognitive system that treats financial markets as ne
    cd cognitive-mesh
    ```
 
-2. **Install dependencies**
+2. **Install Node.js dependencies**
+   ```bash
+   pnpm install
+   ```
+
+3. **Install Python dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure environment**
+4. **Configure environment**
    ```bash
    cp .env.example .env
    # Edit .env with your API keys and database credentials
    ```
 
-4. **Start databases (using Docker Compose)**
+5. **Start databases (using Docker Compose)**
    ```bash
    docker-compose up -d
    ```
 
-5. **Run the system**
+6. **Run the system**
    ```bash
+   # Option 1: Via OpenClaw gateway (recommended)
+   node openclaw-gateway.js
+   
+   # Option 2: Python only (development)
    python main.py
    ```
 
@@ -80,18 +122,31 @@ A sophisticated distributed cognitive system that treats financial markets as ne
 ### Environment Variables
 
 ```env
+# ═══════════════════════════════════════════════
+# OpenClaw Gateway Configuration (NEW)
+# ═══════════════════════════════════════════════
+PORT=8080                                    # Public port (set by Railway)
+COGNITIVE_MESH_PORT=8081                     # Internal Python server port
+COGNITIVE_MESH_BASE_URL=http://127.0.0.1:8081  # Base URL for mesh
+
+# ═══════════════════════════════════════════════
 # Database Configuration
+# ═══════════════════════════════════════════════
 DATABASE_URL=postgresql://postgres:password@localhost:5432/cognitive_mesh
 MILVUS_HOST=localhost
 REDIS_HOST=localhost
 
+# ═══════════════════════════════════════════════
 # Financial Data API Keys
+# ═══════════════════════════════════════════════
 ALPHA_VANTAGE_API_KEY=your_key_here
 POLYGON_IO_API_KEY=your_key_here
 ALPACA_API_KEY=your_key_here
 ALPACA_SECRET_KEY=your_secret_here
 
+# ═══════════════════════════════════════════════
 # Node Configuration
+# ═══════════════════════════════════════════════
 NODE_ID=global_mind_01
 LISTEN_PORT=5555
 SYMBOLS=AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH

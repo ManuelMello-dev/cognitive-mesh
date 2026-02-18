@@ -1,0 +1,28 @@
+{
+  "name": "cognitive-mesh-openclaw",
+  "version": "1.0.0",
+  "description": "OpenClaw reverse proxy gateway for Cognitive Mesh",
+  "main": "openclaw-gateway.js",
+  "type": "module",
+  "scripts": {
+    "start": "node openclaw-gateway.js",
+    "dev": "node --watch openclaw-gateway.js",
+    "test": "node test-proxy.js"
+  },
+  "keywords": [
+    "openclaw",
+    "cognitive-mesh",
+    "reverse-proxy",
+    "ai-agents"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "http-proxy": "^1.18.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
