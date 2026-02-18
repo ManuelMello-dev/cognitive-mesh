@@ -11,7 +11,13 @@ pnpm-debug.log*
 .pnpm-store/
 dist/
 build/
+pnpm-lock.yaml
 
 # OpenClaw
 .openclaw/
 openclaw-data/
+
+# Test files
+test-server.py
+test-tools.js
+openclaw-gateway-test.js
