@@ -1,5 +1,5 @@
-# Start from the existing image
-FROM python:3.9-slim
+# Use Python 3.11 as requested in README prerequisites
+FROM python:3.11-slim
 
 # Install curl and Node.js prerequisites
 RUN apt-get update && \
@@ -9,18 +9,19 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
-# Copy the application files
+# Set working directory
 WORKDIR /app
+
+# Copy application files
 COPY . .
 
 # Install Python dependencies
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Build OpenClaw gateway assets if needed
-RUN pnpm install && pnpm build
+# Install Node.js dependencies
+# We use npm install since we've updated package.json
+RUN npm install
 
 # Start command for Railway
+# This will run the gateway which spawns the Python backend
 CMD ["node", "openclaw-gateway.js"]

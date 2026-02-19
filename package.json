@@ -1,1 +1,14 @@
-{"type": "module", "dependencies": {"http-proxy": "^1.18.1", "dotenv": "^10.0.0"}, "scripts": {"start": "node openclaw-gateway.js"}}
+{
+  "name": "cognitive-mesh",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node openclaw-gateway.js",
+    "build": "echo 'No build step required'",
+    "test": "node test-proxy.js"
+  },
+  "dependencies": {
+    "http-proxy-middleware": "^3.0.0",
+    "dotenv": "^16.0.0"
+  }
+}
