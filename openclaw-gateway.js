@@ -29,10 +29,14 @@ function startBackend() {
         process.exit(code);
     });
 
+    pythonProcess.on('error', (err) => {
+        console.error('[OpenClaw] Failed to start Python backend:', err);
+    });
+
     return pythonProcess;
 }
 
-// 2. Create the Gateway Server
+// 2. Create the Proxy Gateway
 function createGateway() {
     const proxy = createProxyMiddleware({
         target: TARGET,
@@ -41,8 +45,14 @@ function createGateway() {
         logLevel: 'debug',
         onError: (err, req, res) => {
             console.error('[OpenClaw] Proxy Error:', err.message);
-            res.writeHead(503, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Backend service unavailable', details: err.message }));
+            if (!res.headersSent) {
+                res.writeHead(503, { 'Content-Type': 'application/json' });
+            }
+            res.end(JSON.stringify({ 
+                error: 'Backend service unavailable', 
+                details: err.message,
+                hint: 'The Python backend might still be starting up. Please wait a few seconds and refresh.'
+            }));
         }
     });
 
@@ -62,8 +72,8 @@ function createGateway() {
         proxy(req, res);
     });
 
-    server.listen(PORT, () => {
-        console.log(`[OpenClaw] Gateway is listening on port ${PORT}`);
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[OpenClaw] Gateway is listening on 0.0.0.0:${PORT}`);
     });
 
     return server;
