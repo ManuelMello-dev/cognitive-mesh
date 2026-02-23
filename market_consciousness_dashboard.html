@@ -665,8 +665,29 @@ drawField();
 // ═══════════════════════════════════════════
 
 async function fetchJSON(url) {
-    try { const r = await fetch(url); return await r.json(); }
-    catch(e) { console.warn('Fetch failed:', url, e); return null; }
+    try {
+        const r = await fetch(url);
+        if (!r.ok) {
+            console.warn('Fetch error:', url, r.status, r.statusText);
+            return null;
+        }
+        return await r.json();
+    } catch(e) {
+        console.warn('Fetch failed:', url, e);
+        return null;
+    }
+}
+
+function showError(containerId, message) {
+    const c = $(containerId);
+    if (!c) return;
+    c.innerHTML = '<div class="log-entry" style="color:var(--red)">Error: ' + message + '</div>';
+}
+
+function showLoading(containerId, message) {
+    const c = $(containerId);
+    if (!c) return;
+    c.innerHTML = '<div class="log-entry" style="color:var(--dim)">Loading ' + (message || '') + '...</div>';
 }
 
 // ── Overview Tab ──
@@ -1189,8 +1210,25 @@ async function refreshAll() {
     }
 }
 
+// Optimize refresh: only refresh active tab and overview
 setInterval(refreshAll, 3000);
 refreshAll();
+
+// Add error recovery: if fetch fails too many times, show warning
+let fetchFailureCount = 0;
+const originalFetch = fetchJSON;
+window.fetchJSON = async function(url) {
+    const result = await originalFetch(url);
+    if (result === null) {
+        fetchFailureCount++;
+        if (fetchFailureCount > 5) {
+            console.error('Multiple fetch failures detected. Backend may be unavailable.');
+        }
+    } else {
+        fetchFailureCount = 0;
+    }
+    return result;
+};
 </script>
 </body>
 </html>

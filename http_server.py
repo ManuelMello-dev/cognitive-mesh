@@ -10,6 +10,7 @@ import sys
 import logging
 import asyncio
 import json
+from enum import Enum
 from datetime import datetime, date
 from aiohttp import web
 
@@ -18,11 +19,14 @@ def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
+    if isinstance(obj, Enum):
+        return obj.value
     if hasattr(obj, '__dict__'):
         return str(obj)
-    raise TypeError(f"Type {type(obj)} not serializable")
+    return str(obj)
 
 from agents.llm_interpreter import LLMInterpreter
+from agents.market_eeg import MarketEEG
 from agents.autonomous_reasoner import AutonomousReasoner
 from config.config import Config
 
@@ -278,6 +282,19 @@ async def handle_synthesize_insights(request):
 # Data Provider Status
 # ──────────────────────────────────────────────
 
+async def handle_eeg(request):
+    """Return market EEG data"""
+    try:
+        eeg = request.app.get("eeg")
+        if not eeg:
+            return web.json_response({"error": "MarketEEG not initialized"}, status=503)
+        data = eeg.get_eeg_data()
+        return _json_response(data)
+    except Exception as e:
+        logger.error(f"EEG data error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_provider_status(request):
     """Return status of all data providers and their circuit breakers"""
     try:
@@ -472,7 +489,8 @@ async def start_http_server(core=None, data_provider=None):
     if core:
         app['core'] = core
         app['interpreter'] = LLMInterpreter(core)
-        app['reasoner'] = AutonomousReasoner(core)
+        app["reasoner"] = AutonomousReasoner(core)
+        app["eeg"] = MarketEEG(core)
     if data_provider:
         app['data_provider'] = data_provider
 
@@ -495,7 +513,8 @@ async def start_http_server(core=None, data_provider=None):
     app.router.add_get('/api/learning', handle_learning)
 
     # Predictions
-    app.router.add_get('/api/predictions', handle_predictions)
+    app.router.add_get("/api/predictions", handle_predictions)
+    app.router.add_get("/api/eeg", handle_eeg)
 
     # Autonomous reasoning
     app.router.add_get('/api/analyze', handle_analyze_patterns)

@@ -18,6 +18,7 @@ import time
 import os
 import threading
 import math
+from enum import Enum
 from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timezone
 from collections import deque, defaultdict
@@ -34,6 +35,12 @@ from prediction_validation_engine import PredictionValidationEngine
 
 logger = logging.getLogger("DistributedCognitiveCore")
 
+
+def _serialize_enum(val: Any) -> str:
+    """Helper to serialize Enums or other objects to string"""
+    if isinstance(val, Enum):
+        return val.value
+    return str(val)
 
 class DistributedCognitiveCore:
     """
@@ -594,9 +601,7 @@ class DistributedCognitiveCore:
 
                 rules[rid] = {
                     "id": rid,
-                    "rule_type": getattr(rule, 'rule_type', RuleType.IF_THEN).value
-                        if hasattr(getattr(rule, 'rule_type', None), 'value')
-                        else str(getattr(rule, 'rule_type', 'unknown')),
+                    "rule_type": _serialize_enum(getattr(rule, 'rule_type', 'unknown')),
                     "confidence": getattr(rule, 'confidence', 0),
                     "prediction_accuracy": round(pred_accuracy, 4) if pred_accuracy is not None else None,
                     "support": getattr(rule, 'support', 0),
@@ -613,9 +618,7 @@ class DistributedCognitiveCore:
                 goals[gid] = {
                     "id": gid,
                     "description": getattr(goal, 'description', ''),
-                    "goal_type": getattr(goal, 'goal_type', GoalType.EXPLORATION).value
-                        if hasattr(getattr(goal, 'goal_type', None), 'value')
-                        else str(getattr(goal, 'goal_type', 'unknown')),
+                    "goal_type": _serialize_enum(getattr(goal, 'goal_type', 'unknown')),
                     "status": str(getattr(goal, 'status', 'unknown')),
                     "priority": getattr(goal, 'priority', 0),
                     "progress": getattr(goal, 'progress', 0),

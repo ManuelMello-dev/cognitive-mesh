@@ -457,8 +457,11 @@
             ctx.stroke();
 
             // Update amplitude display
-            document.getElementById(`${Object.keys(waves).find(k => waves[k] === wave)}Amp`).textContent = 
-                `Amplitude: ${wave.amplitude.toFixed(3)}`;
+            const waveKey = Object.keys(waves).find(k => waves[k] === wave);
+            const ampElement = document.getElementById(`${waveKey}Amp`);
+            if (ampElement) {
+                ampElement.textContent = `Amplitude: ${wave.amplitude.toFixed(3)}`;
+            }
         }
 
         // Update state cards
@@ -482,20 +485,27 @@
             document.getElementById('stateMetric').textContent = eeg.getConsciousnessState();
         }
 
-        // Main animation loop
-        function animate() {
-            eeg.time += 0.1;
-            eeg.updateMarketState();
-            eeg.calculateWaveAmplitudes();
+        // Main animation loop with throttling for better performance
+        let lastUpdateTime = 0;
+        const updateInterval = 100; // Update every 100ms instead of every frame
+        
+        function animate(currentTime) {
+            if (currentTime - lastUpdateTime >= updateInterval) {
+                eeg.time += 0.1;
+                eeg.updateMarketState();
+                eeg.calculateWaveAmplitudes();
 
-            Object.values(waves).forEach(wave => drawWave(wave));
-            updateStateCards();
+                Object.values(waves).forEach(wave => drawWave(wave));
+                updateStateCards();
+                
+                lastUpdateTime = currentTime;
+            }
 
             requestAnimationFrame(animate);
         }
 
         // Start
-        animate();
+        requestAnimationFrame(animate);
 
         // Add info tooltip
         console.log(`
