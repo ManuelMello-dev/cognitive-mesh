@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 class Direction(Enum):
     UP = "up"
     DOWN = "down"
-    STABLE = "stable"
+    CRITICAL = "critical"
 
 
 @dataclass
@@ -62,6 +62,7 @@ class Prediction:
     actual_price: Optional[float] = None   # what actually happened
     actual_direction: Optional[Direction] = None
     validated: bool = False
+    max_post_signal_move_pct: float = 0.0 # Max absolute % move after CRITICAL signal
     correct: Optional[bool] = None
     validation_time: Optional[float] = None
 
@@ -101,7 +102,7 @@ class SymbolHistory:
             return Direction.UP
         elif change < -threshold:
             return Direction.DOWN
-        return Direction.STABLE
+        return Direction.CRITICAL
 
     @property
     def tick_volatility(self) -> float:
@@ -180,6 +181,9 @@ class PredictionValidationEngine:
     SHORT_HORIZON = 5     # ~2.5 min at 30s intervals
     MEDIUM_HORIZON = 10   # ~5 min
     LONG_HORIZON = 20     # ~10 min
+
+    CRITICAL_MOVE_THRESHOLD_PCT = 3.0 # Default 3% absolute move for CRITICAL predictions to be correct
+    CRITICAL_MOVE_VALIDATION_WINDOW_HOURS = 24 # Default 24 hours for CRITICAL prediction validation
 
     def __init__(self):
         # Per-symbol tracking
@@ -269,6 +273,27 @@ class PredictionValidationEngine:
             abs(prediction.predicted_price), 1e-8
         )
 
+        # Calculate max post-signal move for CRITICAL predictions
+        if prediction.direction == Direction.CRITICAL:
+            history = self.symbols[prediction.symbol]
+            # Find prices within the validation window (up to CRITICAL_MOVE_VALIDATION_WINDOW_HOURS)
+            relevant_prices = []
+            validation_window_end_time = prediction.predicted_at + (self.CRITICAL_MOVE_VALIDATION_WINDOW_HOURS * 3600)
+
+            for i in range(len(history.timestamps) - 1, -1, -1):
+                if history.timestamps[i] >= prediction.predicted_at and history.timestamps[i] <= validation_window_end_time:
+                    relevant_prices.append(history.prices[i])
+                elif history.timestamps[i] < prediction.predicted_at:
+                    break # Stop if we go before the prediction time
+            relevant_prices.reverse() # Order chronologically
+            if relevant_prices:
+                min_price = min(relevant_prices)
+                max_price = max(relevant_prices)
+                move_from_predicted_low = abs((min_price - prediction.predicted_price) / prediction.predicted_price)
+                move_from_predicted_high = abs((max_price - prediction.predicted_price) / prediction.predicted_price)
+                prediction.max_post_signal_move_pct = max(move_from_predicted_low, move_from_predicted_high)
+
+
         # Determine actual direction using the ADAPTIVE dead zone
         dz = prediction.dead_zone_pct
         if price_change_pct > dz:
@@ -276,27 +301,31 @@ class PredictionValidationEngine:
         elif price_change_pct < -dz:
             prediction.actual_direction = Direction.DOWN
         else:
-            prediction.actual_direction = Direction.STABLE
+            prediction.actual_direction = Direction.CRITICAL
 
         # Check if prediction was correct
-        prediction.correct = (prediction.direction == prediction.actual_direction)
-
-        # Partial credit: if we predicted UP and it went UP but not past dead zone,
-        # or if we predicted a direction and the raw movement agrees even if small
+        # Determine if prediction was correct
         partial_score = 0.0
-        if prediction.correct:
+
+        if prediction.direction == prediction.actual_direction:
+            prediction.correct = True
             partial_score = 1.0
-        elif prediction.direction != Direction.STABLE and prediction.actual_direction == Direction.STABLE:
-            # We predicted a direction, it was in the noise band
-            # Give partial credit if the raw direction matches
-            if (prediction.direction == Direction.UP and price_change_pct > 0) or \
-               (prediction.direction == Direction.DOWN and price_change_pct < 0):
-                partial_score = 0.5  # right direction, just not strong enough
+        elif prediction.direction == Direction.CRITICAL:
+            # For CRITICAL predictions, it's correct if there was a significant move in either direction
+            # Default threshold: 3% absolute move within the prediction horizon
+            significant_move_threshold = self.CRITICAL_MOVE_THRESHOLD_PCT / 100.0
+            if abs(price_change_pct) >= significant_move_threshold:
+                prediction.correct = True
+                partial_score = 1.0
             else:
+                # Not a significant move, so it's incorrect for a CRITICAL prediction
+                prediction.correct = False
                 partial_score = 0.0
-        elif prediction.direction == Direction.STABLE and prediction.actual_direction != Direction.STABLE:
-            # We predicted stable but it moved — wrong
-            partial_score = 0.0
+        elif (prediction.direction == Direction.UP and price_change_pct > 0) or \
+             (prediction.direction == Direction.DOWN and price_change_pct < 0):
+            # Predicted UP/DOWN, and it moved in the right direction, but not enough to exit dead zone
+            # This is a partial success, not a full miss
+            partial_score = 0.5
         else:
             # Completely wrong direction
             partial_score = 0.0
@@ -522,7 +551,7 @@ class PredictionValidationEngine:
         SIGMA (Noise Level) — based on REAL metrics:
         1. Prediction error rate (40%) — how often are we wrong?
         2. Price volatility across symbols (30%)
-        3. Accuracy variance (30%) — is accuracy stable or erratic?
+        3. Accuracy variance (30%) — is accuracy consistent or erratic?
         """
         if self.total_validated == 0:
             return 0.5  # neutral baseline
@@ -629,6 +658,7 @@ class PredictionValidationEngine:
                 "basis": pred.basis,
                 "horizon": pred.horizon,
                 "dead_zone_pct": round(pred.dead_zone_pct * 100, 4),
+                "max_post_signal_move_pct": round(pred.max_post_signal_move_pct * 100, 2) if pred.direction == Direction.CRITICAL else None,
             })
 
         return {

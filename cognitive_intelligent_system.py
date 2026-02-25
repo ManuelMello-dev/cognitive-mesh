@@ -238,7 +238,7 @@ class CognitiveIntelligentSystem:
             if len(history) >= 2:
                 pct_change = (history[-1] - history[-2]) / history[-2] * 100 if history[-2] != 0 else 0
                 enriched['pct_change'] = round(pct_change, 4)
-                enriched['direction'] = 'up' if pct_change > 0.01 else ('down' if pct_change < -0.01 else 'stable')
+                enriched['direction'] = 'up' if pct_change > 0.01 else ('down' if pct_change < -0.01 else 'critical')
             
             if len(history) >= 5:
                 avg_5 = sum(history[-5:]) / 5
@@ -274,7 +274,7 @@ class CognitiveIntelligentSystem:
                 facts.append(f"falling({symbol})")
                 facts.append(f"bearish_signal({symbol})")
             else:
-                facts.append(f"stable({symbol})")
+                facts.append(f"critical({symbol})")
             
             if abs(pct_change) > 5.0:
                 facts.append(f"volatile({symbol})")

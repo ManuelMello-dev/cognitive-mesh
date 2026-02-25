@@ -348,7 +348,7 @@
         <h3>Per-Symbol Performance</h3>
         <div class="scroll-box">
             <table class="data-table" id="predSymbolTable">
-                <thead><tr><th>Symbol</th><th>Accuracy</th><th>Predictions</th><th>Trend</th><th>Momentum</th><th>Volatility</th></tr></thead>
+                <thead><tr><th>Symbol</th><th>Accuracy</th><th>Predictions</th><th>Trend</th><th>Momentum</th><th>Volatility</th><th>Post-Signal Move %</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -785,12 +785,14 @@ async function refreshPredictions() {
     const symbols = data.per_symbol || data.symbols || {};
     Object.entries(symbols).forEach(([sym, s]) => {
         const tr = document.createElement('tr');
+        const postSignalMove = s.max_post_signal_move_pct != null ? s.max_post_signal_move_pct.toFixed(2) + '%' : '-';
         tr.innerHTML = '<td style="color:var(--gold)">' + sym + '</td>'
             + '<td>' + pct(s.accuracy || 0) + '</td>'
             + '<td>' + (s.total_predictions || 0) + '</td>'
             + '<td>' + (s.trend || s.price_trend || '-') + '</td>'
             + '<td>' + (s.momentum != null ? s.momentum.toFixed(4) : '-') + '</td>'
-            + '<td>' + (s.volatility != null ? s.volatility.toFixed(6) : '-') + '</td>';
+            + '<td>' + (s.volatility != null ? s.volatility.toFixed(6) : '-') + '</td>'
+            + '<td>' + postSignalMove + '</td>';
         tbody.appendChild(tr);
     });
 
@@ -802,10 +804,12 @@ async function refreshPredictions() {
         div.className = 'log-entry';
         const correct = p.correct ? '&#10003;' : '&#10007;';
         const color = p.correct ? 'var(--matrix-green)' : 'var(--red)';
+        const moveInfo = p.max_post_signal_move_pct != null ? ' (move: ' + p.max_post_signal_move_pct.toFixed(2) + '%)' : '';
         div.innerHTML = '<span class="ts">' + ts(p.timestamp || p.created_at) + '</span>'
             + '<span style="color:var(--gold)">' + (p.symbol || '') + '</span> '
             + 'predicted <b>' + (p.predicted_direction || p.direction || '') + '</b> '
-            + '<span style="color:' + color + '">' + correct + '</span>';
+            + '<span style="color:' + color + '">' + correct + '</span>'
+            + moveInfo;
         rp.appendChild(div);
     });
 }
