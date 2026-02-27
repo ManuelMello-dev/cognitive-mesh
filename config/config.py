@@ -23,6 +23,10 @@ class Config:
     PRIORITY_SYMBOLS = []  # No priority symbols - all data is equal
     DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 150))  # Cover all symbols in one pass
 
+    # Market Scanner Price Filters
+    MIN_SCAN_PRICE = float(os.getenv("MIN_SCAN_PRICE", 0.0))
+    MAX_SCAN_PRICE = float(os.getenv("MAX_SCAN_PRICE", float("inf")))
+
     # Database URLs
     POSTGRES_URL = os.getenv("POSTGRES_URL")
     MILVUS_HOST = os.getenv("MILVUS_HOST")

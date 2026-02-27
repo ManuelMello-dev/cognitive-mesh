@@ -285,7 +285,7 @@ class CognitiveMeshOrchestrator:
     async def _initial_market_scan(self):
         """Perform initial market scan to discover assets"""
         try:
-            discovered = await self.scanner.scan()
+            discovered = await self.scanner.scan(min_price=Config.MIN_SCAN_PRICE, max_price=Config.MAX_SCAN_PRICE)
             self.crypto_symbols.update(discovered.get("crypto", set()))
             self.stock_symbols.update(discovered.get("stocks", set()))
 
@@ -304,7 +304,7 @@ class CognitiveMeshOrchestrator:
                 # Rescan every 5 minutes
                 await asyncio.sleep(300)
 
-                discovered = await self.scanner.scan()
+                discovered = await self.scanner.scan(min_price=Config.MIN_SCAN_PRICE, max_price=Config.MAX_SCAN_PRICE)
                 new_crypto = discovered.get("crypto", set())
                 new_stocks = discovered.get("stocks", set())
 

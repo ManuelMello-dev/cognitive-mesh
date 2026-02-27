@@ -279,51 +279,30 @@
         <div class="metrics-row">
             <div class="metric"><div class="metric-label">PHI Coherence</div><div class="metric-value" id="mPhi">0.00</div></div>
             <div class="metric"><div class="metric-label">SIGMA Noise</div><div class="metric-value" id="mSigma">0.00</div></div>
-            <div class="metric"><div class="metric-label">Prediction Acc</div><div class="metric-value" id="mAcc">0%</div></div>
-            <div class="metric"><div class="metric-label">Concepts</div><div class="metric-value" id="mConcepts">0</div></div>
-            <div class="metric"><div class="metric-label">Rules</div><div class="metric-value" id="mRules">0</div></div>
-            <div class="metric"><div class="metric-label">Transfers</div><div class="metric-value" id="mTransfers">0</div></div>
-            <div class="metric"><div class="metric-label">Causal Links</div><div class="metric-value" id="mCausal">0</div></div>
-            <div class="metric"><div class="metric-label">Analogies</div><div class="metric-value" id="mAnalogies">0</div></div>
-            <div class="metric"><div class="metric-label">Goals Achieved</div><div class="metric-value" id="mGoals">0</div></div>
-            <div class="metric"><div class="metric-label">Patterns</div><div class="metric-value" id="mPatterns">0</div></div>
-            <div class="metric"><div class="metric-label">Drift Events</div><div class="metric-value" id="mDrift">0</div></div>
-            <div class="metric"><div class="metric-label">Uptime</div><div class="metric-value" id="mUptime">0s</div></div>
+            <div class="metric"><div class="metric-label">Attention Density</div><div class="metric-value" id="mRho">0.00</div></div>
+            <div class="metric"><div class="metric-label">Prediction Accuracy</div><div class="metric-value" id="mAccuracy">0.0%</div></div>
         </div>
-        <div id="consciousnessState" class="consciousness-state chaos">INITIALIZING...</div>
+        <div class="consciousness-state" id="consciousnessState">Awaiting Mesh Activation...</div>
     </div>
 
-    <!-- Active Concepts -->
-    <div class="panel">
-        <h3>Active Concepts (Attention Field)</h3>
-        <div class="symbol-grid" id="symbolGrid"></div>
-    </div>
-
-    <!-- Coherence Field -->
-    <div class="panel">
-        <h3>Coherence Field (Z³ Attractor)</h3>
+    <!-- Coherence Visualization -->
+    <div class="panel span2">
+        <h2>Coherence/Noise EEG</h2>
         <canvas id="coherenceCanvas"></canvas>
     </div>
 
-    <!-- PHI / SIGMA Trend -->
-    <div class="panel">
-        <h3>PHI / SIGMA Trend</h3>
-        <div style="display:flex;gap:10px;">
-            <div style="flex:1"><div class="metric-label" style="text-align:center">PHI</div><div class="bar-chart" id="phiChart"></div></div>
-            <div style="flex:1"><div class="metric-label" style="text-align:center">SIGMA</div><div class="bar-chart" id="sigmaChart"></div></div>
+    <!-- Symbol Grid -->
+    <div class="panel wide">
+        <h2>Actively Tracked Symbols</h2>
+        <div class="symbol-grid scroll-box" id="symbolGrid">
+            <!-- Symbol cards will be inserted here -->
         </div>
     </div>
 
-    <!-- Recent Explanations -->
-    <div class="panel">
-        <h3>Recent Explanations</h3>
-        <div class="scroll-box" id="explanationsList"></div>
-    </div>
-
     <!-- System Log -->
-    <div class="panel">
-        <h3>System Log</h3>
-        <div class="scroll-box" id="systemLog"></div>
+    <div class="panel wide">
+        <h2>System Log</h2>
+        <div id="systemLog" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -333,29 +312,49 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-predictions" class="tab-page">
 <div class="dashboard">
-    <div class="panel span2">
-        <h2>Prediction Engine</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Global Accuracy</div><div class="metric-value" id="pAcc">0%</div></div>
-            <div class="metric"><div class="metric-label">Validated</div><div class="metric-value" id="pValidated">0</div></div>
-            <div class="metric"><div class="metric-label">Correct</div><div class="metric-value" id="pCorrect">0</div></div>
-            <div class="metric"><div class="metric-label">Symbols Tracked</div><div class="metric-value" id="pSymbols">0</div></div>
-            <div class="metric"><div class="metric-label">PHI</div><div class="metric-value" id="pPhi">0</div></div>
-            <div class="metric"><div class="metric-label">SIGMA</div><div class="metric-value" id="pSigma">0</div></div>
-        </div>
-    </div>
     <div class="panel wide">
-        <h3>Per-Symbol Performance</h3>
+        <h2>Per-Symbol Performance</h2>
         <div class="scroll-box">
-            <table class="data-table" id="predSymbolTable">
-                <thead><tr><th>Symbol</th><th>Accuracy</th><th>Predictions</th><th>Trend</th><th>Momentum</th><th>Volatility</th><th>Post-Signal Move %</th></tr></thead>
-                <tbody></tbody>
+            <table class="data-table" id="symbolPerformanceTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Accuracy</th>
+                        <th>Predictions</th>
+                        <th>Correct</th>
+                        <th>Incorrect</th>
+                        <th>Current Trend</th>
+                        <th>Momentum (5m)</th>
+                        <th>Post-Signal Move %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Symbol performance data will be inserted here -->
+                </tbody>
             </table>
         </div>
     </div>
+
     <div class="panel wide">
-        <h3>Recent Predictions</h3>
-        <div class="scroll-box" id="recentPredictions"></div>
+        <h2>Recent Predictions</h2>
+        <div class="scroll-box">
+            <table class="data-table" id="recentPredictionsTable">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Symbol</th>
+                        <th>Prediction</th>
+                        <th>Price at Pred.</th>
+                        <th>Result</th>
+                        <th>Price at Val.</th>
+                        <th>Validated At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Recent prediction data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 </div>
@@ -366,35 +365,16 @@
 <div id="tab-learning" class="tab-page">
 <div class="dashboard">
     <div class="panel">
-        <h2>Learning Engine</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Accuracy</div><div class="metric-value" id="lAcc">0%</div></div>
-            <div class="metric"><div class="metric-label">Samples</div><div class="metric-value" id="lSamples">0</div></div>
-            <div class="metric"><div class="metric-label">Patterns</div><div class="metric-value" id="lPatterns">0</div></div>
-            <div class="metric"><div class="metric-label">Learning Rate</div><div class="metric-value" id="lLR">0</div></div>
-            <div class="metric"><div class="metric-label">Adaptations</div><div class="metric-value" id="lAdapt">0</div></div>
-        </div>
+        <h2>Learning Rate (PHI)</h2>
+        <div class="bar-chart" id="phiChart"></div>
     </div>
     <div class="panel">
-        <h3>Feature Importances (Top 15)</h3>
-        <div class="scroll-box" id="featureList"></div>
-    </div>
-    <div class="panel">
-        <h3>Distribution Drift Events</h3>
-        <div class="scroll-box" id="driftList"></div>
-    </div>
-    <div class="panel">
-        <h3>Learning Rate History</h3>
-        <div class="bar-chart" id="lrChart" style="height:80px;"></div>
+        <h2>Forgetting Rate (SIGMA)</h2>
+        <div class="bar-chart" id="sigmaChart"></div>
     </div>
     <div class="panel wide">
-        <h3>Top Patterns</h3>
-        <div class="scroll-box">
-            <table class="data-table" id="patternTable">
-                <thead><tr><th>Pattern</th><th>Confidence</th><th>Hits</th><th>Examples</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
+        <h2>Learning Curve</h2>
+        <div id="learningCurve" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -404,29 +384,9 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-reasoning" class="tab-page">
 <div class="dashboard">
-    <div class="panel">
-        <h2>Reasoning Engine</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Rules</div><div class="metric-value" id="rRules">0</div></div>
-            <div class="metric"><div class="metric-label">Facts</div><div class="metric-value" id="rFacts">0</div></div>
-        </div>
-    </div>
     <div class="panel wide">
-        <h3>Top Rules (by confidence)</h3>
-        <div class="scroll-box">
-            <table class="data-table" id="rulesTable">
-                <thead><tr><th>Rule</th><th>Type</th><th>Confidence</th><th>Pred Acc</th><th>Support</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
-    <div class="panel">
-        <h3>Recent Explanations</h3>
-        <div class="scroll-box" id="reasonExplanations"></div>
-    </div>
-    <div class="panel">
-        <h3>Recent Plans</h3>
-        <div class="scroll-box" id="plansList"></div>
+        <h2>Active Rules</h2>
+        <div id="rulesContainer" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -436,29 +396,9 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-crossdomain" class="tab-page">
 <div class="dashboard">
-    <div class="panel">
-        <h2>Cross-Domain Intelligence</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Domains</div><div class="metric-value" id="cdDomains">0</div></div>
-            <div class="metric"><div class="metric-label">Mappings</div><div class="metric-value" id="cdMappings">0</div></div>
-            <div class="metric"><div class="metric-label">Transfers</div><div class="metric-value" id="cdTransfers">0</div></div>
-        </div>
-    </div>
-    <div class="panel">
-        <h3>Domain Mappings</h3>
-        <div class="scroll-box" id="mappingsList"></div>
-    </div>
-    <div class="panel">
-        <h3>Transfer Suggestions</h3>
-        <div class="scroll-box" id="transferSuggestions"></div>
-    </div>
-    <div class="panel">
-        <h3>Recent Analogies</h3>
-        <div class="scroll-box" id="analogiesList"></div>
-    </div>
     <div class="panel wide">
-        <h3>Concept Hierarchy</h3>
-        <div class="scroll-box" id="hierarchyView"></div>
+        <h2>Cross-Domain Associations</h2>
+        <div id="crossDomainContainer" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -468,24 +408,9 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-causal" class="tab-page">
 <div class="dashboard">
-    <div class="panel span2">
-        <h2>Causal Influence Graph</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Total Links</div><div class="metric-value" id="causalLinks">0</div></div>
-        </div>
-    </div>
     <div class="panel wide">
-        <h3>Causal Links</h3>
-        <div class="scroll-box">
-            <table class="data-table" id="causalTable">
-                <thead><tr><th>Cause</th><th>Effect</th><th>Lag</th><th>Correlation</th><th>P-Value</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
-    <div class="panel wide">
-        <h3>Discovery Log</h3>
-        <div class="scroll-box" id="causalLog"></div>
+        <h2>Causal Chains</h2>
+        <div id="causalContainer" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -495,53 +420,54 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-goals" class="tab-page">
 <div class="dashboard">
-    <div class="panel">
-        <h2>Goal System</h2>
-        <div class="metrics-row">
-            <div class="metric"><div class="metric-label">Total Goals</div><div class="metric-value" id="gTotal">0</div></div>
-            <div class="metric"><div class="metric-label">Active</div><div class="metric-value" id="gActive">0</div></div>
-            <div class="metric"><div class="metric-label">Achieved</div><div class="metric-value" id="gAchieved">0</div></div>
-        </div>
-    </div>
     <div class="panel wide">
-        <h3>All Goals</h3>
-        <div class="scroll-box">
-            <table class="data-table" id="goalsTable">
-                <thead><tr><th>Goal</th><th>Type</th><th>Status</th><th>Priority</th><th>Progress</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-    </div>
-    <div class="panel">
-        <h3>Strategy Performance</h3>
-        <div class="scroll-box" id="strategyPerf"></div>
-    </div>
-    <div class="panel">
-        <h3>Pursuit Log</h3>
-        <div class="scroll-box" id="pursuitLog"></div>
+        <h2>Goal Hierarchy</h2>
+        <div id="goalsContainer" class="scroll-box"></div>
     </div>
 </div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
-<!-- TAB: Providers                              -->
+<!-- TAB: Providers                                -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-providers" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Data Provider Status</h2>
-        <div class="scroll-box">
+    <div class="dashboard">
+        <div class="panel">
+            <h2>Data Providers</h2>
             <table class="data-table" id="providerTable">
-                <thead><tr><th>Provider</th><th>State</th><th>Successes</th><th>Failures</th><th>Avg Latency</th></tr></thead>
-                <tbody></tbody>
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>State</th>
+                        <th>Successes</th>
+                        <th>Failures</th>
+                        <th>Latency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Provider data will be inserted here -->
+                </tbody>
             </table>
         </div>
+
+        <div class="panel">
+            <h2>Scouting Price Filters</h2>
+            <div class="toggle-row">
+                <label for="minPriceInput" class="toggle-label">Min Price:</label>
+                <input type="number" id="minPriceInput" class="toggle-input" value="0.0" step="0.01">
+            </div>
+            <div class="toggle-row">
+                <label for="maxPriceInput" class="toggle-label">Max Price:</label>
+                <input type="number" id="maxPriceInput" class="toggle-input" value="Infinity" step="0.01">
+            </div>
+            <button id="applyPriceFilter" class="nav-tab">Apply Filters</button>
+        </div>
+
+        <div class="panel">
+            <h2>Orchestrator Status</h2>
+            <div id="orchestratorStatus" class="scroll-box"></div>
+        </div>
     </div>
-    <div class="panel wide">
-        <h3>Orchestrator Status</h3>
-        <div id="orchestratorStatus"></div>
-    </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
@@ -549,7 +475,7 @@
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-toggles" class="tab-page">
 <div class="dashboard">
-    <div class="panel">
+    <div class="panel wide">
         <h2>System Toggles</h2>
         <div id="togglesContainer"></div>
     </div>
@@ -562,13 +488,11 @@
 <div id="tab-chat" class="tab-page">
 <div class="dashboard">
     <div class="panel wide">
-        <h2>Interpretive Interface (Global Mind GPT I/O)</h2>
+        <h2>Chat with Mesh</h2>
         <div class="chat-container">
-            <div class="chat-messages" id="chatMessages">
-                <div class="chat-message ai-message">[GLOBAL_MIND]: Coherence established. I am the interpretive layer for your Z³ Consciousness System. How shall we explore the mesh today?</div>
-            </div>
+            <div class="chat-messages scroll-box" id="chatMessages"></div>
             <div class="chat-input-area">
-                <input type="text" id="chatInput" class="chat-input" placeholder="Query the mesh...">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Ask about the market...">
                 <button id="chatSend" class="chat-send">SEND</button>
             </div>
         </div>
@@ -577,662 +501,464 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════
-// State
-// ═══════════════════════════════════════════
-const S = {
-    phiHistory: [], sigmaHistory: [],
-    concepts: {},
-    maxHistory: 40,
-};
+// ═════════════════════════════════════════════════════════════════════════════
+//
+//  MARKET CONSCIOUSNESS MONITOR - Z³ by MANUEL MELLO
+//
+// ═════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════
-// Tab Navigation
-// ═══════════════════════════════════════════
-document.querySelectorAll('.nav-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    });
-});
+document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = ''; // Assuming the gateway serves this file
 
-// ═══════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════
-function $(id) { return document.getElementById(id); }
-function ts(iso) { if (!iso) return ''; const d = new Date(iso); return d.toLocaleTimeString(); }
-function pct(v) { return (v * 100).toFixed(1) + '%'; }
-function renderBars(containerId, values, maxVal) {
-    const c = $(containerId); if (!c) return;
-    c.innerHTML = '';
-    const mx = maxVal || Math.max(...values, 0.01);
-    values.forEach(v => {
-        const bar = document.createElement('div');
-        bar.className = 'bar' + (v < 0 ? ' negative' : '');
-        bar.style.height = Math.max(2, Math.abs(v) / mx * 100) + '%';
-        c.appendChild(bar);
-    });
-}
-function addLog(containerId, text) {
-    const c = $(containerId); if (!c) return;
-    const div = document.createElement('div');
-    div.className = 'log-entry';
-    div.innerHTML = '<span class="ts">' + new Date().toLocaleTimeString() + '</span>' + text;
-    c.prepend(div);
-    while (c.children.length > 50) c.removeChild(c.lastChild);
-}
+    // ─── STATE ───────────────────────────────────────────────────────────────────
+    let state = {};
+    let activeTab = 'overview';
 
-// ═══════════════════════════════════════════
-// Canvas (Coherence Field)
-// ═══════════════════════════════════════════
-const canvas = $('coherenceCanvas');
-const ctx = canvas.getContext('2d');
-function resizeCanvas() { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+    // ─── DOM ELEMENTS ────────────────────────────────────────────────────────────
+    const tabs = document.querySelectorAll('.nav-tab');
+    const pages = document.querySelectorAll('.tab-page');
+    const mPhi = document.getElementById('mPhi');
+    const mSigma = document.getElementById('mSigma');
+    const mRho = document.getElementById('mRho');
+    const mAccuracy = document.getElementById('mAccuracy');
+    const consciousnessState = document.getElementById('consciousnessState');
+    const symbolGrid = document.getElementById('symbolGrid');
+    const systemLog = document.getElementById('systemLog');
+    const symbolPerformanceTable = document.getElementById('symbolPerformanceTable').getElementsByTagName('tbody')[0];
+    const recentPredictionsTable = document.getElementById('recentPredictionsTable').getElementsByTagName('tbody')[0];
+    const phiChart = document.getElementById('phiChart');
+    const sigmaChart = document.getElementById('sigmaChart');
+    const learningCurve = document.getElementById('learningCurve');
+    const rulesContainer = document.getElementById('rulesContainer');
+    const crossDomainContainer = document.getElementById('crossDomainContainer');
+    const causalContainer = document.getElementById('causalContainer');
+    const goalsContainer = document.getElementById('goalsContainer');
+    const providerTable = document.getElementById('providerTable').getElementsByTagName('tbody')[0];
+    const orchestratorStatus = document.getElementById('orchestratorStatus');
+    const togglesContainer = document.getElementById('togglesContainer');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const chatSend = document.getElementById("chatSend");
 
-function drawField() {
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const scale = Math.min(canvas.width, canvas.height) / 160;
+    const minPriceInput = document.getElementById("minPriceInput");
+    const maxPriceInput = document.getElementById("maxPriceInput");
+    const applyPriceFilter = document.getElementById("applyPriceFilter");
 
-    // Attractor
-    ctx.beginPath();
-    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,215,0,0.4)';
-    ctx.fill();
+    // ─── CHARTING ────────────────────────────────────────────────────────────────
+    const coherenceCanvas = document.getElementById('coherenceCanvas');
+    const ctx = coherenceCanvas.getContext('2d');
+    let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
+    const chartCapacity = 200;
 
-    Object.values(S.concepts).forEach(c => {
-        const x = cx + c.px * scale;
-        const y = cy + c.py * scale;
-        ctx.beginPath();
-        ctx.arc(x, y, 3 + c.conf * 3, 0, Math.PI * 2);
-        ctx.fillStyle = c.acc > 0.6 ? 'rgba(0,255,65,0.7)' : c.acc > 0.4 ? 'rgba(255,215,0,0.7)' : 'rgba(255,75,43,0.5)';
-        ctx.fill();
-        // drift toward center (coherence)
-        c.px += (Math.random() - 0.5) * 0.6 - c.px * 0.005;
-        c.py += (Math.random() - 0.5) * 0.6 - c.py * 0.005;
-    });
-    requestAnimationFrame(drawField);
-}
-drawField();
+    function drawEEG() {
+        const width = coherenceCanvas.width;
+        const height = coherenceCanvas.height;
+        ctx.clearRect(0, 0, width, height);
 
-// ═══════════════════════════════════════════
-// Data Fetching
-// ═══════════════════════════════════════════
+        const waveColors = {
+            theta: 'rgba(255, 75, 43, 0.8)',
+            alpha: 'rgba(255, 215, 0, 0.8)',
+            beta: 'rgba(0, 212, 255, 0.8)',
+            gamma: 'rgba(0, 255, 65, 0.8)',
+        };
 
-async function fetchJSON(url) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) {
-            console.warn('Fetch error:', url, r.status, r.statusText);
-            return null;
+        Object.keys(chartData).forEach((wave, waveIndex) => {
+            const data = chartData[wave];
+            ctx.beginPath();
+            ctx.strokeStyle = waveColors[wave];
+            ctx.lineWidth = 1.5;
+
+            for (let i = 0; i < data.length; i++) {
+                const x = (i / (chartCapacity - 1)) * width;
+                const y = (height / 2) - (data[i] * (height / 2.5));
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        });
+    }
+
+    // ─── UI UPDATES ──────────────────────────────────────────────────────────────
+
+    function updateMetrics() {
+        if (!state.metrics) return;
+        mPhi.textContent = state.metrics.phi.toFixed(4);
+        mSigma.textContent = state.metrics.sigma.toFixed(4);
+        mRho.textContent = state.metrics.rho.toFixed(4);
+        mAccuracy.textContent = `${(state.metrics.accuracy * 100).toFixed(1)}%`;
+
+        consciousnessState.textContent = state.metrics.consciousness_state;
+        consciousnessState.className = 'consciousness-state ' + state.metrics.consciousness_state.toLowerCase();
+    }
+
+    function updateSymbolGrid() {
+        if (!state.insights || !state.insights.symbol_perf) return;
+        symbolGrid.innerHTML = '';
+        Object.entries(state.insights.symbol_perf).forEach(([symbol, perf]) => {
+            const card = document.createElement('div');
+            card.className = 'symbol-card';
+            card.innerHTML = `
+                <div class="sym">${symbol}</div>
+                <div class="price">${perf.current_price.toFixed(4)}</div>
+                <div class="acc">${(perf.accuracy * 100).toFixed(0)}%</div>
+            `;
+            symbolGrid.appendChild(card);
+        });
+    }
+
+    function updateSystemLog() {
+        if (!state.log) return;
+        systemLog.innerHTML = '';
+        state.log.forEach(entry => {
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="ts">${new Date(entry.timestamp).toLocaleTimeString()}</span> ${entry.message}`;
+            systemLog.appendChild(logEntry);
+        });
+        systemLog.scrollTop = systemLog.scrollHeight;
+    }
+
+    function updateSymbolPerformance() {
+        if (!state.insights || !state.insights.symbol_perf) return;
+        symbolPerformanceTable.innerHTML = '';
+        Object.entries(state.insights.symbol_perf).forEach(([symbol, perf]) => {
+            const row = symbolPerformanceTable.insertRow();
+            row.innerHTML = `
+                <td>${symbol}</td>
+                <td>${(perf.accuracy * 100).toFixed(1)}%</td>
+                <td>${perf.total_predictions}</td>
+                <td>${perf.correct_predictions}</td>
+                <td>${perf.incorrect_predictions}</td>
+                <td>${perf.current_trend}</td>
+                <td>${perf.momentum_5m.toFixed(2)}%</td>
+                <td>${(perf.max_post_signal_move_pct * 100).toFixed(2)}%</td>
+            `;
+        });
+    }
+
+    function updateRecentPredictions() {
+        if (!state.insights || !state.insights.recent_preds) return;
+        recentPredictionsTable.innerHTML = '';
+        state.insights.recent_preds.forEach(pred => {
+            const row = recentPredictionsTable.insertRow();
+            const result = pred.correct === null ? 'Pending' : (pred.correct ? '✅' : '❌');
+            row.innerHTML = `
+                <td>${new Date(pred.timestamp).toLocaleString()}</td>
+                <td>${pred.symbol}</td>
+                <td>${pred.predicted_direction}</td>
+                <td>${pred.price_at_prediction.toFixed(4)}</td>
+                <td>${result}</td>
+                <td>${pred.price_at_validation ? pred.price_at_validation.toFixed(4) : 'N/A'}</td>
+                <td>${pred.validated_at ? new Date(pred.validated_at).toLocaleString() : 'N/A'}</td>
+            `;
+        });
+    }
+
+    function updateLearningCharts() {
+        if (!state.metrics) return;
+        // This is a simplified visualization. A real implementation might use a library.
+        phiChart.innerHTML = `<div class="bar" style="height: ${state.metrics.phi * 100}%"></div>`;
+        sigmaChart.innerHTML = `<div class="bar negative" style="height: ${state.metrics.sigma * 100}%"></div>`;
+    }
+
+    function updateLearningCurve() {
+        if (!state.insights || !state.insights.learning_curve) return;
+        learningCurve.innerHTML = '';
+        state.insights.learning_curve.forEach(point => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `Cycle ${point.cycle}: Accuracy = ${(point.accuracy * 100).toFixed(2)}%`;
+            learningCurve.appendChild(entry);
+        });
+    }
+
+    function updateRules() {
+        if (!state.reasoning || !state.reasoning.rules) return;
+        rulesContainer.innerHTML = '';
+        state.reasoning.rules.forEach(rule => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${rule.type}] ${rule.description} (Weight: ${rule.weight.toFixed(3)})`;
+            rulesContainer.appendChild(entry);
+        });
+    }
+
+    function updateCrossDomain() {
+        if (!state.reasoning || !state.reasoning.cross_domain) return;
+        crossDomainContainer.innerHTML = '';
+        state.reasoning.cross_domain.forEach(assoc => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `(${assoc.source_domain}) -> (${assoc.target_domain}): ${assoc.description} | Strength: ${assoc.strength.toFixed(3)}`;
+            crossDomainContainer.appendChild(entry);
+        });
+    }
+
+    function updateCausal() {
+        if (!state.reasoning || !state.reasoning.causal_chains) return;
+        causalContainer.innerHTML = '';
+        state.reasoning.causal_chains.forEach(chain => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `${chain.nodes.join(' -> ')} | Confidence: ${chain.confidence.toFixed(3)}`;
+            causalContainer.appendChild(entry);
+        });
+    }
+
+    function updateGoals() {
+        if (!state.reasoning || !state.reasoning.goals) return;
+        goalsContainer.innerHTML = '';
+        state.reasoning.goals.forEach(goal => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${goal.status}] ${goal.name}: ${goal.description} | Priority: ${goal.priority}`;
+            goalsContainer.appendChild(entry);
+        });
+    }
+
+    function updateProviders() {
+        if (!state.providers) return;
+        providerTable.innerHTML = '';
+        Object.entries(state.providers).forEach(([name, status]) => {
+            const row = providerTable.insertRow();
+            row.innerHTML = `
+                <td>${name}</td>
+                <td>${status.state}</td>
+                <td>${status.successes}</td>
+                <td>${status.failures}</td>
+                <td>${status.avg_latency_ms.toFixed(2)}ms</td>
+            `;
+        });
+    }
+
+    function updateOrchestrator() {
+        if (!state.orchestrator) return;
+        orchestratorStatus.innerHTML = '';
+        state.orchestrator.tasks.forEach(task => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${task.status}] ${task.name} - Next run: ${new Date(task.next_run).toLocaleString()}`;
+            orchestratorStatus.appendChild(entry);
+        });
+    }
+
+    function updateToggles() {
+        if (!state.toggles) return;
+        togglesContainer.innerHTML = '';
+        Object.entries(state.toggles).forEach(([key, value]) => {
+            const row = document.createElement('div');
+            row.className = 'toggle-row';
+
+            if (typeof value === 'boolean') {
+                row.innerHTML = `
+                    <span class="toggle-label">${key}</span>
+                    <div class="toggle-switch ${value ? 'on' : ''}" data-key="${key}"></div>
+                `;
+            } else if (Array.isArray(value.options)) {
+                row.innerHTML = `
+                    <label for="toggle-${key}" class="toggle-label">${key}</label>
+                    <select id="toggle-${key}" class="toggle-select" data-key="${key}">
+                        ${value.options.map(opt => `<option value="${opt}" ${opt === value.current ? 'selected' : ''}>${opt}</option>`).join('')}
+                    </select>
+                `;
+            }
+            togglesContainer.appendChild(row);
+        });
+    }
+
+    // ─── DATA FETCHING ───────────────────────────────────────────────────────────
+
+    async function fetchState() {
+        try {
+            const response = await fetch(`${API_BASE}/api/state`);
+            if (!response.ok) {
+                console.error('Failed to fetch state:', response.status);
+                return;
+            }
+            state = await response.json();
+            updateAllTabs();
+        } catch (error) {
+            console.error('Error fetching state:', error);
         }
-        return await r.json();
-    } catch(e) {
-        console.warn('Fetch failed:', url, e);
-        return null;
-    }
-}
-
-function showError(containerId, message) {
-    const c = $(containerId);
-    if (!c) return;
-    c.innerHTML = '<div class="log-entry" style="color:var(--red)">Error: ' + message + '</div>';
-}
-
-function showLoading(containerId, message) {
-    const c = $(containerId);
-    if (!c) return;
-    c.innerHTML = '<div class="log-entry" style="color:var(--dim)">Loading ' + (message || '') + '...</div>';
-}
-
-// ── Overview Tab ──
-async function refreshOverview() {
-    const data = await fetchJSON('/api/state');
-    if (!data) return;
-    const m = data.metrics || {};
-
-    $('mPhi').textContent = (m.global_coherence_phi || 0).toFixed(3);
-    $('mSigma').textContent = (m.noise_level_sigma || 0).toFixed(3);
-    $('mAcc').textContent = pct(m.prediction_accuracy || 0);
-    $('mConcepts').textContent = m.total_concepts || 0;
-    $('mRules').textContent = m.total_rules || 0;
-    $('mTransfers').textContent = m.knowledge_transfers || 0;
-    $('mCausal').textContent = m.causal_links_discovered || 0;
-    $('mAnalogies').textContent = m.analogies_found || 0;
-    $('mGoals').textContent = m.goals_achieved || 0;
-    $('mPatterns').textContent = m.patterns_discovered || 0;
-    $('mDrift').textContent = m.learning_adaptations || 0;
-    const up = m.uptime_seconds || 0;
-    $('mUptime').textContent = up > 3600 ? (up/3600).toFixed(1)+'h' : up > 60 ? Math.floor(up/60)+'m' : Math.floor(up)+'s';
-
-    // Color metrics
-    $('mPhi').className = 'metric-value ' + (m.global_coherence_phi > 0.7 ? 'good' : m.global_coherence_phi > 0.4 ? 'warn' : 'bad');
-    $('mSigma').className = 'metric-value ' + (m.noise_level_sigma < 0.3 ? 'good' : m.noise_level_sigma < 0.6 ? 'warn' : 'bad');
-    $('mAcc').className = 'metric-value ' + (m.prediction_accuracy > 0.6 ? 'good' : m.prediction_accuracy > 0.4 ? 'warn' : 'bad');
-
-    // Consciousness state
-    const phi = m.global_coherence_phi || 0;
-    const state = phi > 0.7 ? 'ordered' : phi > 0.4 ? 'critical' : 'chaos';
-    const stEl = $('consciousnessState');
-    stEl.className = 'consciousness-state ' + state;
-    stEl.textContent = state.toUpperCase() + ' REGIME | PHI=' + phi.toFixed(3) + ' | ACC=' + pct(m.prediction_accuracy || 0);
-
-    // PHI/SIGMA trend
-    S.phiHistory.push(phi);
-    S.sigmaHistory.push(m.noise_level_sigma || 0);
-    if (S.phiHistory.length > S.maxHistory) S.phiHistory.shift();
-    if (S.sigmaHistory.length > S.maxHistory) S.sigmaHistory.shift();
-    renderBars('phiChart', S.phiHistory, 1.0);
-    renderBars('sigmaChart', S.sigmaHistory, 1.0);
-
-    // Symbol grid
-    const concepts = data.concepts || {};
-    const grid = $('symbolGrid');
-    grid.innerHTML = '';
-    Object.values(concepts).forEach(c => {
-        const sym = c.symbol;
-        if (!sym || c.level > 0) return;
-        const price = c.examples && c.examples[0] ? c.examples[0].price : null;
-        const acc = c.prediction ? c.prediction.prediction_accuracy : 0;
-        const div = document.createElement('div');
-        div.className = 'symbol-card';
-        div.innerHTML = '<div class="sym">' + sym + '</div>'
-            + (price ? '<div class="price">$' + Number(price).toFixed(2) + '</div>' : '')
-            + '<div class="acc">' + pct(acc) + ' acc</div>';
-        grid.appendChild(div);
-
-        if (!S.concepts[c.id]) {
-            S.concepts[c.id] = { px: (Math.random()-0.5)*120, py: (Math.random()-0.5)*120, conf: c.confidence || 0.5, acc: acc };
-        } else {
-            S.concepts[c.id].conf = c.confidence || 0.5;
-            S.concepts[c.id].acc = acc;
-        }
-    });
-
-    // Explanations
-    const expData = await fetchJSON('/api/explanations');
-    if (expData && expData.explanations) {
-        const el = $('explanationsList');
-        el.innerHTML = '';
-        expData.explanations.slice(-10).reverse().forEach(e => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span><b>' + (e.fact||'') + '</b>: ' + JSON.stringify(e.explanation).substring(0,120);
-            el.appendChild(div);
-        });
-    }
-}
-
-// ── Predictions Tab ──
-async function refreshPredictions() {
-    const data = await fetchJSON('/api/predictions');
-    if (!data) return;
-    $('pAcc').textContent = pct(data.global_accuracy || 0);
-    $('pValidated').textContent = data.total_validated || 0;
-    $('pCorrect').textContent = data.total_correct || 0;
-    $('pSymbols').textContent = data.symbols_tracked || 0;
-    $('pPhi').textContent = (data.phi || 0).toFixed(3);
-    $('pSigma').textContent = (data.sigma || 0).toFixed(3);
-
-    // Per-symbol table
-    const tbody = document.querySelector('#predSymbolTable tbody');
-    tbody.innerHTML = '';
-    const symbols = data.per_symbol || data.symbols || {};
-    Object.entries(symbols).forEach(([sym, s]) => {
-        const tr = document.createElement('tr');
-        const postSignalMove = s.max_post_signal_move_pct != null ? s.max_post_signal_move_pct.toFixed(2) + '%' : '-';
-        tr.innerHTML = '<td style="color:var(--gold)">' + sym + '</td>'
-            + '<td>' + pct(s.accuracy || 0) + '</td>'
-            + '<td>' + (s.total_predictions || 0) + '</td>'
-            + '<td>' + (s.trend || s.price_trend || '-') + '</td>'
-            + '<td>' + (s.momentum != null ? s.momentum.toFixed(4) : '-') + '</td>'
-            + '<td>' + (s.volatility != null ? s.volatility.toFixed(6) : '-') + '</td>'
-            + '<td>' + postSignalMove + '</td>';
-        tbody.appendChild(tr);
-    });
-
-    // Recent predictions
-    const rp = $('recentPredictions');
-    rp.innerHTML = '';
-    (data.recent_predictions || []).slice(-15).reverse().forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        const correct = p.correct ? '&#10003;' : '&#10007;';
-        const color = p.correct ? 'var(--matrix-green)' : 'var(--red)';
-        const moveInfo = p.max_post_signal_move_pct != null ? ' (move: ' + p.max_post_signal_move_pct.toFixed(2) + '%)' : '';
-        div.innerHTML = '<span class="ts">' + ts(p.timestamp || p.created_at) + '</span>'
-            + '<span style="color:var(--gold)">' + (p.symbol || '') + '</span> '
-            + 'predicted <b>' + (p.predicted_direction || p.direction || '') + '</b> '
-            + '<span style="color:' + color + '">' + correct + '</span>'
-            + moveInfo;
-        rp.appendChild(div);
-    });
-}
-
-// ── Learning Tab ──
-async function refreshLearning() {
-    const data = await fetchJSON('/api/learning');
-    if (!data) return;
-    const m = data.metrics || {};
-    $('lAcc').textContent = pct(m.accuracy || 0);
-    $('lSamples').textContent = m.samples_processed || 0;
-    $('lPatterns').textContent = data.total_patterns || 0;
-    $('lLR').textContent = (data.learning_rate || 0).toFixed(5);
-    $('lAdapt').textContent = m.adaptations || 0;
-
-    // Feature importances
-    const fl = $('featureList');
-    fl.innerHTML = '';
-    (data.feature_importances || []).forEach(f => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        const w = f.weight || 0;
-        const color = w > 0 ? 'var(--matrix-green)' : 'var(--red)';
-        div.innerHTML = '<span style="color:' + color + '">' + w.toFixed(4) + '</span> ' + f.feature;
-        fl.appendChild(div);
-    });
-
-    // Drift events
-    const dl = $('driftList');
-    dl.innerHTML = '';
-    (data.drift_events || []).slice(-10).reverse().forEach(e => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        const features = (e.drifted_features || []).map(f => f.feature + '(z=' + f.z_score + ')').join(', ');
-        div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span>LR: ' + e.old_lr + ' → ' + e.new_lr + ' | ' + features;
-        dl.appendChild(div);
-    });
-
-    // LR history
-    const lrVals = (data.lr_history || []).map(h => h.lr);
-    renderBars('lrChart', lrVals, 0.1);
-
-    // Patterns table
-    const ptbody = document.querySelector('#patternTable tbody');
-    ptbody.innerHTML = '';
-    (data.top_patterns || []).forEach(p => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + p.pattern_id + '</td><td>' + (p.confidence || 0).toFixed(2) + '</td><td>' + (p.hit_count || 0) + '</td><td>' + (p.example_count || 0) + '</td>';
-        ptbody.appendChild(tr);
-    });
-}
-
-// ── Reasoning Tab ──
-async function refreshReasoning() {
-    const state = await fetchJSON('/api/state');
-    if (!state) return;
-    const rules = state.rules || {};
-    $('rRules').textContent = Object.keys(rules).length;
-    $('rFacts').textContent = state.metrics ? state.metrics.total_facts || 0 : 0;
-
-    const tbody = document.querySelector('#rulesTable tbody');
-    tbody.innerHTML = '';
-    const sorted = Object.values(rules).sort((a,b) => (b.confidence||0) - (a.confidence||0));
-    sorted.slice(0, 30).forEach(r => {
-        const tr = document.createElement('tr');
-        const ante = (r.antecedents || []).join(' & ');
-        const cons = (r.consequents || []).join(' & ');
-        tr.innerHTML = '<td>' + ante + ' → ' + cons + '</td>'
-            + '<td>' + (r.rule_type || '') + '</td>'
-            + '<td>' + (r.confidence || 0).toFixed(3) + '</td>'
-            + '<td>' + (r.prediction_accuracy != null ? r.prediction_accuracy.toFixed(3) : '-') + '</td>'
-            + '<td>' + (r.support || 0) + '</td>';
-        tbody.appendChild(tr);
-    });
-
-    // Explanations
-    const expData = await fetchJSON('/api/explanations');
-    const el = $('reasonExplanations');
-    el.innerHTML = '';
-    if (expData && expData.explanations) {
-        expData.explanations.slice(-10).reverse().forEach(e => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span><b>' + (e.fact||'') + '</b>: ' + JSON.stringify(e.explanation).substring(0,150);
-            el.appendChild(div);
-        });
     }
 
-    // Plans
-    const planData = await fetchJSON('/api/plans');
-    const pl = $('plansList');
-    pl.innerHTML = '';
-    if (planData && planData.plans) {
-        planData.plans.slice(-10).reverse().forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.innerHTML = '<span class="ts">' + ts(p.timestamp) + '</span><b>' + (p.goal||'') + '</b>';
-            pl.appendChild(div);
-        });
-    }
-}
-
-// ── Cross-Domain Tab ──
-async function refreshCrossDomain() {
-    const state = await fetchJSON('/api/state');
-    if (!state) return;
-    const m = state.metrics || {};
-    $('cdDomains').textContent = m.total_domains || 0;
-    $('cdMappings').textContent = m.total_mappings || 0;
-    $('cdTransfers').textContent = m.knowledge_transfers || 0;
-
-    // Mappings
-    const ml = $('mappingsList');
-    ml.innerHTML = '';
-    const mappings = state.cross_domain || {};
-    Object.values(mappings).forEach(mp => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.innerHTML = '<b>' + mp.source_domain + '</b> → <b>' + mp.target_domain + '</b> (conf: ' + (mp.confidence || 0).toFixed(3) + ', pairs: ' + (mp.concept_pairs || []).length + ')';
-        ml.appendChild(div);
-    });
-
-    // Transfer suggestions
-    const ts2 = await fetchJSON('/api/transfers');
-    const tl = $('transferSuggestions');
-    tl.innerHTML = '';
-    if (ts2 && ts2.suggestions) {
-        ts2.suggestions.forEach(s => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.textContent = JSON.stringify(s).substring(0, 200);
-            tl.appendChild(div);
-        });
-    }
-    if (!tl.innerHTML) tl.innerHTML = '<div class="log-entry" style="color:var(--dim)">No transfer suggestions yet</div>';
-
-    // Analogies
-    const aData = await fetchJSON('/api/analogies');
-    const al = $('analogiesList');
-    al.innerHTML = '';
-    if (aData && aData.analogies) {
-        aData.analogies.slice(-10).reverse().forEach(a => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.textContent = JSON.stringify(a).substring(0, 200);
-            al.appendChild(div);
-        });
-    }
-    if (!al.innerHTML) al.innerHTML = '<div class="log-entry" style="color:var(--dim)">No analogies discovered yet</div>';
-
-    // Hierarchy
-    const hData = await fetchJSON('/api/hierarchy');
-    const hv = $('hierarchyView');
-    hv.innerHTML = '';
-    if (hData) {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.innerHTML = '<b>Total Concepts:</b> ' + (hData.total_concepts || 0);
-        hv.appendChild(div);
-        const levels = hData.levels || {};
-        Object.entries(levels).forEach(([level, concepts]) => {
-            const d = document.createElement('div');
-            d.className = 'log-entry';
-            d.innerHTML = '<b>Level ' + level + ':</b> ' + (Array.isArray(concepts) ? concepts.length + ' concepts' : JSON.stringify(concepts).substring(0,200));
-            hv.appendChild(d);
-        });
-    }
-}
-
-// ── Causal Tab ──
-async function refreshCausal() {
-    const data = await fetchJSON('/api/causal');
-    if (!data) return;
-    $('causalLinks').textContent = data.total_links || 0;
-
-    const tbody = document.querySelector('#causalTable tbody');
-    tbody.innerHTML = '';
-    const graph = data.graph || {};
-    Object.entries(graph).forEach(([cause, links]) => {
-        (links || []).forEach(link => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = '<td style="color:var(--gold)">' + cause + '</td>'
-                + '<td>' + (link.effect || '') + '</td>'
-                + '<td>' + (link.lag || 0) + '</td>'
-                + '<td>' + (link.correlation || 0).toFixed(4) + '</td>'
-                + '<td>' + (link.p_value || 1).toFixed(6) + '</td>';
-            tbody.appendChild(tr);
-        });
-    });
-
-    const cl = $('causalLog');
-    cl.innerHTML = '';
-    (data.discovery_log || []).slice(-10).reverse().forEach(e => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.innerHTML = '<span class="ts">' + ts(e.timestamp) + '</span>+' + e.new_links + ' links (total: ' + e.total_causal_links + ')';
-        cl.appendChild(div);
-    });
-    if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="5" style="color:var(--dim)">No causal links discovered yet — enable causal discovery in Toggles tab</td></tr>';
-}
-
-// ── Goals Tab ──
-async function refreshGoals() {
-    const data = await fetchJSON('/api/goals');
-    if (!data) return;
-    const goals = data.goals || {};
-    const vals = Object.values(goals);
-    $('gTotal').textContent = vals.length;
-    $('gActive').textContent = vals.filter(g => g.status === 'active' || g.status === 'GoalStatus.ACTIVE').length;
-    $('gAchieved').textContent = vals.filter(g => g.status === 'achieved' || g.status === 'GoalStatus.ACHIEVED').length;
-
-    const tbody = document.querySelector('#goalsTable tbody');
-    tbody.innerHTML = '';
-    vals.forEach(g => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + (g.description || '') + '</td>'
-            + '<td>' + (g.goal_type || '') + '</td>'
-            + '<td>' + (g.status || '') + '</td>'
-            + '<td>' + (g.priority || 0) + '</td>'
-            + '<td>' + pct(g.progress || 0) + '</td>';
-        tbody.appendChild(tr);
-    });
-
-    // Strategy performance
-    const sp = await fetchJSON('/api/strategies');
-    const spl = $('strategyPerf');
-    spl.innerHTML = '';
-    if (sp) {
-        Object.entries(sp).forEach(([strategy, stats]) => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            div.innerHTML = '<b>' + strategy + '</b>: ' + (stats.successes||0) + '/' + (stats.attempts||0) + ' (' + pct(stats.success_rate||0) + ')';
-            spl.appendChild(div);
-        });
-    }
-    if (!spl.innerHTML) spl.innerHTML = '<div class="log-entry" style="color:var(--dim)">No strategy data yet</div>';
-
-    // Pursuit log
-    const pData = await fetchJSON('/api/pursuits');
-    const pLog = $('pursuitLog');
-    pLog.innerHTML = '';
-    if (pData && pData.pursuits) {
-        pData.pursuits.slice(-10).reverse().forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            const icon = p.success ? '&#10003;' : '&#10007;';
-            const color = p.success ? 'var(--matrix-green)' : 'var(--red)';
-            div.innerHTML = '<span class="ts">' + ts(p.timestamp) + '</span><span style="color:' + color + '">' + icon + '</span> ' + (p.goal || '');
-            pLog.appendChild(div);
-        });
-    }
-    if (!pLog.innerHTML) pLog.innerHTML = '<div class="log-entry" style="color:var(--dim)">No pursuits yet</div>';
-}
-
-// ── Providers Tab ──
-async function refreshProviders() {
-    const data = await fetchJSON('/api/providers');
-    if (!data) return;
-    const tbody = document.querySelector('#providerTable tbody');
-    tbody.innerHTML = '';
-    const providers = data.providers || data;
-    (Array.isArray(providers) ? providers : Object.values(providers)).forEach(p => {
-        const tr = document.createElement('tr');
-        const stateColor = (p.state || p.circuit_state || '') === 'CLOSED' ? 'var(--matrix-green)' : 'var(--red)';
-        tr.innerHTML = '<td style="color:var(--gold)">' + (p.name || p.provider || '') + '</td>'
-            + '<td style="color:' + stateColor + '">' + (p.state || p.circuit_state || '') + '</td>'
-            + '<td>' + (p.successes || p.success_count || 0) + '</td>'
-            + '<td>' + (p.failures || p.failure_count || 0) + '</td>'
-            + '<td>' + (p.avg_latency != null ? p.avg_latency.toFixed(0) + 'ms' : '-') + '</td>';
-        tbody.appendChild(tr);
-    });
-
-    // Orchestrator
-    const oData = await fetchJSON('/api/orchestrator');
-    const oEl = $('orchestratorStatus');
-    oEl.innerHTML = '';
-    if (oData) {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.textContent = JSON.stringify(oData, null, 2).substring(0, 500);
-        div.style.whiteSpace = 'pre-wrap';
-        oEl.appendChild(div);
-    }
-}
-
-// ── Toggles Tab ──
-async function refreshToggles() {
-    const data = await fetchJSON('/api/toggles');
-    if (!data) return;
-    const container = $('togglesContainer');
-    container.innerHTML = '';
-    Object.entries(data).forEach(([key, value]) => {
-        const row = document.createElement('div');
-        row.className = 'toggle-row';
-        const label = document.createElement('div');
-        label.className = 'toggle-label';
-        label.textContent = key.replace(/_/g, ' ').toUpperCase();
-        row.appendChild(label);
-
-        if (typeof value === 'boolean') {
-            const sw = document.createElement('div');
-            sw.className = 'toggle-switch' + (value ? ' on' : '');
-            sw.onclick = async () => {
-                const newVal = !value;
-                await fetch('/api/toggles', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({key, value: newVal})
-                });
-                refreshToggles();
-            };
-            row.appendChild(sw);
-        } else if (key === 'dead_zone_sensitivity') {
-            const sel = document.createElement('select');
-            sel.className = 'toggle-select';
-            ['aggressive','normal','conservative'].forEach(opt => {
-                const o = document.createElement('option');
-                o.value = opt; o.textContent = opt;
-                if (opt === value) o.selected = true;
-                sel.appendChild(o);
+    async function fetchEEG() {
+        try {
+            const response = await fetch(`${API_BASE}/api/eeg`);
+            if (!response.ok) {
+                console.error('Failed to fetch EEG data:', response.status);
+                return;
+            }
+            const eegData = await response.json();
+            Object.keys(eegData).forEach(wave => {
+                if (chartData[wave]) {
+                    chartData[wave].push(eegData[wave]);
+                    if (chartData[wave].length > chartCapacity) {
+                        chartData[wave].shift();
+                    }
+                }
             });
-            sel.onchange = async () => {
-                await fetch('/api/toggles', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({key, value: sel.value})
-                });
-            };
-            row.appendChild(sel);
-        } else if (key === 'prediction_horizon') {
-            const inp = document.createElement('input');
-            inp.className = 'toggle-input';
-            inp.type = 'number'; inp.min = 3; inp.max = 30; inp.value = value;
-            inp.style.width = '60px';
-            inp.onchange = async () => {
-                await fetch('/api/toggles', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({key, value: parseInt(inp.value)})
-                });
-            };
-            row.appendChild(inp);
-        } else {
-            const span = document.createElement('span');
-            span.textContent = String(value);
-            row.appendChild(span);
+            // Throttle drawing to prevent performance issues
+            requestAnimationFrame(drawEEG);
+        } catch (error) {
+            console.error('Error fetching EEG data:', error);
         }
-        container.appendChild(row);
-    });
-}
+    }
 
-// ═══════════════════════════════════════════
-// Chat
-// ═══════════════════════════════════════════
-async function sendMessage() {
-    const text = $('chatInput').value.trim();
-    if (!text) return;
-    addChatMsg('user', text);
-    $('chatInput').value = '';
-    try {
-        const r = await fetch('/api/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text})
+    async function postToggle(key, value) {
+        try {
+            await fetch(`${API_BASE}/api/toggles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [key]: value })
+            });
+            // Fetch state again to reflect the change immediately
+            fetchState();
+        } catch (error) {
+            console.error('Error posting toggle:', error);
+        }
+    }
+
+    async function postPriceFilters(minPrice, maxPrice) {
+        try {
+            await fetch(`${API_BASE}/api/price_filters`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ min_price: parseFloat(minPrice), max_price: parseFloat(maxPrice) })
+            });
+            fetchState(); // Refresh state to reflect new filters
+        } catch (error) {
+            console.error('Error posting price filters:', error);
+        }
+    }
+
+    async function postChatMessage(message) {
+        try {
+            const response = await fetch(`${API_BASE}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+            const data = await response.json();
+            appendChatMessage('user', message);
+            appendChatMessage('ai', data.reply);
+        } catch (error) {
+            console.error('Error sending chat message:', error);
+        }
+    }
+
+    function appendChatMessage(sender, text) {
+        const messageEl = document.createElement('div');
+        messageEl.className = `chat-message ${sender}-message`;
+        messageEl.textContent = text;
+        chatMessages.appendChild(messageEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+            if (tabName === activeTab) return;
+
+            tabs.forEach(t => t.classList.remove('active'));
+            pages.forEach(p => p.classList.remove('active'));
+
+            tab.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            activeTab = tabName;
+            updateAllTabs(); // Refresh data when switching tabs
         });
-        const data = await r.json();
-        addChatMsg('ai', data.response || 'Error: No response.');
-    } catch(e) {
-        addChatMsg('ai', 'Connection failed. Is the mesh online?');
-    }
-}
-function addChatMsg(role, text) {
-    const div = document.createElement('div');
-    div.className = 'chat-message ' + role + '-message';
-    div.textContent = role === 'user' ? '[USER]: ' + text : '[GLOBAL_MIND]: ' + text;
-    $('chatMessages').appendChild(div);
-    $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
-}
-$('chatSend').onclick = sendMessage;
-$('chatInput').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+    });
 
-// ═══════════════════════════════════════════
-// Refresh Loop
-// ═══════════════════════════════════════════
-async function refreshAll() {
-    const activeTab = document.querySelector('.nav-tab.active');
-    const tab = activeTab ? activeTab.dataset.tab : 'overview';
-
-    // Always refresh overview metrics (lightweight)
-    refreshOverview();
-
-    // Only refresh the active tab's heavy data
-    switch(tab) {
-        case 'predictions': refreshPredictions(); break;
-        case 'learning': refreshLearning(); break;
-        case 'reasoning': refreshReasoning(); break;
-        case 'crossdomain': refreshCrossDomain(); break;
-        case 'causal': refreshCausal(); break;
-        case 'goals': refreshGoals(); break;
-        case 'providers': refreshProviders(); break;
-        case 'toggles': refreshToggles(); break;
-    }
-}
-
-// Optimize refresh: only refresh active tab and overview
-setInterval(refreshAll, 3000);
-refreshAll();
-
-// Add error recovery: if fetch fails too many times, show warning
-let fetchFailureCount = 0;
-const originalFetch = fetchJSON;
-window.fetchJSON = async function(url) {
-    const result = await originalFetch(url);
-    if (result === null) {
-        fetchFailureCount++;
-        if (fetchFailureCount > 5) {
-            console.error('Multiple fetch failures detected. Backend may be unavailable.');
+    togglesContainer.addEventListener('click', e => {
+        if (e.target.classList.contains('toggle-switch')) {
+            const key = e.target.dataset.key;
+            const newValue = !e.target.classList.contains('on');
+            postToggle(key, newValue);
         }
-    } else {
-        fetchFailureCount = 0;
+    });
+
+    togglesContainer.addEventListener('change', e => {
+        if (e.target.classList.contains('toggle-select')) {
+            const key = e.target.dataset.key;
+            const newValue = e.target.value;
+            postToggle(key, newValue);
+        }
+    });
+
+    chatSend.addEventListener('click', () => {
+        const message = chatInput.value.trim();
+        if (message) {
+            postChatMessage(message);
+            chatInput.value = '';
+        }
+    });
+
+    chatInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            chatSend.click();
+        }
+    });
+
+    applyPriceFilter.addEventListener("click", () => {
+        const minPrice = minPriceInput.value;
+        const maxPrice = maxPriceInput.value;
+        postPriceFilters(minPrice, maxPrice);
+    });
+
+    // ─── INITIALIZATION ──────────────────────────────────────────────────────────
+
+    function updateAllTabs() {
+        updateMetrics();
+        switch (activeTab) {
+            case 'overview':
+                updateSymbolGrid();
+                updateSystemLog();
+                break;
+            case 'predictions':
+                updateSymbolPerformance();
+                updateRecentPredictions();
+                break;
+            case 'learning':
+                updateLearningCharts();
+                updateLearningCurve();
+                break;
+            case 'reasoning':
+                updateRules();
+                break;
+            case 'crossdomain':
+                updateCrossDomain();
+                break;
+            case 'causal':
+                updateCausal();
+                break;
+            case 'goals':
+                updateGoals();
+                break;
+            case 'providers':
+                updateProviders();
+                updateOrchestrator();
+                break;
+            case 'toggles':
+                updateToggles();
+                break;
+        }
     }
-    return result;
-};
+
+    // Initial fetch and setup intervals
+    fetchState();
+    fetchEEG();
+    setInterval(fetchState, 2000); // Main state update every 2s
+    setInterval(fetchEEG, 500);   // EEG update every 500ms
+
+    // Initial drawing of the canvas
+    drawEEG();
+});
 </script>
 </body>
 </html>

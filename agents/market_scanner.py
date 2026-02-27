@@ -82,7 +82,7 @@ class MarketScanner:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def scan(self) -> Dict[str, Set[str]]:
+    async def scan(self, min_price: float = 0.0, max_price: float = float('inf')) -> Dict[str, Set[str]]:
         """
         Scan all sources and return newly discovered symbols.
         Returns: {"crypto": set(...), "stocks": set(...)}
@@ -96,9 +96,9 @@ class MarketScanner:
 
         # ── Crypto Discovery ──
         crypto_tasks = [
-            self._scan_coingecko_top(),
-            self._scan_binance_top(),
-            self._scan_coingecko_trending(),
+            self._scan_coingecko_top(min_price, max_price),
+            self._scan_binance_top(min_price, max_price),
+            self._scan_coingecko_trending(min_price, max_price),
         ]
         crypto_results = await asyncio.gather(*crypto_tasks, return_exceptions=True)
 
@@ -111,8 +111,8 @@ class MarketScanner:
 
         # ── Stock Discovery ──
         stock_tasks = [
-            self._scan_yahoo_trending(),
-            self._scan_yahoo_most_active(),
+            self._scan_yahoo_trending(min_price, max_price),
+            self._scan_yahoo_most_active(min_price, max_price),
         ]
         stock_results = await asyncio.gather(*stock_tasks, return_exceptions=True)
 
@@ -152,7 +152,7 @@ class MarketScanner:
     # Crypto Discovery Sources
     # ──────────────────────────────────────────
 
-    async def _scan_coingecko_top(self) -> Set[str]:
+    async def _scan_coingecko_top(self, min_price: float, max_price: float) -> Set[str]:
         """Discover top crypto by market cap from CoinGecko"""
         symbols = set()
         try:
@@ -169,7 +169,8 @@ class MarketScanner:
                     data = await resp.json()
                     for coin in data:
                         symbol = coin.get("symbol", "").upper()
-                        if symbol and len(symbol) <= 10:
+                        current_price = coin.get("current_price")
+                        if symbol and len(symbol) <= 10 and current_price is not None and min_price <= current_price <= max_price:
                             symbols.add(symbol)
                     logger.info(f"CoinGecko top: discovered {len(symbols)} symbols")
                 else:
@@ -178,7 +179,7 @@ class MarketScanner:
             logger.warning(f"CoinGecko top scan failed: {e}")
         return symbols
 
-    async def _scan_coingecko_trending(self) -> Set[str]:
+    async def _scan_coingecko_trending(self, min_price: float, max_price: float) -> Set[str]: # min_price and max_price are not directly used here as trending API does not provide price
         """Discover trending crypto from CoinGecko"""
         symbols = set()
         try:
@@ -198,7 +199,7 @@ class MarketScanner:
             logger.warning(f"CoinGecko trending scan failed: {e}")
         return symbols
 
-    async def _scan_binance_top(self) -> Set[str]:
+    async def _scan_binance_top(self, min_price: float, max_price: float) -> Set[str]:
         """Discover top trading pairs from Binance"""
         symbols = set()
         try:
@@ -217,7 +218,8 @@ class MarketScanner:
                     )
                     for pair in usdt_pairs[:30]:
                         symbol = pair["symbol"].replace("USDT", "")
-                        if symbol and len(symbol) <= 10:
+                        current_price = float(pair.get("lastPrice", 0))
+                        if symbol and len(symbol) <= 10 and min_price <= current_price <= max_price:
                             symbols.add(symbol)
                     logger.info(f"Binance top: discovered {len(symbols)} symbols")
                 else:
@@ -230,7 +232,7 @@ class MarketScanner:
     # Stock Discovery Sources
     # ──────────────────────────────────────────
 
-    async def _scan_yahoo_trending(self) -> Set[str]:
+    async def _scan_yahoo_trending(self, min_price: float, max_price: float) -> Set[str]:
         """Discover trending stocks from Yahoo Finance"""
         symbols = set()
         try:
@@ -244,7 +246,8 @@ class MarketScanner:
                     for result in results:
                         for quote in result.get("quotes", []):
                             symbol = quote.get("symbol", "").upper()
-                            if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5:
+                            current_price = quote.get("regularMarketPrice")
+                            if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5 and current_price is not None and min_price <= current_price <= max_price:
                                 symbols.add(symbol)
                     logger.info(f"Yahoo trending: discovered {len(symbols)} symbols")
                 else:
@@ -253,7 +256,7 @@ class MarketScanner:
             logger.warning(f"Yahoo trending scan failed: {e}")
         return symbols
 
-    async def _scan_yahoo_most_active(self) -> Set[str]:
+    async def _scan_yahoo_most_active(self, min_price: float, max_price: float) -> Set[str]:
         """Discover most active stocks from Yahoo Finance screener"""
         symbols = set()
         try:
@@ -269,7 +272,8 @@ class MarketScanner:
                     for result in results:
                         for quote in result.get("quotes", []):
                             symbol = quote.get("symbol", "").upper()
-                            if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5:
+                            current_price = quote.get("regularMarketPrice")
+                            if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5 and current_price is not None and min_price <= current_price <= max_price:
                                 symbols.add(symbol)
                     logger.info(f"Yahoo most active: discovered {len(symbols)} symbols")
                 else:
@@ -282,7 +286,7 @@ class MarketScanner:
             symbols = await self._scan_yahoo_gainers_losers()
         return symbols
 
-    async def _scan_yahoo_gainers_losers(self) -> Set[str]:
+    async def _scan_yahoo_gainers_losers(self, min_price: float, max_price: float) -> Set[str]:
         """Fallback: discover gainers and losers from Yahoo Finance"""
         symbols = set()
         try:
@@ -297,7 +301,8 @@ class MarketScanner:
                         for result in results:
                             for quote in result.get("quotes", []):
                                 symbol = quote.get("symbol", "").upper()
-                                if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5:
+                                current_price = quote.get("regularMarketPrice")
+                                if symbol and "." not in symbol and "=" not in symbol and len(symbol) <= 5 and current_price is not None and min_price <= current_price <= max_price:
                                     symbols.add(symbol)
                 await asyncio.sleep(0.5)  # Rate limit
             if symbols:
