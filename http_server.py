@@ -558,7 +558,7 @@ async def start_http_server(core=None, data_provider=None):
 
     # ── NEW: Toggle Endpoints ──
     app.router.add_get('/api/toggles', handle_get_toggles)
-       app.router.add_post("/api/toggles", handle_toggles)
+    app.router.add_post("/api/toggles", handle_toggles)
     app.router.add_post("/api/price_filters", handle_price_filters)
 
     port = Config.PORT
