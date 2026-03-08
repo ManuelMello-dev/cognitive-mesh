@@ -813,7 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetch(`${API_BASE}/api/toggles`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [key]: value })
+                body: JSON.stringify({ key: key, value: value })
             });
             // Fetch state again to reflect the change immediately
             fetchState();
@@ -844,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             appendChatMessage('user', message);
-            appendChatMessage('ai', data.reply);
+            appendChatMessage('ai', data.response || data.reply);
         } catch (error) {
             console.error('Error sending chat message:', error);
         }

@@ -355,7 +355,7 @@ async def handle_price_filters(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
-async def handle_providers(request):
+async def handle_analogies(request):
     """Get recent analogies discovered between concepts"""
     try:
         core = request.app.get('core')
@@ -558,7 +558,7 @@ async def start_http_server(core=None, data_provider=None):
 
     # ── NEW: Toggle Endpoints ──
     app.router.add_get('/api/toggles', handle_get_toggles)
-    app.router.add_post("/api/toggles", handle_toggles)
+    app.router.add_post("/api/toggles", handle_set_toggle)
     app.router.add_post("/api/price_filters", handle_price_filters)
 
     port = Config.PORT
