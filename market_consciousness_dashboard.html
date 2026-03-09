@@ -585,13 +585,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateMetrics() {
         if (!state.metrics) return;
-        mPhi.textContent = state.metrics.phi.toFixed(4);
-        mSigma.textContent = state.metrics.sigma.toFixed(4);
-        mRho.textContent = state.metrics.rho.toFixed(4);
-        mAccuracy.textContent = `${(state.metrics.accuracy * 100).toFixed(1)}%`;
+        
+        // Map backend fields to UI elements
+        const phi = state.metrics.global_coherence_phi || 0;
+        const sigma = state.metrics.noise_level_sigma || 0;
+        const rho = state.metrics.attention_density || 0;
+        const accuracy = state.metrics.prediction_accuracy || 0;
 
-        consciousnessState.textContent = state.metrics.consciousness_state;
-        consciousnessState.className = 'consciousness-state ' + state.metrics.consciousness_state.toLowerCase();
+        mPhi.textContent = phi.toFixed(4);
+        mSigma.textContent = sigma.toFixed(4);
+        mRho.textContent = rho.toFixed(4);
+        mAccuracy.textContent = `${(accuracy * 100).toFixed(1)}%`;
+
+        // Determine consciousness state based on Phi/Sigma
+        let cState = "Syncing Market Data...";
+        if (state.metrics.total_observations > 5) {
+            if (phi > 0.7) cState = "ORDERED";
+            else if (phi > 0.4) cState = "CRITICAL";
+            else cState = "CHAOS";
+        }
+
+        consciousnessState.textContent = cState;
+        consciousnessState.className = 'consciousness-state ' + cState.toLowerCase().replace(/ /g, '-');
     }
 
     function updateSymbolGrid() {
