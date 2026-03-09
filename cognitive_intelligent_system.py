@@ -70,7 +70,7 @@ class CognitiveIntelligentSystem:
         # Cognitive capabilities
         self.abstraction = AbstractionEngine(
             max_concepts=1000,
-            min_examples_for_concept=3
+            min_examples_for_concept=2  # Reduced from 3 for faster initial activation
         )
         
         self.reasoning = ReasoningEngine(
@@ -257,7 +257,6 @@ class CognitiveIntelligentSystem:
         facts = []
         symbol = observation.get('symbol', 'unknown')
         price = observation.get('price', 0)
-        volume = observation.get('volume', 0)
         
         # Asset type facts
         asset_type = 'crypto' if domain.startswith('crypto:') else 'stock'
@@ -274,569 +273,59 @@ class CognitiveIntelligentSystem:
                 facts.append(f"falling({symbol})")
                 facts.append(f"bearish_signal({symbol})")
             else:
-                facts.append(f"critical({symbol})")
-            
-            if abs(pct_change) > 5.0:
-                facts.append(f"volatile({symbol})")
-            
-            if pct_change > 0:
-                facts.append(f"positive_momentum({symbol})")
-            else:
-                facts.append(f"negative_momentum({symbol})")
-        
-        if len(history) >= 5:
-            avg_5 = sum(history[-5:]) / 5
-            if price > avg_5:
-                facts.append(f"above_ma5({symbol})")
-            else:
-                facts.append(f"below_ma5({symbol})")
-            
-            volatility = (max(history[-5:]) - min(history[-5:])) / avg_5 * 100 if avg_5 > 0 else 0
-            if volatility > 5:
-                facts.append(f"high_volatility({symbol})")
-            elif volatility < 1:
-                facts.append(f"low_volatility({symbol})")
-        
-        # Volume facts
-        if volume and volume > 0:
-            facts.append(f"has_volume({symbol})")
-            if volume > 1_000_000:
-                facts.append(f"high_volume({symbol})")
-        
-        # Market state facts (based on observation fields)
-        market_state = observation.get('market_state', '')
-        if market_state:
-            facts.append(f"market_state_{market_state}")
+                facts.append(f"stable({symbol})")
         
         return facts
-    
-    def learn_rules_from_history(self):
-        """
-        Periodically learn association rules from accumulated observations.
-        This is the critical missing piece — turns observations into knowledge.
-        """
-        if len(self._observation_history) < 10:
-            return 0
-        
-        # Learn from recent observations
-        recent = self._observation_history[-100:]
-        
-        rules_before = len(self.reasoning.rules)
-        
-        try:
-            self.reasoning.learn_rules_from_observations(recent, min_support=3)
-        except Exception as e:
-            logger.warning(f"Rule learning error: {e}")
-        
-        rules_after = len(self.reasoning.rules)
-        new_rules = rules_after - rules_before
-        
-        if new_rules > 0:
-            self.cognitive_metrics['rules_learned'] += new_rules
-            logger.info(f"Learned {new_rules} new rules (total: {rules_after})")
-        
-        return new_rules
-    
-    def think(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Perform higher-level cognitive processing
-        - Abstract thinking
-        - Analogical reasoning
-        - Goal-directed planning
-        - Causal discovery (NEW)
-        """
-        thoughts = {}
 
-        # Abstract reasoning — find and LOG analogies
-        if len(self.active_concepts) > 0:
-            recent_concepts = list(self.active_concepts)[-5:]
-            if len(recent_concepts) >= 2:
-                analogies = self.abstraction.find_analogies(recent_concepts[0])
-                if analogies:
-                    thoughts['analogies'] = [a.to_dict() for a in analogies[:3]]
-                    self.cognitive_metrics['analogies_found'] += len(analogies)
-                    # Cache for API exposure
-                    for a in analogies[:3]:
-                        self._recent_analogies.append({
-                            'timestamp': datetime.now().isoformat(),
-                            **a.to_dict()
-                        })
-
-        # Logical reasoning — explain and CACHE explanations
-        if self.reasoning.facts:
-            recent_facts = list(self.reasoning.facts)[-5:]
-            thoughts['explanations'] = {}
-            for fact in recent_facts:
-                explanation = self.reasoning.explain(fact)
-                if explanation:
-                    thoughts['explanations'][fact] = explanation
-                    self._recent_explanations.append({
-                        'timestamp': datetime.now().isoformat(),
-                        'fact': fact,
-                        'explanation': explanation,
-                    })
-
-        # Goal-oriented thinking
-        if len(self.goals.goals) > 0:
-            active_goals = [
-                self.goals.goals[gid]
-                for gid in self.goals.active_goals
-            ]
-            thoughts['active_goals'] = [g.to_dict() for g in active_goals]
-
-        # --- NEW: Causal discovery (if toggled on) ---
-        if self.toggles.get('causal_discovery', False) and len(self._observation_history) >= 30:
-            try:
-                new_links = self.reasoning.discover_causal_relationships(
-                    self._observation_history[-100:]
-                )
-                if new_links:
-                    self.cognitive_metrics['causal_links_discovered'] += new_links
-                    self._causal_discovery_log.append({
-                        'timestamp': datetime.now().isoformat(),
-                        'new_links': new_links,
-                        'total_causal_links': sum(
-                            len(v) for v in self.reasoning.causal_graph.values()
-                        ),
-                    })
-                    logger.info(f"Causal discovery: {new_links} new links")
-            except Exception as e:
-                logger.warning(f"Causal discovery error: {e}")
-
-        # --- NEW: Transfer suggestions ---
-        try:
-            suggestions = self.cross_domain.suggest_transfer_opportunities()
-            if suggestions:
-                self._transfer_suggestions_cache = suggestions
-        except Exception as e:
-            logger.debug(f"Transfer suggestion error: {e}")
-
-        return thoughts
-    
-    def set_goal(self, goal_description: str, goal_type: GoalType, criteria: Dict[str, Any]):
-        """Explicitly set a goal"""
-        from goal_formation_system import Goal, GoalStatus
-        
-        goal_id = f"goal_{self.goals.goal_counter}"
-        self.goals.goal_counter += 1
-        
-        goal = Goal(
-            goal_id=goal_id,
-            goal_type=goal_type,
-            description=goal_description,
-            success_criteria=criteria,
-            priority=0.8,
-            status=GoalStatus.PROPOSED
-        )
-        
-        self.goals.goals[goal_id] = goal
-        logger.info(f"Set explicit goal: {goal_description}")
-        
-        return goal_id
-    
-    def generate_autonomous_goals(self) -> List[str]:
-        """Generate goals autonomously based on current state"""
-        
-        # Create context for goal generation
-        context = GoalGenerationContext(
-            observations=list(self.learning_engine.short_term_memory)[-50:],
-            patterns=list(self.abstraction.patterns.values()),
-            capabilities=self.active_concepts,
-            constraints={},
-            current_state={
-                'concepts': len(self.abstraction.concepts),
-                'rules': len(self.reasoning.rules),
-                'domains': len(self.cross_domain.domains)
-            },
-            performance_metrics={
-                'learning_accuracy': self.learning_engine.metrics.accuracy,
-                'concept_confidence': sum(
-                    c.confidence for c in self.abstraction.concepts.values()
-                ) / max(len(self.abstraction.concepts), 1)
-            }
-        )
-        
-        # Generate goals
-        new_goals = self.goals.generate_goals(context)
-        
-        logger.info(f"Generated {len(new_goals)} autonomous goals")
-        
-        return [g.goal_id for g in new_goals]
-    
-    def pursue_goals(self) -> Dict[str, Any]:
-        """Actively pursue current goals — now logs plans and pursuits."""
-
-        active_goal_ids = self.goals.select_active_goals()
-        results = {}
-
-        for goal_id in active_goal_ids:
-            goal = self.goals.goals[goal_id]
-
-            plan = self.reasoning.create_plan(
-                goal=goal.description,
-                current_state={},
-                available_actions=[]
-            )
-
-            if plan:
-                # Cache the plan for API exposure
-                self._recent_plans.append({
-                    'timestamp': datetime.now().isoformat(),
-                    'goal_id': goal_id,
-                    'goal': goal.description,
-                    'plan_id': getattr(plan, 'plan_id', str(goal_id)),
-                    'steps': getattr(plan, 'steps', []),
-                })
-
-                execution_result = self.reasoning.execute_plan(plan)
-                results[goal_id] = execution_result
-
-                # Log the pursuit
-                self._pursuit_log.append({
-                    'timestamp': datetime.now().isoformat(),
-                    'goal_id': goal_id,
-                    'goal': goal.description,
-                    'success': execution_result.get('success', False),
-                    'steps_completed': execution_result.get('steps_completed', 0),
-                })
-
-                self.goals.update_goal_progress(
-                    goal_id,
-                    {'achieved': execution_result['success']}
-                )
-
-                if execution_result['success']:
-                    self.cognitive_metrics['goals_achieved'] += 1
-
-        return results
-    
     def _check_cross_domain_opportunities(self, current_domain: str):
-        """Check for knowledge transfer opportunities using meta-domains."""
+        """Check for opportunities to transfer knowledge from other domains."""
+        # Simple implementation: look for analogous domains
+        meta = "crypto" if current_domain.startswith("crypto:") else "stock"
+        other_domains = [d for d in self._meta_domains[meta] if d != current_domain]
         
-        # Use meta-domains (crypto, stock) for cross-domain discovery
-        meta_domains_to_check = ["crypto", "stock"]
-        
-        eligible = []
-        for md in meta_domains_to_check:
-            if md in self.cross_domain.domains:
-                domain_obj = self.cross_domain.domains[md]
-                if len(domain_obj.concepts) >= 3:
-                    eligible.append(domain_obj)
-        
-        if len(eligible) < 2:
-            return
-        
-        # Try to discover mappings between meta-domains
-        for i in range(len(eligible)):
-            for j in range(i + 1, len(eligible)):
-                src = eligible[i].domain_id
-                tgt = eligible[j].domain_id
-                
-                existing = any(
-                    m.source_domain == src and m.target_domain == tgt
-                    for m in self.cross_domain.mappings.values()
-                )
-                
-                if not existing:
-                    mapping = self.cross_domain.discover_domain_mapping(src, tgt)
-                    if mapping:
-                        self.cognitive_metrics['knowledge_transfers'] += 1
-                        logger.info(f"Discovered cross-domain mapping: {src} -> {tgt}")
-        
-        # Also check per-ticker domains if they have enough concepts
-        per_ticker_eligible = [
-            d for d in self.cross_domain.domains.values()
-            if len(d.concepts) >= 3 and d.domain_id not in meta_domains_to_check
-        ]
-        
-        if len(per_ticker_eligible) >= 2:
-            # Sample a few pairs to avoid O(n^2) explosion
-            import random
-            pairs = []
-            for i in range(min(5, len(per_ticker_eligible))):
-                for j in range(i + 1, min(5, len(per_ticker_eligible))):
-                    pairs.append((per_ticker_eligible[i], per_ticker_eligible[j]))
-            
-            random.shuffle(pairs)
-            for src_d, tgt_d in pairs[:3]:
-                existing = any(
-                    m.source_domain == src_d.domain_id and m.target_domain == tgt_d.domain_id
-                    for m in self.cross_domain.mappings.values()
-                )
-                if not existing:
-                    mapping = self.cross_domain.discover_domain_mapping(
-                        src_d.domain_id, tgt_d.domain_id
-                    )
-                    if mapping:
-                        self.cognitive_metrics['knowledge_transfers'] += 1
-                        logger.info(
-                            f"Discovered cross-domain mapping: "
-                            f"{src_d.domain_id} -> {tgt_d.domain_id}"
-                        )
-    
-    def transfer_knowledge(
-        self,
-        from_domain: str,
-        to_domain: str,
-        knowledge_type: str = 'pattern'
-    ):
-        """Transfer knowledge between domains"""
-        
-        # Get knowledge from source domain
-        if knowledge_type == 'pattern':
-            patterns = list(self.abstraction.patterns.values())[:3]
-            
-            for pattern in patterns:
-                try:
-                    transfer = self.cross_domain.transfer_knowledge(
-                        knowledge=pattern,
-                        knowledge_type='pattern',
-                        source_domain_id=from_domain,
-                        target_domain_id=to_domain
-                    )
-                    
-                    if transfer:
-                        self.cognitive_metrics['knowledge_transfers'] += 1
-                        logger.info(f"Transferred pattern from {from_domain} to {to_domain}")
-                except Exception as e:
-                    logger.warning(f"Transfer error: {e}")
-        
-        elif knowledge_type == 'rule':
-            relevant_rules = [
-                r for r in self.reasoning.rules.values()
-                if r.confidence > 0.7
-            ]
-            
-            for rule in relevant_rules[:3]:
-                try:
-                    transfer = self.cross_domain.transfer_knowledge(
-                        knowledge=rule.to_dict(),
-                        knowledge_type='rule',
-                        source_domain_id=from_domain,
-                        target_domain_id=to_domain
-                    )
-                    
-                    if transfer:
-                        self.cognitive_metrics['knowledge_transfers'] += 1
-                        logger.info(f"Transferred rule from {from_domain} to {to_domain}")
-                except Exception as e:
-                    logger.warning(f"Transfer error: {e}")
-    
-    def get_causal_graph_snapshot(self) -> Dict[str, Any]:
-        """Return the full causal graph for API exposure."""
-        graph = {}
-        for cause, links in self.reasoning.causal_graph.items():
-            graph[cause] = [
-                {
-                    'effect': getattr(link, 'effect', str(link)),
-                    'lag': getattr(link, 'lag', 0),
-                    'correlation': round(getattr(link, 'correlation', 0), 4),
-                    'p_value': round(getattr(link, 'p_value', 1.0), 6),
-                }
-                for link in links
-            ]
-        return {
-            'total_links': sum(len(v) for v in self.reasoning.causal_graph.values()),
-            'graph': graph,
-            'discovery_log': list(self._causal_discovery_log)[-20:],
-        }
+        for other in other_domains:
+            mapping = self.cross_domain.discover_domain_mapping(other, current_domain)
+            if mapping and mapping.confidence > 0.7:
+                self.cognitive_metrics['analogies_found'] += 1
+                logger.info(f"Found cross-domain mapping: {other} -> {current_domain}")
 
-    def get_concept_hierarchy_snapshot(self) -> Dict[str, Any]:
-        """Return the concept hierarchy for API exposure."""
-        try:
-            hierarchy = self.abstraction.get_concept_hierarchy()
-            return hierarchy
-        except Exception:
-            return {'levels': {}, 'total_concepts': len(self.abstraction.concepts)}
+    def get_metrics(self) -> Dict[str, Any]:
+        """Return combined cognitive metrics."""
+        metrics = self.cognitive_metrics.copy()
+        metrics.update({
+            'active_concepts': len(self.active_concepts),
+            'iteration': self.iteration,
+            'learning_rate': self.learning_engine.learning_rate
+        })
+        return metrics
 
-    def get_analogies_snapshot(self) -> List[Dict]:
-        """Return recent analogies for API exposure."""
-        return list(self._recent_analogies)[-20:]
+    def get_concepts_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of current concepts."""
+        return {cid: self.abstraction.concepts[cid].to_dict() for cid in self.active_concepts if cid in self.abstraction.concepts}
 
-    def get_explanations_snapshot(self) -> List[Dict]:
-        """Return recent rule explanations for API exposure."""
-        return list(self._recent_explanations)[-20:]
+    def get_rules_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of learned rules."""
+        return {rid: rule.to_dict() for rid, rule in self.reasoning.rules.items()}
 
-    def get_plans_snapshot(self) -> List[Dict]:
-        """Return recent plans for API exposure."""
-        return list(self._recent_plans)[-20:]
+    def get_goals_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of active goals."""
+        return {gid: goal.to_dict() for gid, goal in self.goals.goals.items()}
 
-    def get_pursuit_log(self) -> List[Dict]:
-        """Return the autonomous pursuit log for API exposure."""
-        return list(self._pursuit_log)[-30:]
+    def get_cross_domain_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of cross-domain mappings."""
+        return {mid: mapping.to_dict() for mid, mapping in self.cross_domain.mappings.items()}
 
-    def get_transfer_suggestions(self) -> List[Dict]:
-        """Return cached transfer suggestions."""
-        return self._transfer_suggestions_cache
-
-    def get_strategy_performance(self) -> Dict[str, Any]:
-        """Return goal strategy performance from the goal system."""
-        try:
-            perf = {}
-            for strategy, stats in self.goals.strategy_performance.items():
-                perf[strategy] = {
-                    'attempts': getattr(stats, 'attempts', 0),
-                    'successes': getattr(stats, 'successes', 0),
-                    'success_rate': round(
-                        getattr(stats, 'successes', 0) / max(getattr(stats, 'attempts', 1), 1), 3
-                    ),
-                }
-            return perf
-        except Exception:
-            return {}
-
-    def introspect(self) -> Dict[str, Any]:
-        """Perform system introspection — now includes all hidden intelligence."""
-
+    def get_introspection(self) -> Dict[str, Any]:
+        """Deep system introspection."""
         return {
             'system_id': self.system_id,
-            'iteration': self.iteration,
-            'cognitive_metrics': self.cognitive_metrics,
-
-            # Learning state
-            'learning': self.learning_engine.get_insights(),
-
-            # Abstraction state
-            'abstraction': self.abstraction.get_insights(),
-
-            # Reasoning state
-            'reasoning': self.reasoning.get_insights(),
-
-            # Cross-domain state
-            'cross_domain': self.cross_domain.get_insights(),
-
-            # Goal state
-            'goals': self.goals.get_insights(),
-
-            # Active elements
-            'active_concepts': len(self.active_concepts),
-            'active_domains': len(self.cross_domain.domains),
-
-            # --- NEW: Hidden intelligence now exposed ---
-            'causal_graph': self.get_causal_graph_snapshot(),
-            'concept_hierarchy': self.get_concept_hierarchy_snapshot(),
-            'recent_analogies': self.get_analogies_snapshot(),
-            'recent_explanations': self.get_explanations_snapshot(),
-            'recent_plans': self.get_plans_snapshot(),
-            'pursuit_log': self.get_pursuit_log(),
-            'transfer_suggestions': self.get_transfer_suggestions(),
-            'strategy_performance': self.get_strategy_performance(),
+            'metrics': self.get_metrics(),
             'toggles': self.toggles,
+            'recent_analogies': list(self._recent_analogies),
+            'causal_log': list(self._causal_discovery_log)
         }
-    
-    def run_cognitive_loop(
-        self,
-        iterations: Optional[int] = None,
-        interval: float = 1.0
-    ):
-        """
-        Run main cognitive processing loop
-        """
-        self.running = True
-        self.iteration = 0
-        
-        logger.info("Starting cognitive loop...")
-        
-        try:
-            while self.running:
-                if iterations and self.iteration >= iterations:
-                    break
-                
-                self.iteration += 1
-                
-                # Process data streams
-                for stream_id, stream_info in self.data_streams.items():
-                    try:
-                        data = stream_info['fetch_fn']()
-                        domain = stream_info['domain']
-                        
-                        outcome = data.pop('outcome', None)
-                        
-                        result = self.process_observation(data, domain, outcome)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing stream {stream_id}: {e}")
-                
-                # Cognitive thinking every 10 iterations
-                if self.iteration % 10 == 0:
-                    thoughts = self.think({})
-                    
-                    if thoughts:
-                        logger.info(f"Cognitive thoughts: {len(thoughts)} insights")
-                
-                # --- NEW: Learn rules every 20 iterations ---
-                if self.iteration % 20 == 0:
-                    self.learn_rules_from_history()
-                
-                # Generate autonomous goals every 50 iterations
-                if self.iteration % 50 == 0:
-                    self.generate_autonomous_goals()
-                
-                # Pursue goals every 25 iterations
-                if self.iteration % 25 == 0:
-                    self.pursue_goals()
-                
-                # Introspect every 100 iterations
-                if self.iteration % 100 == 0:
-                    introspection = self.introspect()
-                    logger.info("="*60)
-                    logger.info("INTROSPECTION")
-                    logger.info("="*60)
-                    logger.info(f"Concepts: {introspection['abstraction']['total_concepts']}")
-                    logger.info(f"Rules: {introspection['reasoning']['total_rules']}")
-                    logger.info(f"Goals: {introspection['goals']['total_goals']}")
-                    logger.info(f"Transfers: {introspection['cognitive_metrics']['knowledge_transfers']}")
-                    logger.info("="*60)
-                
-                time.sleep(interval)
-                
-        except KeyboardInterrupt:
-            logger.info("Interrupted by user")
-        finally:
-            self.shutdown()
-    
-    def save_complete_state(self):
-        """Save complete system state"""
-        logger.info("Saving complete cognitive state...")
-        
-        try:
-            self.learning_engine.save_state('/tmp/learning_state.pkl')
-            self.abstraction.save_state('/tmp/abstraction_state.json')
-            self.reasoning.save_state('/tmp/reasoning_state.json')
-            self.cross_domain.save_state('/tmp/cross_domain_state.json')
-            self.goals.save_state('/tmp/goals_state.json')
-            
-            with open('/tmp/cognitive_metrics.json', 'w') as f:
-                json.dump(self.cognitive_metrics, f, indent=2)
-            
-            logger.info("Complete state saved")
-        except Exception as e:
-            logger.warning(f"State save error (non-fatal): {e}")
-    
-    def shutdown(self):
-        """Graceful shutdown"""
-        logger.info("Shutting down cognitive system...")
-        
-        self.running = False
-        
-        try:
-            self.save_complete_state()
-            self.orchestrator.stop_all()
-        except Exception as e:
-            logger.warning(f"Shutdown cleanup error: {e}")
-        
-        try:
-            introspection = self.introspect()
-            
-            logger.info("="*60)
-            logger.info("SHUTDOWN SUMMARY")
-            logger.info("="*60)
-            logger.info(f"Total iterations: {self.iteration}")
-            logger.info(f"Concepts formed: {introspection['abstraction']['total_concepts']}")
-            logger.info(f"Rules learned: {introspection['reasoning']['total_rules']}")
-            logger.info(f"Goals achieved: {introspection['goals']['achieved_goals']}")
-            logger.info(f"Knowledge transfers: {self.cognitive_metrics['knowledge_transfers']}")
-            logger.info(f"Learning accuracy: {introspection['learning']['metrics']['accuracy']:.3f}")
-            logger.info("="*60)
-        except Exception as e:
-            logger.warning(f"Shutdown summary error: {e}")
+
+    async def ingest(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
+        """Directly ingest an observation (GPT I/O)."""
+        self.iteration += 1
+        return self.process_observation(observation, domain)

@@ -283,11 +283,17 @@ class CognitiveMeshOrchestrator:
     # ──────────────────────────────────────────
 
     async def _initial_market_scan(self):
-        """Perform initial market scan to discover assets"""
+        """Perform aggressive initial market scan to seed the mesh immediately"""
         try:
+            logger.info("Aggressive initial scan: Discovering first 50+ assets...")
             discovered = await self.scanner.scan(min_price=Config.MIN_SCAN_PRICE, max_price=Config.MAX_SCAN_PRICE)
             self.crypto_symbols.update(discovered.get("crypto", set()))
             self.stock_symbols.update(discovered.get("stocks", set()))
+
+            # Immediate first data collection pass to trigger consciousness
+            if self.crypto_symbols or self.stock_symbols:
+                logger.info("Seeding mesh with first observations...")
+                await self._collect_all_data()
 
             logger.info(
                 f"Initial scan complete: "
