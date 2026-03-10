@@ -85,9 +85,10 @@ class ContinuousLearningEngine:
         self.feature_index: Dict[str, int] = {}
 
         # Memory
-        self.short_term_memory: deque = deque(maxlen=memory_size)
+        self.short_term_memory: deque = deque(maxlen=min(memory_size, 500)) # Cap memory size
         self.long_term_patterns: Dict[str, Pattern] = {}
         self.pattern_counter = 0
+        self.max_patterns = 100 # Cap long term patterns
 
         # Metrics
         self.metrics = LearningMetrics()
@@ -237,6 +238,13 @@ class ContinuousLearningEngine:
                     hit_count=1
                 )
 
+                # Prune if too many patterns
+                if len(self.long_term_patterns) >= self.max_patterns:
+                    # Remove oldest pattern
+                    oldest_id = min(self.long_term_patterns.keys(), 
+                                  key=lambda k: self.long_term_patterns[k].created_at)
+                    del self.long_term_patterns[oldest_id]
+
                 self.long_term_patterns[pattern_id] = pattern
                 self.metrics.patterns_discovered += 1
                 logger.debug(f"Discovered new pattern: {pattern_id}")
@@ -245,10 +253,11 @@ class ContinuousLearningEngine:
         return None
 
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
-        """Compute cosine similarity between two vectors"""
+        """Compute cosine similarity between two vectors with epsilon guard"""
         norm_a = np.linalg.norm(a)
         norm_b = np.linalg.norm(b)
-        if norm_a == 0 or norm_b == 0:
+        # Epsilon guard for division by zero
+        if norm_a < 1e-9 or norm_b < 1e-9:
             return 0.0
         return float(np.dot(a, b) / (norm_a * norm_b))
 
@@ -271,7 +280,8 @@ class ContinuousLearningEngine:
         for key, recent_mean in recent_means.items():
             if key in self.feature_means:
                 global_mean = self.feature_means[key]
-                global_std = max(np.sqrt(self.feature_vars[key]), 1e-6)
+                # Epsilon guard for standard deviation
+                global_std = max(np.sqrt(max(self.feature_vars[key], 0)), 1e-8)
                 z = abs(recent_mean - global_mean) / global_std
                 if z > 2.0:
                     drift_details.append({

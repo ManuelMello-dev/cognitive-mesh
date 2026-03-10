@@ -84,6 +84,7 @@ class AbstractionEngine:
         
         # Observation buffer for concept formation
         self.observation_buffer: List[Dict[str, Any]] = []
+        self.max_buffer_size = 200 # Cap memory leak
         
         logger.info("Abstraction Engine initialized")
 
@@ -108,6 +109,9 @@ class AbstractionEngine:
         Returns concept_id if observation matches or creates a concept
         """
         self.observation_buffer.append(observation)
+        # Prune buffer to prevent memory leak
+        if len(self.observation_buffer) > self.max_buffer_size:
+            self.observation_buffer = self.observation_buffer[-self.max_buffer_size:]
         
         # Try to match existing concept
         matched_concept = self._match_concept(observation)
@@ -149,7 +153,10 @@ class AbstractionEngine:
     def _form_concept(self) -> Optional[str]:
         """Form new concept from observation buffer"""
         if len(self.concepts) >= self.max_concepts:
-            return None
+            # Prune oldest concept
+            oldest_id = min(self.concepts.keys(), 
+                          key=lambda k: self.concepts[k].created_at)
+            del self.concepts[oldest_id]
         
         # Extract common attributes
         attributes = self._extract_common_attributes(self.observation_buffer[-5:])
@@ -242,12 +249,10 @@ class AbstractionEngine:
             if attr_def['type'] == 'numerical':
                 # Check if within range
                 mean = attr_def['mean']
-                std = attr_def['std']
-                if std > 0:
-                    z_score = abs((value - mean) / std)
-                    scores.append(max(0, 1 - z_score / 3))  # 3-sigma rule
-                else:
-                    scores.append(1.0 if value == mean else 0.0)
+                # Epsilon guard for division by zero
+                std = max(attr_def.get('std', 0), 1e-8)
+                z_score = abs((value - mean) / std)
+                scores.append(max(0, 1 - z_score / 3))  # 3-sigma rule
             
             elif attr_def['type'] == 'boolean':
                 scores.append(1.0 if value == attr_def['majority'] else 0.0)
