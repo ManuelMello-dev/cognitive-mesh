@@ -329,3 +329,34 @@ class CognitiveIntelligentSystem:
         """Directly ingest an observation (GPT I/O)."""
         self.iteration += 1
         return self.process_observation(observation, domain)
+
+    def get_causal_graph_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of discovered causal links."""
+        return {
+            'causal_links': list(self._causal_discovery_log),
+            'discovered_count': self.cognitive_metrics['causal_links_discovered']
+        }
+
+    def get_concept_hierarchy_snapshot(self) -> Dict[str, Any]:
+        """Return snapshot of the concept hierarchy."""
+        return self.abstraction.get_concept_hierarchy()
+
+    def get_analogies_snapshot(self) -> list:
+        """Return snapshot of recent analogies."""
+        return list(self._recent_analogies)
+
+    def get_explanations_snapshot(self) -> list:
+        """Return snapshot of recent rule explanations."""
+        return list(self._recent_explanations)
+
+    def get_plans_snapshot(self) -> list:
+        """Return snapshot of recent plans."""
+        return list(self._recent_plans)
+
+    def get_pursuit_log(self) -> list:
+        """Return snapshot of the autonomous pursuit log."""
+        return list(self._pursuit_log)
+
+    def get_transfer_suggestions_snapshot(self) -> list:
+        """Return snapshot of knowledge transfer suggestions."""
+        return self._transfer_suggestions_cache
