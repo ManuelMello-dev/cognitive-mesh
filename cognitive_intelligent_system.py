@@ -322,7 +322,16 @@ class CognitiveIntelligentSystem:
             'metrics': self.get_metrics(),
             'toggles': self.toggles,
             'recent_analogies': list(self._recent_analogies),
-            'causal_log': list(self._causal_discovery_log)
+            'causal_log': list(self._causal_discovery_log),
+            'explanations': list(self._recent_explanations),
+            'plans': list(self._recent_plans),
+            'pursuits': list(self._pursuit_log),
+            'transfer_suggestions': self._transfer_suggestions_cache,
+            'causal_graph': self.get_causal_graph_snapshot(),
+            'concept_hierarchy': self.get_concept_hierarchy_snapshot(),
+            'feature_importances': self.get_feature_importances(),
+            'drift_events': self.get_drift_events(),
+            'strategy_performance': self.get_strategy_performance()
         }
 
     async def ingest(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
@@ -360,3 +369,15 @@ class CognitiveIntelligentSystem:
     def get_transfer_suggestions_snapshot(self) -> list:
         """Return snapshot of knowledge transfer suggestions."""
         return self._transfer_suggestions_cache
+
+    def get_strategy_performance(self) -> Dict[str, Any]:
+        """Return goal strategy performance."""
+        return self.goals.get_insights().get('strategy_performance', {})
+
+    def get_feature_importances(self) -> Dict[str, float]:
+        """Return learned feature importances."""
+        return self.learning_engine.get_insights().get('feature_importances', {})
+
+    def get_drift_events(self) -> list:
+        """Return distribution drift events."""
+        return self.learning_engine.get_insights().get('drift_events', [])

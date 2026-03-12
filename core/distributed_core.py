@@ -451,6 +451,22 @@ class DistributedCognitiveCore:
         with self._lock:
             return self.cognitive_system.get_pursuit_log()
 
+    def get_strategy_performance(self) -> Dict[str, Any]:
+        with self._lock:
+            return self.cognitive_system.get_strategy_performance()
+
+    def get_feature_importances(self) -> Dict[str, float]:
+        with self._lock:
+            return self.cognitive_system.get_feature_importances()
+
+    def get_drift_events(self) -> list:
+        with self._lock:
+            return self.cognitive_system.get_drift_events()
+
+    def get_orchestrator_status(self) -> Dict[str, Any]:
+        with self._lock:
+            return self.cognitive_system.orchestrator.get_status()
+
     def get_transfer_suggestions(self) -> list:
         with self._lock:
             return self.cognitive_system.get_transfer_suggestions_snapshot()
