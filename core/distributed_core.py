@@ -103,7 +103,7 @@ class DistributedCognitiveCore:
                             symbol = obs.get('symbol')
                             price = obs.get('price')
                             if symbol and price:
-                                self.prediction_engine.observe(symbol, price, obs)
+                                self.prediction_engine.record_observation(obs, domain)
                         except Exception as e:
                             self._errors += 1
                             logger.error(f"Error processing observation: {e}")
