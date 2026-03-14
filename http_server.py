@@ -135,11 +135,12 @@ async def handle_state(request):
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
 
+        # Snapshots are already thread-safe due to internal locking in core
         state = {
             "metrics": core.get_metrics(),
             "concepts": core.get_concepts_snapshot(),
-            "rules": {k: v for k, v in core.get_rules_snapshot().items()},
-            "goals": {k: v for k, v in core.get_goals_snapshot().items()},
+            "rules": core.get_rules_snapshot(),
+            "goals": core.get_goals_snapshot(),
             "cross_domain": core.get_cross_domain_snapshot(),
             "node_id": core.node_id,
         }

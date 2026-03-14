@@ -333,11 +333,14 @@ class DistributedCognitiveCore:
         with self._lock:
             concepts = {}
             concept_domain_map = {}
-            for domain_id, domain in self.cognitive_system.cross_domain.domains.items():
+            # Use list() to avoid iteration errors
+            domain_items = list(self.cognitive_system.cross_domain.domains.items())
+            for domain_id, domain in domain_items:
                 for concept_id in getattr(domain, 'concepts', []):
                     concept_domain_map[concept_id] = domain_id
 
-            for cid, concept in self.cognitive_system.abstraction.concepts.items():
+            concept_items = list(self.cognitive_system.abstraction.concepts.items())
+            for cid, concept in concept_items:
                 examples = getattr(concept, 'examples', [])
                 recent_examples = [ex for ex in examples[-5:]]
                 
@@ -375,7 +378,9 @@ class DistributedCognitiveCore:
     def get_rules_snapshot(self) -> Dict[str, Any]:
         with self._lock:
             rules = {}
-            for rid, rule in self.cognitive_system.reasoning.rules.items():
+            # Create a static list of items to avoid "dictionary changed size during iteration"
+            items = list(self.cognitive_system.reasoning.rules.items())
+            for rid, rule in items:
                 rules[rid] = {
                     "id": rid,
                     "rule_type": _serialize_enum(getattr(rule, 'rule_type', 'unknown')),
@@ -389,7 +394,9 @@ class DistributedCognitiveCore:
     def get_goals_snapshot(self) -> Dict[str, Any]:
         with self._lock:
             goals = {}
-            for gid, goal in self.cognitive_system.goals.goals.items():
+            # Create a static list of items to avoid "dictionary changed size during iteration"
+            items = list(self.cognitive_system.goals.goals.items())
+            for gid, goal in items:
                 goals[gid] = {
                     "id": gid,
                     "description": getattr(goal, 'description', ''),
