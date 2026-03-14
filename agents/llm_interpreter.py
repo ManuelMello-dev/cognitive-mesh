@@ -34,6 +34,8 @@ class LLMInterpreter:
         self.core = core
         self.client = None
         if Config.OPENAI_API_KEY:
+            # Manus pre-configures the OpenAI client with the correct base_url and api_key
+            # We don't need to pass any arguments to OpenAI()
             self.client = OpenAI()
         else:
             logger.warning("OPENAI_API_KEY not found. LLM Interpreter in Offline Mode.")

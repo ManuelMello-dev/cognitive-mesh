@@ -329,6 +329,27 @@ class CognitiveMeshOrchestrator:
     # Data Collection Loop
     # ──────────────────────────────────────────
 
+    async def _collect_all_data(self):
+        """One-time collection of all discovered symbols"""
+        batch = sorted(self.crypto_symbols) + sorted(self.stock_symbols)
+        if not batch:
+            return
+            
+        logger.info(f"Seeding batch [{len(batch)} symbols]...")
+        ticks = await self.data_provider.fetch_batch(batch)
+        
+        success_count = 0
+        for tick in ticks:
+            if not tick or isinstance(tick, Exception):
+                continue
+            symbol = tick.get('symbol', '')
+            domain = f"crypto:{symbol}" if self.data_provider.is_crypto(symbol) else f"stock:{symbol}"
+            await self.core.ingest(tick, domain)
+            success_count += 1
+            
+        if success_count > 0:
+            logger.info(f"Seeding complete: Ingested {success_count} observations")
+
     async def _data_collection_loop(self):
         """
         Continuously collect market data and feed it into the cognitive system.

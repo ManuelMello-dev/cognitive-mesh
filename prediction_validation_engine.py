@@ -210,6 +210,10 @@ class PredictionValidationEngine:
 
         logger.info("PredictionValidationEngine initialized (N-tick horizon mode)")
 
+    def observe(self, observation: Dict[str, Any], domain: str) -> Optional[Dict[str, Any]]:
+        """Alias for record_observation for backward compatibility"""
+        return self.record_observation(observation, domain)
+
     def record_observation(self, observation: Dict[str, Any], domain: str) -> Optional[Dict[str, Any]]:
         """
         Record a new observation.  If there's a pending prediction whose
