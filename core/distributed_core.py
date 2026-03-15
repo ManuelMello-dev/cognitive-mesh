@@ -340,7 +340,9 @@ class DistributedCognitiveCore:
                     concept_domain_map[concept_id] = domain_id
 
             concept_items = list(self.cognitive_system.abstraction.concepts.items())
-            for cid, concept in concept_items:
+            # Limit to 100 most recent/relevant concepts to prevent 504 timeouts
+            concept_items.sort(key=lambda x: getattr(x[1], 'created_at', datetime.now()), reverse=True)
+            for cid, concept in concept_items[:100]:
                 examples = getattr(concept, 'examples', [])
                 recent_examples = [ex for ex in examples[-5:]]
                 
