@@ -275,7 +275,8 @@ class CognitiveIntelligentSystem:
             else:
                 facts.append(f"stable({symbol})")
         
-        return facts
+        # Ensure facts are always returned as a list of strings, not raised as exceptions
+        return [str(f) for f in facts if isinstance(f, str)]
 
     def _check_cross_domain_opportunities(self, current_domain: str):
         """Check for opportunities to transfer knowledge from other domains."""

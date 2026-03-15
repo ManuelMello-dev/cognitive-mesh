@@ -98,6 +98,9 @@ class DistributedCognitiveCore:
                         try:
                             # Process through cognitive engines
                             res = self.cognitive_system.process_observation(obs, domain)
+                            if not isinstance(res, dict):
+                                logger.warning(f"process_observation returned unexpected type: {type(res)}. Expected dict.")
+                                res = {}
                             
                             # Feed into prediction engine
                             symbol = obs.get('symbol')
