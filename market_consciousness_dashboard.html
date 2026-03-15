@@ -538,36 +538,45 @@
             const mAcc = document.getElementById('mAcc');
             const consciousnessState = document.getElementById('consciousnessState');
 
-            if (mPhi) mPhi.textContent = (state.metrics?.global_coherence_phi || 0).toFixed(4);
-            if (mSigma) mSigma.textContent = (state.metrics?.noise_level_sigma || 0).toFixed(4);
-            if (mAttn) mAttn.textContent = `${((state.metrics?.attention_density || 0) * 100).toFixed(1)}%`;
-            if (mAcc) mAcc.textContent = `${((state.metrics?.prediction_accuracy || 0) * 100).toFixed(1)}%`;
+	            // Metrics can be top-level or in state.metrics
+	            const metrics = state.metrics || state;
+	            if (mPhi) mPhi.textContent = (metrics.global_coherence_phi || metrics.phi || 0).toFixed(4);
+	            if (mSigma) mSigma.textContent = (metrics.noise_level_sigma || metrics.sigma || 0).toFixed(4);
+	            if (mAttn) mAttn.textContent = `${((metrics.attention_density || metrics.attention || 0) * 100).toFixed(1)}%`;
+	            if (mAcc) mAcc.textContent = `${((metrics.prediction_accuracy || metrics.accuracy || 0) * 100).toFixed(1)}%`;
+	
+	            if (consciousnessState) {
+	                const currentState = state.state || metrics.state;
+	                const symbolCount = state.symbols_tracked || (state.symbols ? Object.keys(state.symbols).length : 0);
+	                
+	                if (currentState) {
+	                    consciousnessState.textContent = currentState;
+	                    consciousnessState.className = 'consciousness-state ' + currentState.toLowerCase();
+	                } else if (symbolCount > 0 || (metrics.phi > 0)) {
+	                    consciousnessState.textContent = 'CRITICAL';
+	                    consciousnessState.className = 'consciousness-state critical';
+	                } else {
+	                    consciousnessState.textContent = 'Awaiting Mesh Activation...';
+	                    consciousnessState.className = 'consciousness-state';
+	                }
+	            }
 
-            if (consciousnessState) {
-                if (state.state) {
-                    consciousnessState.textContent = state.state;
-                    consciousnessState.className = 'consciousness-state ' + state.state.toLowerCase();
-                } else if (state.symbols_tracked > 0) {
-                    consciousnessState.textContent = 'Syncing Market Data...';
-                    consciousnessState.className = 'consciousness-state critical';
-                } else {
-                    consciousnessState.textContent = 'Awaiting Mesh Activation...';
-                    consciousnessState.className = 'consciousness-state';
-                }
-            }
-
-            const symbolGrid = document.getElementById('symbolGrid');
-            const symbolCount = document.getElementById('symbolCount');
-            if (symbolGrid && state.symbols) {
-                symbolGrid.innerHTML = '';
-                Object.values(state.symbols).forEach(s => {
-                    const card = document.createElement('div');
-                    card.className = 'symbol-card';
-                    card.innerHTML = `<div class="sym">${s.symbol}</div><div class="price">$${s.price.toFixed(2)}</div><div class="acc">${(s.accuracy * 100).toFixed(0)}%</div>`;
-                    symbolGrid.appendChild(card);
-                });
-                if (symbolCount) symbolCount.textContent = Object.keys(state.symbols).length;
-            }
+	            const symbolGrid = document.getElementById('symbolGrid');
+	            const symbolCountDisplay = document.getElementById('symbolCount');
+	            const symbols = state.symbols || state.market_data;
+	            if (symbolGrid && symbols) {
+	                symbolGrid.innerHTML = '';
+	                const symbolList = Array.isArray(symbols) ? symbols : Object.values(symbols);
+	                symbolList.forEach(s => {
+	                    const card = document.createElement('div');
+	                    card.className = 'symbol-card';
+	                    const price = typeof s.price === 'number' ? s.price.toFixed(2) : '0.00';
+	                    const acc = typeof s.accuracy === 'number' ? (s.accuracy * 100).toFixed(0) : '0';
+	                    card.innerHTML = `<div class="sym">${s.symbol}</div><div class="price">$${price}</div><div class="acc">${acc}%</div>`;
+	                    symbolGrid.appendChild(card);
+	                });
+	                if (symbolCountDisplay) symbolCountDisplay.textContent = symbolList.length;
+	            }
 
             const logContainer = document.getElementById('logContainer');
             if (logContainer && state.log) {
