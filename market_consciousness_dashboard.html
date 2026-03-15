@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -279,30 +280,26 @@
         <div class="metrics-row">
             <div class="metric"><div class="metric-label">PHI Coherence</div><div class="metric-value" id="mPhi">0.00</div></div>
             <div class="metric"><div class="metric-label">SIGMA Noise</div><div class="metric-value" id="mSigma">0.00</div></div>
-            <div class="metric"><div class="metric-label">Attention Density</div><div class="metric-value" id="mRho">0.00</div></div>
-            <div class="metric"><div class="metric-label">Prediction Accuracy</div><div class="metric-value" id="mAccuracy">0.0%</div></div>
+            <div class="metric"><div class="metric-label">Attention Density</div><div class="metric-value" id="mAttn">0.0%</div></div>
+            <div class="metric"><div class="metric-label">Prediction Accuracy</div><div class="metric-value" id="mAcc">0.0%</div></div>
         </div>
-        <div class="consciousness-state" id="consciousnessState">Syncing Market Data...</div>
+        <div id="consciousnessState" class="consciousness-state">Awaiting Mesh Activation...</div>
     </div>
 
-    <!-- Coherence Visualization -->
-    <div class="panel span2">
-        <h2>Coherence/Noise EEG</h2>
+    <!-- EEG -->
+    <div class="panel wide">
+        <h2>Global Consciousness EEG</h2>
         <canvas id="coherenceCanvas"></canvas>
     </div>
 
-    <!-- Symbol Grid -->
-    <div class="panel wide">
-        <h2>Actively Tracked Symbols</h2>
-        <div class="symbol-grid scroll-box" id="symbolGrid">
-            <!-- Symbol cards will be inserted here -->
-        </div>
+    <!-- Symbols & Logs -->
+    <div class="panel">
+        <h3>Symbols Tracked (<span id="symbolCount">0</span>)</h3>
+        <div id="symbolGrid" class="symbol-grid scroll-box"></div>
     </div>
-
-    <!-- System Log -->
-    <div class="panel wide">
-        <h2>System Log</h2>
-        <div id="systemLog" class="scroll-box"></div>
+    <div class="panel">
+        <h3>System Log</h3>
+        <div id="logContainer" class="scroll-box"></div>
     </div>
 </div>
 </div>
@@ -311,161 +308,104 @@
 <!-- TAB: Predictions                            -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-predictions" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Per-Symbol Performance</h2>
-        <div class="scroll-box">
-            <table class="data-table" id="symbolPerformanceTable">
-                <thead>
-                    <tr>
-                        <th>Symbol</th>
-                        <th>Accuracy</th>
-                        <th>Predictions</th>
-                        <th>Correct</th>
-                        <th>Incorrect</th>
-                        <th>Current Trend</th>
-                        <th>Momentum (5m)</th>
-                        <th>Post-Signal Move %</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Symbol performance data will be inserted here -->
-                </tbody>
-            </table>
+    <div class="dashboard">
+        <div class="panel wide">
+            <h2>Active Predictions</h2>
+            <div class="scroll-box">
+                <table id="predictionsTable" class="data-table">
+                    <thead><tr><th>ID</th><th>Symbol</th><th>Type</th><th>Confidence</th><th>Horizon</th><th>Outcome</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
-
-    <div class="panel wide">
-        <h2>Recent Predictions</h2>
-        <div class="scroll-box">
-            <table class="data-table" id="recentPredictionsTable">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Symbol</th>
-                        <th>Prediction</th>
-                        <th>Price at Pred.</th>
-                        <th>Result</th>
-                        <th>Price at Val.</th>
-                        <th>Validated At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Recent prediction data will be inserted here -->
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Learning                               -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-learning" class="tab-page">
-<div class="dashboard">
-    <div class="panel">
-        <h2>Learning Rate (PHI)</h2>
-        <div class="bar-chart" id="phiChart"></div>
+    <div class="dashboard">
+        <div class="panel span2">
+            <h2>Concept Hierarchy</h2>
+            <div id="conceptContainer" class="scroll-box"></div>
+        </div>
+        <div class="panel">
+            <h2>Continuous Learning</h2>
+            <div id="learningContainer" class="scroll-box"></div>
+        </div>
     </div>
-    <div class="panel">
-        <h2>Forgetting Rate (SIGMA)</h2>
-        <div class="bar-chart" id="sigmaChart"></div>
-    </div>
-    <div class="panel wide">
-        <h2>Learning Curve</h2>
-        <div id="learningCurve" class="scroll-box"></div>
-    </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Reasoning                              -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-reasoning" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Active Rules</h2>
-        <div id="rulesContainer" class="scroll-box"></div>
+    <div class="dashboard">
+        <div class="panel span2">
+            <h2>Fact Registry</h2>
+            <div id="factContainer" class="scroll-box"></div>
+        </div>
+        <div class="panel">
+            <h2>Rule Engine</h2>
+            <div id="ruleContainer" class="scroll-box"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Cross-Domain                           -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-crossdomain" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Cross-Domain Associations</h2>
-        <div id="crossDomainContainer" class="scroll-box"></div>
+    <div class="dashboard">
+        <div class="panel wide">
+            <h2>Cross-Domain Analogies</h2>
+            <div id="analogyContainer" class="scroll-box"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Causal                                 -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-causal" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Causal Chains</h2>
-        <div id="causalContainer" class="scroll-box"></div>
+    <div class="dashboard">
+        <div class="panel wide">
+            <h2>Causal Graph</h2>
+            <div id="causalContainer" class="scroll-box"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Goals                                  -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-goals" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Goal Hierarchy</h2>
-        <div id="goalsContainer" class="scroll-box"></div>
+    <div class="dashboard">
+        <div class="panel span2">
+            <h2>Goal Pursuit Log</h2>
+            <div id="goalLogContainer" class="scroll-box"></div>
+        </div>
+        <div class="panel">
+            <h2>Active Goals</h2>
+            <div id="goalContainer" class="scroll-box"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
-<!-- TAB: Providers                                -->
+<!-- TAB: Providers                              -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-providers" class="tab-page">
     <div class="dashboard">
-        <div class="panel">
+        <div class="panel wide">
             <h2>Data Providers</h2>
-            <table class="data-table" id="providerTable">
-                <thead>
-                    <tr>
-                        <th>Provider</th>
-                        <th>State</th>
-                        <th>Successes</th>
-                        <th>Failures</th>
-                        <th>Latency</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Provider data will be inserted here -->
-                </tbody>
-            </table>
-        </div>
-
-        <div class="panel">
-            <h2>Scouting Price Filters</h2>
-            <div class="toggle-row">
-                <label for="minPriceInput" class="toggle-label">Min Price:</label>
-                <input type="number" id="minPriceInput" class="toggle-input" value="0.0" step="0.01">
+            <div id="providerContainer" class="scroll-box">
+                <table id="providerTable" class="data-table">
+                    <thead><tr><th>Provider</th><th>Status</th><th>Assets Tracked</th><th>Latency</th></tr></thead>
+                    <tbody></tbody>
+                </table>
             </div>
-            <div class="toggle-row">
-                <label for="maxPriceInput" class="toggle-label">Max Price:</label>
-                <input type="number" id="maxPriceInput" class="toggle-input" value="Infinity" step="0.01">
-            </div>
-            <button id="applyPriceFilter" class="nav-tab">Apply Filters</button>
-        </div>
-
-        <div class="panel">
-            <h2>Orchestrator Status</h2>
-            <div id="orchestratorStatus" class="scroll-box"></div>
         </div>
     </div>
 </div>
@@ -474,506 +414,365 @@
 <!-- TAB: Toggles                                -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-toggles" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>System Toggles</h2>
-        <div id="togglesContainer"></div>
+    <div class="dashboard">
+        <div class="panel wide">
+            <h2>System Toggles</h2>
+            <div id="toggleContainer"></div>
+        </div>
     </div>
-</div>
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- TAB: Chat                                   -->
 <!-- ═══════════════════════════════════════════ -->
 <div id="tab-chat" class="tab-page">
-<div class="dashboard">
-    <div class="panel wide">
-        <h2>Chat with Mesh</h2>
-        <div class="chat-container">
-            <div class="chat-messages scroll-box" id="chatMessages"></div>
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" class="chat-input" placeholder="Ask about the market...">
-                <button id="chatSend" class="chat-send">SEND</button>
+    <div class="dashboard">
+        <div class="panel wide">
+            <h2>Chat with the Mesh</h2>
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" class="chat-input" placeholder="Ask about the mesh's state...">
+                    <button id="chatSend" class="chat-send">SEND</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
-</div>
 
 <script>
-// ═════════════════════════════════════════════════════════════════════════════
-//
-//  MARKET CONSCIOUSNESS MONITOR - Z³ by MANUEL MELLO
-//
-// ═════════════════════════════════════════════════════════════════════════════
+    const API_BASE = '/api';
+    let globalState = {};
 
-document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE = ''; // Assuming the gateway serves this file
+    document.addEventListener('DOMContentLoaded', () => {
+        const coherenceCanvas = document.getElementById('coherenceCanvas');
+        const ctx = coherenceCanvas.getContext('2d');
+        let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
+        const chartCapacity = 200;
 
-    // ─── STATE ───────────────────────────────────────────────────────────────────
-    let state = {};
-    let activeTab = 'overview';
+        function drawEEG() {
+            const width = coherenceCanvas.width;
+            const height = coherenceCanvas.height;
+            ctx.clearRect(0, 0, width, height);
 
-    // ─── DOM ELEMENTS ────────────────────────────────────────────────────────────
-    const tabs = document.querySelectorAll('.nav-tab');
-    const pages = document.querySelectorAll('.tab-page');
-    const mPhi = document.getElementById('mPhi');
-    const mSigma = document.getElementById('mSigma');
-    const mRho = document.getElementById('mRho');
-    const mAccuracy = document.getElementById('mAccuracy');
-    const consciousnessState = document.getElementById('consciousnessState');
-    const symbolGrid = document.getElementById('symbolGrid');
-    const systemLog = document.getElementById('systemLog');
-    const symbolPerformanceTable = document.getElementById('symbolPerformanceTable').getElementsByTagName('tbody')[0];
-    const recentPredictionsTable = document.getElementById('recentPredictionsTable').getElementsByTagName('tbody')[0];
-    const phiChart = document.getElementById('phiChart');
-    const sigmaChart = document.getElementById('sigmaChart');
-    const learningCurve = document.getElementById('learningCurve');
-    const rulesContainer = document.getElementById('rulesContainer');
-    const crossDomainContainer = document.getElementById('crossDomainContainer');
-    const causalContainer = document.getElementById('causalContainer');
-    const goalsContainer = document.getElementById('goalsContainer');
-    const providerTable = document.getElementById('providerTable').getElementsByTagName('tbody')[0];
-    const orchestratorStatus = document.getElementById('orchestratorStatus');
-    const togglesContainer = document.getElementById('togglesContainer');
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const chatSend = document.getElementById("chatSend");
+            const waveColors = {
+                theta: 'rgba(255, 75, 43, 0.8)',
+                alpha: 'rgba(255, 215, 0, 0.8)',
+                beta: 'rgba(0, 212, 255, 0.8)',
+                gamma: 'rgba(0, 255, 65, 0.8)',
+            };
 
-    const minPriceInput = document.getElementById("minPriceInput");
-    const maxPriceInput = document.getElementById("maxPriceInput");
-    const applyPriceFilter = document.getElementById("applyPriceFilter");
+            Object.keys(chartData).forEach((wave, waveIndex) => {
+                const data = chartData[wave];
+                ctx.beginPath();
+                ctx.strokeStyle = waveColors[wave];
+                ctx.lineWidth = 1.5;
 
-    // ─── CHARTING ────────────────────────────────────────────────────────────────
-    const coherenceCanvas = document.getElementById('coherenceCanvas');
-    const ctx = coherenceCanvas.getContext('2d');
-    let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
-    const chartCapacity = 200;
-
-    function drawEEG() {
-        const width = coherenceCanvas.width;
-        const height = coherenceCanvas.height;
-        ctx.clearRect(0, 0, width, height);
-
-        const waveColors = {
-            theta: 'rgba(255, 75, 43, 0.8)',
-            alpha: 'rgba(255, 215, 0, 0.8)',
-            beta: 'rgba(0, 212, 255, 0.8)',
-            gamma: 'rgba(0, 255, 65, 0.8)',
-        };
-
-        Object.keys(chartData).forEach((wave, waveIndex) => {
-            const data = chartData[wave];
-            ctx.beginPath();
-            ctx.strokeStyle = waveColors[wave];
-            ctx.lineWidth = 1.5;
-
-            for (let i = 0; i < data.length; i++) {
-                const x = (i / (chartCapacity - 1)) * width;
-                const y = (height / 2) - (data[i] * (height / 2.5));
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-        });
-    }
-
-    // ─── UI UPDATES ──────────────────────────────────────────────────────────────
-
-    function updateMetrics() {
-        if (!state.metrics) return;
-        
-        // Map backend fields to UI elements
-        const phi = state.metrics.global_coherence_phi || 0;
-        const sigma = state.metrics.noise_level_sigma || 0;
-        const rho = state.metrics.attention_density || 0;
-        const accuracy = state.metrics.prediction_accuracy || 0;
-
-        mPhi.textContent = phi.toFixed(4);
-        mSigma.textContent = sigma.toFixed(4);
-        mRho.textContent = rho.toFixed(4);
-        mAccuracy.textContent = `${(accuracy * 100).toFixed(1)}%`;
-
-        // Determine consciousness state based on Phi/Sigma
-        let cState = "Syncing Market Data...";
-        if (state.metrics.total_observations > 5) {
-            if (phi > 0.7) cState = "ORDERED";
-            else if (phi > 0.4) cState = "CRITICAL";
-            else cState = "CHAOS";
-        }
-
-        consciousnessState.textContent = cState;
-        consciousnessState.className = 'consciousness-state ' + cState.toLowerCase().replace(/ /g, '-');
-    }
-
-    function updateSymbolGrid() {
-        if (!state.insights || !state.insights.symbol_perf) return;
-        symbolGrid.innerHTML = '';
-        Object.entries(state.insights.symbol_perf).forEach(([symbol, perf]) => {
-            const card = document.createElement('div');
-            card.className = 'symbol-card';
-            card.innerHTML = `
-                <div class="sym">${symbol}</div>
-                <div class="price">${perf.current_price.toFixed(4)}</div>
-                <div class="acc">${(perf.accuracy * 100).toFixed(0)}%</div>
-            `;
-            symbolGrid.appendChild(card);
-        });
-    }
-
-    function updateSystemLog() {
-        if (!state.log) return;
-        systemLog.innerHTML = '';
-        state.log.forEach(entry => {
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.innerHTML = `<span class="ts">${new Date(entry.timestamp).toLocaleTimeString()}</span> ${entry.message}`;
-            systemLog.appendChild(logEntry);
-        });
-        systemLog.scrollTop = systemLog.scrollHeight;
-    }
-
-    function updateSymbolPerformance() {
-        if (!state.insights || !state.insights.symbol_perf) return;
-        symbolPerformanceTable.innerHTML = '';
-        Object.entries(state.insights.symbol_perf).forEach(([symbol, perf]) => {
-            const row = symbolPerformanceTable.insertRow();
-            row.innerHTML = `
-                <td>${symbol}</td>
-                <td>${(perf.accuracy * 100).toFixed(1)}%</td>
-                <td>${perf.total_predictions}</td>
-                <td>${perf.correct_predictions}</td>
-                <td>${perf.incorrect_predictions}</td>
-                <td>${perf.current_trend}</td>
-                <td>${perf.momentum_5m.toFixed(2)}%</td>
-                <td>${(perf.max_post_signal_move_pct * 100).toFixed(2)}%</td>
-            `;
-        });
-    }
-
-    function updateRecentPredictions() {
-        if (!state.insights || !state.insights.recent_preds) return;
-        recentPredictionsTable.innerHTML = '';
-        state.insights.recent_preds.forEach(pred => {
-            const row = recentPredictionsTable.insertRow();
-            const result = pred.correct === null ? 'Pending' : (pred.correct ? '✅' : '❌');
-            row.innerHTML = `
-                <td>${new Date(pred.timestamp).toLocaleString()}</td>
-                <td>${pred.symbol}</td>
-                <td>${pred.predicted_direction}</td>
-                <td>${pred.price_at_prediction.toFixed(4)}</td>
-                <td>${result}</td>
-                <td>${pred.price_at_validation ? pred.price_at_validation.toFixed(4) : 'N/A'}</td>
-                <td>${pred.validated_at ? new Date(pred.validated_at).toLocaleString() : 'N/A'}</td>
-            `;
-        });
-    }
-
-    function updateLearningCharts() {
-        if (!state.metrics) return;
-        // This is a simplified visualization. A real implementation might use a library.
-        phiChart.innerHTML = `<div class="bar" style="height: ${state.metrics.phi * 100}%"></div>`;
-        sigmaChart.innerHTML = `<div class="bar negative" style="height: ${state.metrics.sigma * 100}%"></div>`;
-    }
-
-    function updateLearningCurve() {
-        if (!state.insights || !state.insights.learning_curve) return;
-        learningCurve.innerHTML = '';
-        state.insights.learning_curve.forEach(point => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `Cycle ${point.cycle}: Accuracy = ${(point.accuracy * 100).toFixed(2)}%`;
-            learningCurve.appendChild(entry);
-        });
-    }
-
-    function updateRules() {
-        if (!state.reasoning || !state.reasoning.rules) return;
-        rulesContainer.innerHTML = '';
-        state.reasoning.rules.forEach(rule => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `[${rule.type}] ${rule.description} (Weight: ${rule.weight.toFixed(3)})`;
-            rulesContainer.appendChild(entry);
-        });
-    }
-
-    function updateCrossDomain() {
-        if (!state.reasoning || !state.reasoning.cross_domain) return;
-        crossDomainContainer.innerHTML = '';
-        state.reasoning.cross_domain.forEach(assoc => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `(${assoc.source_domain}) -> (${assoc.target_domain}): ${assoc.description} | Strength: ${assoc.strength.toFixed(3)}`;
-            crossDomainContainer.appendChild(entry);
-        });
-    }
-
-    function updateCausal() {
-        if (!state.reasoning || !state.reasoning.causal_chains) return;
-        causalContainer.innerHTML = '';
-        state.reasoning.causal_chains.forEach(chain => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `${chain.nodes.join(' -> ')} | Confidence: ${chain.confidence.toFixed(3)}`;
-            causalContainer.appendChild(entry);
-        });
-    }
-
-    function updateGoals() {
-        if (!state.reasoning || !state.reasoning.goals) return;
-        goalsContainer.innerHTML = '';
-        state.reasoning.goals.forEach(goal => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `[${goal.status}] ${goal.name}: ${goal.description} | Priority: ${goal.priority}`;
-            goalsContainer.appendChild(entry);
-        });
-    }
-
-    function updateProviders() {
-        if (!state.providers) return;
-        providerTable.innerHTML = '';
-        Object.entries(state.providers).forEach(([name, status]) => {
-            const row = providerTable.insertRow();
-            row.innerHTML = `
-                <td>${name}</td>
-                <td>${status.state}</td>
-                <td>${status.successes}</td>
-                <td>${status.failures}</td>
-                <td>${status.avg_latency_ms.toFixed(2)}ms</td>
-            `;
-        });
-    }
-
-    function updateOrchestrator() {
-        if (!state.orchestrator) return;
-        orchestratorStatus.innerHTML = '';
-        state.orchestrator.tasks.forEach(task => {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.textContent = `[${task.status}] ${task.name} - Next run: ${new Date(task.next_run).toLocaleString()}`;
-            orchestratorStatus.appendChild(entry);
-        });
-    }
-
-    function updateToggles() {
-        if (!state.toggles) return;
-        togglesContainer.innerHTML = '';
-        Object.entries(state.toggles).forEach(([key, value]) => {
-            const row = document.createElement('div');
-            row.className = 'toggle-row';
-
-            if (typeof value === 'boolean') {
-                row.innerHTML = `
-                    <span class="toggle-label">${key}</span>
-                    <div class="toggle-switch ${value ? 'on' : ''}" data-key="${key}"></div>
-                `;
-            } else if (Array.isArray(value.options)) {
-                row.innerHTML = `
-                    <label for="toggle-${key}" class="toggle-label">${key}</label>
-                    <select id="toggle-${key}" class="toggle-select" data-key="${key}">
-                        ${value.options.map(opt => `<option value="${opt}" ${opt === value.current ? 'selected' : ''}>${opt}</option>`).join('')}
-                    </select>
-                `;
-            }
-            togglesContainer.appendChild(row);
-        });
-    }
-
-    // ─── DATA FETCHING ───────────────────────────────────────────────────────────
-
-    async function fetchState() {
-        try {
-            const response = await fetch(`${API_BASE}/api/state`);
-            if (!response.ok) {
-                console.error('Failed to fetch state:', response.status);
-                return;
-            }
-            state = await response.json();
-            updateAllTabs();
-        } catch (error) {
-            console.error('Error fetching state:', error);
-        }
-    }
-
-    async function fetchEEG() {
-        try {
-            const response = await fetch(`${API_BASE}/api/eeg`);
-            if (!response.ok) {
-                console.error('Failed to fetch EEG data:', response.status);
-                return;
-            }
-            const eegData = await response.json();
-            Object.keys(eegData).forEach(wave => {
-                if (chartData[wave]) {
-                    chartData[wave].push(eegData[wave]);
-                    if (chartData[wave].length > chartCapacity) {
-                        chartData[wave].shift();
+                for (let i = 0; i < data.length; i++) {
+                    const x = (i / (chartCapacity - 1)) * width;
+                    const y = (height / 2) - (data[i] * (height / 2.5));
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
                     }
                 }
+                ctx.stroke();
             });
-            // Throttle drawing to prevent performance issues
-            requestAnimationFrame(drawEEG);
-        } catch (error) {
-            console.error('Error fetching EEG data:', error);
         }
-    }
 
-    async function postToggle(key, value) {
-        try {
-            await fetch(`${API_BASE}/api/toggles`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key, value: value })
+        async function fetchEEG() {
+            try {
+                const response = await fetch(`${API_BASE}/eeg`);
+                const data = await response.json();
+                if (data) {
+                    Object.keys(data).forEach(wave => {
+                        if (chartData[wave]) {
+                            chartData[wave].push(data[wave]);
+                            if (chartData[wave].length > chartCapacity) {
+                                chartData[wave].shift();
+                            }
+                        }
+                    });
+                    window.requestAnimationFrame(drawEEG);
+                }
+            } catch (error) {
+                console.error('EEG Fetch Error:', error);
+            }
+        }
+
+        async function fetchState() {
+            try {
+                const response = await fetch(`${API_BASE}/state`);
+                const state = await response.json();
+                globalState = state;
+                updateAllTabs(state);
+            } catch (error) {
+                console.error('State Fetch Error:', error);
+                document.getElementById('consciousnessState').textContent = 'Connection Lost...';
+            }
+        }
+
+        function updateAllTabs(state) {
+            if (!state) return;
+
+            // Overview Tab
+            const mPhi = document.getElementById('mPhi');
+            const mSigma = document.getElementById('mSigma');
+            const mAttn = document.getElementById('mAttn');
+            const mAcc = document.getElementById('mAcc');
+            const consciousnessState = document.getElementById('consciousnessState');
+
+            if (mPhi) mPhi.textContent = (state.metrics?.global_coherence_phi || 0).toFixed(4);
+            if (mSigma) mSigma.textContent = (state.metrics?.noise_level_sigma || 0).toFixed(4);
+            if (mAttn) mAttn.textContent = `${((state.metrics?.attention_density || 0) * 100).toFixed(1)}%`;
+            if (mAcc) mAcc.textContent = `${((state.metrics?.prediction_accuracy || 0) * 100).toFixed(1)}%`;
+
+            if (consciousnessState) {
+                if (state.state) {
+                    consciousnessState.textContent = state.state;
+                    consciousnessState.className = 'consciousness-state ' + state.state.toLowerCase();
+                } else if (state.symbols_tracked > 0) {
+                    consciousnessState.textContent = 'Syncing Market Data...';
+                    consciousnessState.className = 'consciousness-state critical';
+                } else {
+                    consciousnessState.textContent = 'Awaiting Mesh Activation...';
+                    consciousnessState.className = 'consciousness-state';
+                }
+            }
+
+            const symbolGrid = document.getElementById('symbolGrid');
+            const symbolCount = document.getElementById('symbolCount');
+            if (symbolGrid && state.symbols) {
+                symbolGrid.innerHTML = '';
+                Object.values(state.symbols).forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'symbol-card';
+                    card.innerHTML = `<div class="sym">${s.symbol}</div><div class="price">$${s.price.toFixed(2)}</div><div class="acc">${(s.accuracy * 100).toFixed(0)}%</div>`;
+                    symbolGrid.appendChild(card);
+                });
+                if (symbolCount) symbolCount.textContent = Object.keys(state.symbols).length;
+            }
+
+            const logContainer = document.getElementById('logContainer');
+            if (logContainer && state.log) {
+                logContainer.innerHTML = '';
+                state.log.forEach(entry => {
+                    const log = document.createElement('div');
+                    log.className = 'log-entry';
+                    log.innerHTML = `<span class="ts">${new Date(entry.ts).toLocaleTimeString()}</span> ${entry.msg}`;
+                    logContainer.appendChild(log);
+                });
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            // Predictions Tab
+            const predictionsTable = document.getElementById('predictionsTable')?.getElementsByTagName('tbody')[0];
+            if (predictionsTable && state.predictions) {
+                predictionsTable.innerHTML = '';
+                state.predictions.forEach(p => {
+                    const row = predictionsTable.insertRow();
+                    row.innerHTML = `<td>${p.id}</td><td>${p.symbol}</td><td>${p.type}</td><td>${(p.confidence * 100).toFixed(1)}%</td><td>${p.horizon}</td><td>${p.outcome}</td>`;
+                });
+            }
+
+            // Learning Tab
+            const conceptContainer = document.getElementById('conceptContainer');
+            if (conceptContainer && state.concepts) {
+                conceptContainer.innerHTML = '';
+                Object.values(state.concepts).forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `[${c.id}] ${c.description} (${c.examples} examples)`;
+                    conceptContainer.appendChild(item);
+                });
+            }
+
+            // Reasoning Tab
+            const factContainer = document.getElementById('factContainer');
+            if (factContainer && state.facts) {
+                factContainer.innerHTML = '';
+                state.facts.forEach(f => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `${f.subject} -> ${f.predicate} -> ${f.object}`;
+                    factContainer.appendChild(item);
+                });
+            }
+            const ruleContainer = document.getElementById('ruleContainer');
+            if (ruleContainer && state.rules) {
+                ruleContainer.innerHTML = '';
+                state.rules.forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `[${r.id}] ${r.text}`;
+                    ruleContainer.appendChild(item);
+                });
+            }
+
+            // Cross-Domain Tab
+            const analogyContainer = document.getElementById('analogyContainer');
+            if (analogyContainer && state.analogies) {
+                analogyContainer.innerHTML = '';
+                state.analogies.forEach(a => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `${a.source} is like ${a.target} (Similarity: ${(a.similarity * 100).toFixed(1)}%)`;
+                    analogyContainer.appendChild(item);
+                });
+            }
+
+            // Causal Tab
+            const causalContainer = document.getElementById('causalContainer');
+            if (causalContainer && state.causal_graph) {
+                causalContainer.innerHTML = '';
+                Object.entries(state.causal_graph).forEach(([key, value]) => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `${key} -> ${Object.keys(value).join(', ')}`;
+                    causalContainer.appendChild(item);
+                });
+            }
+
+            // Goals Tab
+            const goalContainer = document.getElementById('goalContainer');
+            if (goalContainer && state.goals) {
+                goalContainer.innerHTML = '';
+                state.goals.forEach(g => {
+                    const item = document.createElement('div');
+                    item.className = 'log-entry';
+                    item.textContent = `[${g.id}] ${g.description} (Status: ${g.status})`;
+                    goalContainer.appendChild(item);
+                });
+            }
+
+            // Providers Tab
+            const providerTable = document.getElementById('providerTable')?.getElementsByTagName('tbody')[0];
+            if (providerTable && state.providers) {
+                providerTable.innerHTML = '';
+                Object.values(state.providers).forEach(p => {
+                    const row = providerTable.insertRow();
+                    row.innerHTML = `<td>${p.name}</td><td>${p.status}</td><td>${p.assets_tracked}</td><td>${p.latency_ms}ms</td>`;
+                });
+            }
+
+            // Toggles Tab
+            const toggleContainer = document.getElementById('toggleContainer');
+            if (toggleContainer && state.toggles && toggleContainer.children.length === 0) {
+                Object.entries(state.toggles).forEach(([key, value]) => {
+                    const row = document.createElement('div');
+                    row.className = 'toggle-row';
+                    const label = document.createElement('span');
+                    label.className = 'toggle-label';
+                    label.textContent = key;
+                    row.appendChild(label);
+
+                    if (typeof value === 'boolean') {
+                        const toggle = document.createElement('div');
+                        toggle.className = `toggle-switch ${value ? 'on' : ''}`;
+                        toggle.dataset.key = key;
+                        toggle.addEventListener('click', () => handleToggle(key, !toggle.classList.contains('on')));
+                        row.appendChild(toggle);
+                    } else if (Array.isArray(value)) {
+                        const select = document.createElement('select');
+                        select.className = 'toggle-select';
+                        value.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt;
+                            option.textContent = opt;
+                            select.appendChild(option);
+                        });
+                        select.addEventListener('change', (e) => handleToggle(key, e.target.value));
+                        row.appendChild(select);
+                    } else {
+                        const input = document.createElement('input');
+                        input.className = 'toggle-input';
+                        input.value = value;
+                        input.addEventListener('change', (e) => handleToggle(key, e.target.value));
+                        row.appendChild(input);
+                    }
+                    toggleContainer.appendChild(row);
+                });
+            }
+        }
+
+        async function handleToggle(key, value) {
+            try {
+                await fetch(`${API_BASE}/toggles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, value })
+                });
+                // The backend will update the state, which will be fetched by the next interval
+            } catch (error) {
+                console.error('Toggle Error:', error);
+            }
+        }
+
+        // Tab navigation
+        const tabs = document.querySelectorAll('.nav-tab');
+        const pages = document.querySelectorAll('.tab-page');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                pages.forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
             });
-            // Fetch state again to reflect the change immediately
-            fetchState();
-        } catch (error) {
-            console.error('Error posting toggle:', error);
-        }
-    }
-
-    async function postPriceFilters(minPrice, maxPrice) {
-        try {
-            await fetch(`${API_BASE}/api/price_filters`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ min_price: parseFloat(minPrice), max_price: parseFloat(maxPrice) })
-            });
-            fetchState(); // Refresh state to reflect new filters
-        } catch (error) {
-            console.error('Error posting price filters:', error);
-        }
-    }
-
-    async function postChatMessage(message) {
-        try {
-            const response = await fetch(`${API_BASE}/api/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: message })
-            });
-            const data = await response.json();
-            appendChatMessage('user', message);
-            appendChatMessage('ai', data.response || data.reply);
-        } catch (error) {
-            console.error('Error sending chat message:', error);
-        }
-    }
-
-    function appendChatMessage(sender, text) {
-        const messageEl = document.createElement('div');
-        messageEl.className = `chat-message ${sender}-message`;
-        messageEl.textContent = text;
-        chatMessages.appendChild(messageEl);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    // ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const tabName = tab.dataset.tab;
-            if (tabName === activeTab) return;
-
-            tabs.forEach(t => t.classList.remove('active'));
-            pages.forEach(p => p.classList.remove('active'));
-
-            tab.classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-            activeTab = tabName;
-            updateAllTabs(); // Refresh data when switching tabs
         });
-    });
 
-    togglesContainer.addEventListener('click', e => {
-        if (e.target.classList.contains('toggle-switch')) {
-            const key = e.target.dataset.key;
-            const newValue = !e.target.classList.contains('on');
-            postToggle(key, newValue);
-        }
-    });
+        // Chat functionality
+        const chatInput = document.getElementById('chatInput');
+        const chatSend = document.getElementById('chatSend');
+        const chatMessages = document.getElementById('chatMessages');
 
-    togglesContainer.addEventListener('change', e => {
-        if (e.target.classList.contains('toggle-select')) {
-            const key = e.target.dataset.key;
-            const newValue = e.target.value;
-            postToggle(key, newValue);
-        }
-    });
+        const sendChatMessage = async () => {
+            const message = chatInput.value.trim();
+            if (!message) return;
 
-    chatSend.addEventListener('click', () => {
-        const message = chatInput.value.trim();
-        if (message) {
-            postChatMessage(message);
+            const userMsgDiv = document.createElement('div');
+            userMsgDiv.className = 'chat-message user-message';
+            userMsgDiv.textContent = message;
+            chatMessages.appendChild(userMsgDiv);
             chatInput.value = '';
-        }
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: message })
+                });
+                const data = await response.json();
+
+                const aiMsgDiv = document.createElement('div');
+                aiMsgDiv.className = 'chat-message ai-message';
+                aiMsgDiv.textContent = data.response;
+                chatMessages.appendChild(aiMsgDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Chat Error:', error);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'chat-message ai-message';
+                errorDiv.textContent = 'Error communicating with the mesh.';
+                chatMessages.appendChild(errorDiv);
+            }
+        };
+
+        chatSend.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+
+        // Initial fetch and interval setup
+        fetchState();
+        fetchEEG();
+        setInterval(fetchState, 2000); // Main state update every 2s
+        setInterval(fetchEEG, 500);   // EEG update every 500ms
+
+        // Initial drawing of the canvas
+        drawEEG();
     });
-
-    chatInput.addEventListener("keydown", e => {
-        if (e.key === "Enter") {
-            chatSend.click();
-        }
-    });
-
-    applyPriceFilter.addEventListener("click", () => {
-        const minPrice = minPriceInput.value;
-        const maxPrice = maxPriceInput.value;
-        postPriceFilters(minPrice, maxPrice);
-    });
-
-    // ─── INITIALIZATION ──────────────────────────────────────────────────────────
-
-    function updateAllTabs() {
-        updateMetrics();
-        switch (activeTab) {
-            case 'overview':
-                updateSymbolGrid();
-                updateSystemLog();
-                break;
-            case 'predictions':
-                updateSymbolPerformance();
-                updateRecentPredictions();
-                break;
-            case 'learning':
-                updateLearningCharts();
-                updateLearningCurve();
-                break;
-            case 'reasoning':
-                updateRules();
-                break;
-            case 'crossdomain':
-                updateCrossDomain();
-                break;
-            case 'causal':
-                updateCausal();
-                break;
-            case 'goals':
-                updateGoals();
-                break;
-            case 'providers':
-                updateProviders();
-                updateOrchestrator();
-                break;
-            case 'toggles':
-                updateToggles();
-                break;
-        }
-    }
-
-    // Initial fetch and setup intervals
-    fetchState();
-    fetchEEG();
-    setInterval(fetchState, 2000); // Main state update every 2s
-    setInterval(fetchEEG, 500);   // EEG update every 500ms
-
-    // Initial drawing of the canvas
-    drawEEG();
-});
 </script>
 </body>
 </html>
