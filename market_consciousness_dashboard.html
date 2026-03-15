@@ -444,42 +444,48 @@
     const API_BASE = '/api';
     let globalState = {};
 
+    function drawEEG() {
+        const coherenceCanvas = document.getElementById('coherenceCanvas');
+        if (!coherenceCanvas) return;
+        const ctx = coherenceCanvas.getContext('2d');
+        let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
+        const chartCapacity = 200;
+
+        const width = coherenceCanvas.width;
+        const height = coherenceCanvas.height;
+        ctx.clearRect(0, 0, width, height);
+
+        const waveColors = {
+            theta: 'rgba(255, 75, 43, 0.8)',
+            alpha: 'rgba(255, 215, 0, 0.8)',
+            beta: 'rgba(0, 212, 255, 0.8)',
+            gamma: 'rgba(0, 255, 65, 0.8)',
+        };
+
+        Object.keys(chartData).forEach((wave, waveIndex) => {
+            const data = chartData[wave];
+            ctx.beginPath();
+            ctx.strokeStyle = waveColors[wave];
+            ctx.lineWidth = 1.5;
+
+            for (let i = 0; i < data.length; i++) {
+                const x = (i / (chartCapacity - 1)) * width;
+                const y = (height / 2) - (data[i] * (height / 2.5));
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const coherenceCanvas = document.getElementById('coherenceCanvas');
         const ctx = coherenceCanvas.getContext('2d');
         let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
         const chartCapacity = 200;
-
-        function drawEEG() {
-            const width = coherenceCanvas.width;
-            const height = coherenceCanvas.height;
-            ctx.clearRect(0, 0, width, height);
-
-            const waveColors = {
-                theta: 'rgba(255, 75, 43, 0.8)',
-                alpha: 'rgba(255, 215, 0, 0.8)',
-                beta: 'rgba(0, 212, 255, 0.8)',
-                gamma: 'rgba(0, 255, 65, 0.8)',
-            };
-
-            Object.keys(chartData).forEach((wave, waveIndex) => {
-                const data = chartData[wave];
-                ctx.beginPath();
-                ctx.strokeStyle = waveColors[wave];
-                ctx.lineWidth = 1.5;
-
-                for (let i = 0; i < data.length; i++) {
-                    const x = (i / (chartCapacity - 1)) * width;
-                    const y = (height / 2) - (data[i] * (height / 2.5));
-                    if (i === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        ctx.lineTo(x, y);
-                    }
-                }
-                ctx.stroke();
-            });
-        }
 
         async function fetchEEG() {
             try {
