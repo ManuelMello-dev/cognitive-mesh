@@ -6,8 +6,9 @@ import asyncio
 import logging
 import json
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime
+from collections import defaultdict, deque
 
 logger = logging.getLogger("PostgresStore")
 
@@ -85,6 +86,31 @@ class PostgresStore:
             metadata JSONB
         );
         
+        -- Goals table
+        CREATE TABLE IF NOT EXISTS goals (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            description TEXT NOT NULL,
+            success_criteria JSONB,
+            priority FLOAT,
+            status TEXT,
+            progress FLOAT,
+            value_estimate FLOAT,
+            created_at TIMESTAMP,
+            deadline TIMESTAMP,
+            parent_goal TEXT,
+            sub_goals JSONB,
+            attempts INT,
+            last_attempt TIMESTAMP,
+            achieved_at TIMESTAMP
+        );
+
+        -- Prediction Engine State table
+        CREATE TABLE IF NOT EXISTS prediction_engine_state (
+            id TEXT PRIMARY KEY,
+            state_data JSONB
+        );
+
         -- System metrics
         CREATE TABLE IF NOT EXISTS metrics (
             id SERIAL PRIMARY KEY,
@@ -119,6 +145,68 @@ class PostgresStore:
         CREATE INDEX IF NOT EXISTS idx_observations_symbol ON observations(symbol);
         CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp DESC);
         CREATE INDEX IF NOT EXISTS idx_gossip_timestamp ON gossip_events(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+        CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority DESC);
+
+        -- Facts table
+        CREATE TABLE IF NOT EXISTS facts (
+            fact TEXT PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Cross-domain mappings table
+        CREATE TABLE IF NOT EXISTS cross_domain_mappings (
+            mapping_id TEXT PRIMARY KEY,
+            source_domain TEXT NOT NULL,
+            target_domain TEXT NOT NULL,
+            concept_mappings JSONB,
+            confidence FLOAT,
+            bidirectional BOOLEAN,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Observation history table
+        CREATE TABLE IF NOT EXISTS observation_history (
+            id SERIAL PRIMARY KEY,
+            observation JSONB NOT NULL,
+            domain TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Price history table
+        CREATE TABLE IF NOT EXISTS price_history (
+            symbol TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            price FLOAT NOT NULL,
+            PRIMARY KEY (symbol, timestamp)
+        );
+
+        -- Meta domains table
+        CREATE TABLE IF NOT EXISTS meta_domains (
+            meta_domain TEXT PRIMARY KEY,
+            domains JSONB NOT NULL
+        );
+
+        -- Learning engine state table
+        CREATE TABLE IF NOT EXISTS learning_engine_state (
+            id TEXT PRIMARY KEY,
+            state_data JSONB
+        );
+
+        -- Caches table
+        CREATE TABLE IF NOT EXISTS caches (
+            cache_name TEXT PRIMARY KEY,
+            data JSONB
+        );
+
+        -- Add indexes for new tables
+        CREATE INDEX IF NOT EXISTS idx_facts_created_at ON facts(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_cross_domain_mappings_source_target ON cross_domain_mappings(source_domain, target_domain);
+        CREATE INDEX IF NOT EXISTS idx_observation_history_timestamp ON observation_history(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_price_history_symbol ON price_history(symbol);
+        CREATE INDEX IF NOT EXISTS idx_price_history_timestamp ON price_history(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+        CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority DESC);
         """
         
         try:
@@ -127,66 +215,59 @@ class PostgresStore:
             logger.info("Schema initialized")
         except Exception as e:
             logger.error(f"Schema initialization error: {e}")
-    
-    async def save_rule(self, rule_id: str, rule: Dict[str, Any]):
-        """Save a rule to the database"""
+    async def save_rules(self, rules: List[Dict[str, Any]]):
+        """Save a list of rules to the database"""
         if not self.pool:
             return
-        
         try:
             async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO rules (id, antecedent, consequent, confidence, support, domain, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (id) DO UPDATE SET
-                        confidence = $4,
-                        support = support + 1,
-                        last_seen = CURRENT_TIMESTAMP,
-                        metadata = $7
-                """, 
-                rule_id,
-                rule.get('antecedent'),
-                rule.get('consequent'),
-                rule.get('confidence', 0.0),
-                rule.get('support', 1),
-                rule.get('domain'),
-                json.dumps(rule.get('metadata', {}))
-                )
+                await conn.execute("TRUNCATE TABLE rules") # Clear existing rules
+                for rule in rules:
+                    await conn.execute("""
+                        INSERT INTO rules (id, antecedent, consequent, confidence, support, domain, metadata, created_at, last_seen, observation_span_hours)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """, 
+                    rule.get("rule_id"),
+                    json.dumps(rule.get("antecedents")), # Store as JSONB
+                    rule.get("consequent"),
+                    rule.get("confidence", 0.0),
+                    rule.get("support_count", 0),
+                    rule.get("domain"),
+                    json.dumps(rule.get("metadata", {})),
+                    datetime.fromisoformat(rule.get("created_at")) if rule.get("created_at") else None,
+                    datetime.fromisoformat(rule.get("last_seen")) if rule.get("last_seen") else None,
+                    rule.get("observation_span_hours", 0.0)
+                    )
         except Exception as e:
-            logger.error(f"Error saving rule: {e}")
-    
-    async def save_concept(self, concept_id: str, concept: Dict[str, Any]):
-        """Save a concept to the database"""
+            logger.error(f"Error saving rules: {e}")
+
+    async def save_concepts(self, concepts: List[Dict[str, Any]]):
+        """Save a list of concepts to the database"""
         if not self.pool:
             return
-        
         try:
             async with self.pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO concepts (id, domain, signature, confidence, first_seen, last_seen, 
+                await conn.execute("TRUNCATE TABLE concepts") # Clear existing concepts
+                for concept in concepts:
+                    await conn.execute("""
+                        INSERT INTO concepts (id, domain, signature, confidence, first_seen, last_seen, 
                                         observation_count, observation_span_hours, distinct_time_windows, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                    ON CONFLICT (id) DO UPDATE SET
-                        confidence = $4,
-                        last_seen = $6,
-                        observation_count = $7,
-                        observation_span_hours = $8,
-                        distinct_time_windows = $9,
-                        metadata = $10
-                """,
-                concept_id,
-                concept.get('domain'),
-                json.dumps(concept.get('signature', {})),
-                concept.get('confidence', 0.0),
-                datetime.fromtimestamp(concept.get('first_seen', 0)),
-                datetime.fromtimestamp(concept.get('last_seen', 0)),
-                concept.get('observation_count', 0),
-                concept.get('observation_span_hours', 0.0),
-                concept.get('distinct_time_windows', 0),
-                json.dumps(concept.get('metadata', {}))
-                )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """,
+                    concept.get("concept_id"),
+                    concept.get("domain"),
+                    json.dumps(concept.get("attributes", {})), # Store attributes as signature
+                    concept.get("confidence", 0.0),
+                    datetime.fromisoformat(concept.get("created_at")) if concept.get("created_at") else None, # Using created_at as first_seen
+                    datetime.fromisoformat(concept.get("created_at")) if concept.get("created_at") else None, # Using created_at as last_seen for now
+                    concept.get("example_count", 0),
+                    0.0, # observation_span_hours not directly available
+                    0, # distinct_time_windows not directly available
+                    json.dumps(concept.get("metadata", {}))
+                    )
         except Exception as e:
-            logger.error(f"Error saving concept: {e}")
+            logger.error(f"Error saving concepts: {e}")
+
     
     async def save_observation(self, observation: Dict[str, Any]):
         """Save an observation (tick data)"""
@@ -234,6 +315,306 @@ class PostgresStore:
         except Exception as e:
             logger.error(f"Error saving metrics: {e}")
     
+    async def load_rules(self) -> List[Dict[str, Any]]:
+        """Load all rules from the database"""
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT id, antecedent, consequent, confidence, support, created_at, last_seen, observation_span_hours, domain, metadata FROM rules")
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error loading rules: {e}")
+            return []
+
+    async def load_concepts(self) -> List[Dict[str, Any]]:
+        """Load all concepts from the database"""
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT id, domain, signature, confidence, first_seen, last_seen, observation_count, observation_span_hours, distinct_time_windows, metadata FROM concepts")
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error loading concepts: {e}")
+            return []
+
+    async def save_goals(self, goals: List[Dict[str, Any]]):
+        """Save a list of goals to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                # Clear existing goals and insert new ones
+                await conn.execute("DELETE FROM goals")
+                for goal in goals:
+                    await conn.execute("""
+                        INSERT INTO goals (id, type, description, success_criteria, priority, status, progress, value_estimate, created_at, deadline, parent_goal, sub_goals, attempts, last_attempt, achieved_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    """,
+                    goal.get('goal_id'),
+                    goal.get('type'),
+                    goal.get('description'),
+                    json.dumps(goal.get('success_criteria', {})),
+                    goal.get('priority'),
+                    goal.get('status'),
+                    goal.get('progress'),
+                    goal.get('value_estimate'),
+                    datetime.fromisoformat(goal.get('created_at')) if goal.get('created_at') else None,
+                    datetime.fromisoformat(goal.get('deadline')) if goal.get('deadline') else None,
+                    goal.get('parent_goal'),
+                    json.dumps(goal.get('sub_goals', [])),
+                    goal.get('attempts'),
+                    datetime.fromisoformat(goal.get('last_attempt')) if goal.get('last_attempt') else None,
+                    datetime.fromisoformat(goal.get('achieved_at')) if goal.get('achieved_at') else None
+                    )
+        except Exception as e:
+            logger.error(f"Error saving goals: {e}")
+
+    async def load_goals(self) -> List[Dict[str, Any]]:
+        """Load all goals from the database"""
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT id, type, description, success_criteria, priority, status, progress, value_estimate, created_at, deadline, parent_goal, sub_goals, attempts, last_attempt, achieved_at FROM goals")
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error loading goals: {e}")
+            return []
+
+    async def save_prediction_engine_state(self, state: Dict[str, Any]):
+        """Save the state of the prediction engine"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO prediction_engine_state (id, state_data)
+                    VALUES ($1, $2)
+                    ON CONFLICT (id) DO UPDATE SET
+                        state_data = $2
+                """, "current_state", json.dumps(state))
+        except Exception as e:
+            logger.error(f"Error saving prediction engine state: {e}")
+
+    async def load_prediction_engine_state(self) -> Optional[Dict[str, Any]]:
+        """Load the state of the prediction engine"""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT state_data FROM prediction_engine_state WHERE id = $1", "current_state")
+                if row:
+                    return json.loads(row['state_data'])
+                return None
+        except Exception as e:
+            logger.error(f"Error loading prediction engine state: {e}")
+            return None
+
+    async def save_facts(self, facts: Set[str]):
+        """Save a set of facts to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("TRUNCATE TABLE facts") # Clear existing facts
+                for fact in facts:
+                    await conn.execute("INSERT INTO facts (fact) VALUES ($1) ON CONFLICT (fact) DO NOTHING", fact)
+        except Exception as e:
+            logger.error(f"Error saving facts: {e}")
+
+    async def load_facts(self) -> Set[str]:
+        """Load all facts from the database"""
+        if not self.pool:
+            return set()
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT fact FROM facts")
+                return {row["fact"] for row in rows}
+        except Exception as e:
+            logger.error(f"Error loading facts: {e}")
+            return set()
+
+    async def save_cross_domain_mappings(self, mappings: List[Dict[str, Any]]):
+        """Save cross-domain mappings to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("TRUNCATE TABLE cross_domain_mappings")
+                for mapping in mappings:
+                    await conn.execute("""
+                        INSERT INTO cross_domain_mappings (mapping_id, source_domain, target_domain, concept_mappings, confidence, bidirectional)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                    """,
+                    mapping.get("mapping_id"),
+                    mapping.get("source_domain"),
+                    mapping.get("target_domain"),
+                    json.dumps(mapping.get("concept_mappings", {})),
+                    mapping.get("confidence"),
+                    mapping.get("bidirectional", False)
+                    )
+        except Exception as e:
+            logger.error(f"Error saving cross-domain mappings: {e}")
+
+    async def load_cross_domain_mappings(self) -> List[Dict[str, Any]]:
+        """Load cross-domain mappings from the database"""
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT mapping_id, source_domain, target_domain, concept_mappings, confidence, bidirectional FROM cross_domain_mappings")
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error loading cross-domain mappings: {e}")
+            return []
+
+    async def save_observation_history(self, history: List[Tuple[Dict[str, Any], str]]):
+        """Save observation history to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("TRUNCATE TABLE observation_history")
+                for obs, domain in history:
+                    await conn.execute("INSERT INTO observation_history (observation, domain) VALUES ($1, $2)", json.dumps(obs), domain)
+        except Exception as e:
+            logger.error(f"Error saving observation history: {e}")
+
+    async def load_observation_history(self) -> List[Tuple[Dict[str, Any], str]]:
+        """Load observation history from the database"""
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT observation, domain FROM observation_history ORDER BY timestamp ASC")
+                return [(json.loads(row["observation"]), row["domain"]) for row in rows]
+        except Exception as e:
+            logger.error(f"Error loading observation history: {e}")
+            return []
+
+    async def save_price_history(self, price_history: Dict[str, List[float]]):
+        """Save price history to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("TRUNCATE TABLE price_history")
+                for symbol, prices in price_history.items():
+                    for price in prices:
+                        await conn.execute("INSERT INTO price_history (symbol, price) VALUES ($1, $2)", symbol, price)
+        except Exception as e:
+            logger.error(f"Error saving price history: {e}")
+
+    async def load_price_history(self) -> Dict[str, List[float]]:
+        """Load price history from the database"""
+        if not self.pool:
+            return defaultdict(list)
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT symbol, price FROM price_history ORDER BY timestamp ASC")
+                history = defaultdict(list)
+                for row in rows:
+                    history[row["symbol"]].append(row["price"])
+                return history
+        except Exception as e:
+            logger.error(f"Error loading price history: {e}")
+            return defaultdict(list)
+
+    async def save_meta_domains(self, meta_domains: Dict[str, Set[str]]):
+        """Save meta domains to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("TRUNCATE TABLE meta_domains")
+                for meta_domain, domains in meta_domains.items():
+                    await conn.execute("INSERT INTO meta_domains (meta_domain, domains) VALUES ($1, $2)", meta_domain, json.dumps(list(domains)))
+        except Exception as e:
+            logger.error(f"Error saving meta domains: {e}")
+
+    async def load_meta_domains(self) -> Dict[str, Set[str]]:
+        """Load meta domains from the database"""
+        if not self.pool:
+            return defaultdict(set)
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT meta_domain, domains FROM meta_domains")
+                meta_domains = defaultdict(set)
+                for row in rows:
+                    meta_domains[row["meta_domain"]] = set(json.loads(row["domains"]))
+                return meta_domains
+        except Exception as e:
+            logger.error(f"Error loading meta domains: {e}")
+            return defaultdict(set)
+
+    async def save_learning_engine_state(self, state: Dict[str, Any]):
+        """Save the state of the learning engine"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO learning_engine_state (id, state_data)
+                    VALUES ($1, $2)
+                    ON CONFLICT (id) DO UPDATE SET
+                        state_data = $2
+                """, "current_state", json.dumps(state))
+        except Exception as e:
+            logger.error(f"Error saving learning engine state: {e}")
+
+    async def load_learning_engine_state(self) -> Optional[Dict[str, Any]]:
+        """Load the state of the learning engine"""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT state_data FROM learning_engine_state WHERE id = $1", "current_state")
+                if row:
+                    return json.loads(row["state_data"])
+                return None
+        except Exception as e:
+            logger.error(f"Error loading learning engine state: {e}")
+            return None
+
+    async def save_caches(self, caches: Dict[str, Any]):
+        """Save various caches to the database"""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                for cache_name, data in caches.items():
+                    # Handle both list/deque and dict
+                    if isinstance(data, (list, deque)):
+                        serializable_data = list(data)
+                    else:
+                        serializable_data = data
+                    
+                    await conn.execute("""
+                        INSERT INTO caches (cache_name, data)
+                        VALUES ($1, $2)
+                        ON CONFLICT (cache_name) DO UPDATE SET
+                            data = $2
+                    """, cache_name, json.dumps(serializable_data))
+        except Exception as e:
+            logger.error(f"Error saving caches: {e}")
+
+    async def load_caches(self) -> Dict[str, Any]:
+        """Load various caches from the database"""
+        if not self.pool:
+            return {}
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT cache_name, data FROM caches")
+                loaded_caches = {}
+                for row in rows:
+                    loaded_caches[row["cache_name"]] = json.loads(row["data"])
+                return loaded_caches
+        except Exception as e:
+            logger.error(f"Error loading caches: {e}")
+            return {}
+
     async def save_gossip_event(self, event_id: str, node_id: str, event_type: str, data: Dict[str, Any]):
         """Save a gossip event for audit trail"""
         if not self.pool:

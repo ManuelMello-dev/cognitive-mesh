@@ -187,6 +187,36 @@ class MilvusStore:
         
         return vector
     
+    async def save_all_mappings(self, mappings: List[Dict[str, Any]]) -> bool:
+        """Save a list of cross-domain mappings to Milvus."""
+        if not self.connected:
+            return False
+        
+        try:
+            collection = self.Collection(self.collection_name)
+            # Milvus doesn't have a direct 'update by ID' for non-vector fields easily
+            # For simplicity, we'll clear and re-insert for now.
+            # In a real system, you'd manage updates more granularly.
+            # This requires a new collection for mappings, not concepts.
+            # Let's assume a separate collection for mappings.
+            # For now, I will log a warning and skip, as Milvus is for vectors.
+            logger.warning("MilvusStore is designed for vector concepts. Cross-domain mappings will be saved to Postgres.")
+            return False
+        except Exception as e:
+            logger.error(f"Error saving mappings to Milvus: {e}")
+            return False
+
+    async def load_all_mappings(self) -> List[Dict[str, Any]]:
+        """Load all cross-domain mappings from Milvus."""
+        if not self.connected:
+            return []
+        try:
+            logger.warning("MilvusStore is designed for vector concepts. Cross-domain mappings will be loaded from Postgres.")
+            return []
+        except Exception as e:
+            logger.error(f"Error loading mappings from Milvus: {e}")
+            return []
+
     async def disconnect(self):
         """Close Milvus connection"""
         if self.connected:

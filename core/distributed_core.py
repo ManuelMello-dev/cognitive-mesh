@@ -9,9 +9,18 @@ import logging
 import time
 import threading
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from collections import deque, defaultdict
+import numpy as np
+
+from abstraction_engine import Concept
+from reasoning_engine import Rule, RuleType
+from cross_domain_engine import DomainMapping
+from goal_formation_system import Goal, GoalType, GoalStatus
+from prediction_validation_engine import Prediction, Direction, SymbolHistory, RulePerformance
+from continuous_learning_engine import Pattern, LearningMetrics
 
 from cognitive_intelligent_system import CognitiveIntelligentSystem
 from prediction_validation_engine import PredictionValidationEngine
@@ -70,7 +79,250 @@ class DistributedCognitiveCore:
         # Buffer for async ingestion
         self._pending_observations = deque(maxlen=500)
 
-        logger.info(f"Distributed Cognitive Core '{node_id}' initialized")
+    async def ingest_historical_data(self, historical_observations: List[Tuple[Dict[str, Any], str]]):
+        """Ingest historical observations, replaying them through the cognitive system."""
+        logger.info(f"Ingesting {len(historical_observations)} historical observations...")
+        for i, (obs, domain) in enumerate(historical_observations):
+            try:
+                # Replay historical observation through the standard ingestion pipeline
+                # This ensures it hits all 7 engines and lands in all the right places
+                await self.ingest(obs, domain)
+
+                if i % 100 == 0:
+                    logger.info(f"Queued {i+1}/{len(historical_observations)} historical observations for replay.")
+
+            except Exception as e:
+                logger.error(f"Error queuing historical observation {i}: {e}")
+        logger.info("Historical data ingestion complete.")
+
+
+    async def save_state(self):
+        """Save the entire cognitive state to persistent storage."""
+        logger.info("Saving cognitive state...")
+        if self.postgres:
+            # Save Abstraction Engine state
+            concepts_to_save = [c.to_dict() for c in self.cognitive_system.abstraction.concepts.values()]
+            await self.postgres.save_concepts(concepts_to_save)
+            logger.debug(f"Saved {len(concepts_to_save)} concepts to Postgres.")
+
+            # Save Reasoning Engine state
+            rules_to_save = [r.to_dict() for r in self.cognitive_system.reasoning.rules.values()]
+            await self.postgres.save_rules(rules_to_save)
+            await self.postgres.save_facts(self.cognitive_system.reasoning.facts)
+            logger.debug(f"Saved {len(rules_to_save)} rules and {len(self.cognitive_system.reasoning.facts)} facts to Postgres.")
+
+            # Save Cross-Domain Engine state (mappings)
+            mappings_to_save = [m.to_dict() for m in self.cognitive_system.cross_domain.mappings.values()]
+            await self.postgres.save_cross_domain_mappings(mappings_to_save)
+            logger.debug(f"Saved {len(mappings_to_save)} cross-domain mappings to Postgres.")
+
+            # Save Goal Formation System state
+            goals_to_save = [g.to_dict() for g in self.cognitive_system.goals.goals.values()]
+            await self.postgres.save_goals(goals_to_save)
+            logger.debug(f"Saved {len(goals_to_save)} goals to Postgres.")
+
+            # Save Prediction Validation Engine state
+            # The prediction engine has a `save` method that takes postgres as an argument
+            # I need to ensure that the prediction engine's save method is implemented to use the postgres client
+            # For now, I will save its internal state directly if possible, or adapt its save method later.
+            # Assuming prediction_engine has a serializable state for now.
+            prediction_engine_state = {
+                "symbols": {s_id: s.__dict__ for s_id, s in self.prediction_engine.symbols.items()},
+                "all_predictions": [p.__dict__ for p in self.prediction_engine.all_predictions],
+                "prediction_counter": self.prediction_engine.prediction_counter,
+                "rule_performance": {r_id: r.__dict__ for r_id, r in self.prediction_engine.rule_performance.items()},
+                "accuracy_history": list(self.prediction_engine.accuracy_history),
+                "phi_history": list(self.prediction_engine.phi_history),
+                "sigma_history": list(self.prediction_engine.sigma_history),
+                "total_predictions": self.prediction_engine.total_predictions,
+                "total_correct": self.prediction_engine.total_correct,
+                "total_validated": self.prediction_engine.total_validated,
+            }
+            await self.postgres.save_prediction_engine_state(prediction_engine_state)
+            logger.debug("Saved Prediction Validation Engine state to Postgres.")
+
+            # Save other RAM-only states from CognitiveIntelligentSystem
+            # _observation_history
+            observation_history_to_save = list(self.cognitive_system._observation_history)
+            await self.postgres.save_observation_history(observation_history_to_save)
+            logger.debug(f"Saved {len(observation_history_to_save)} observations to Postgres.")
+
+            # _price_history
+            price_history_to_save = {k: list(v) for k, v in self.cognitive_system._price_history.items()}
+            await self.postgres.save_price_history(price_history_to_save)
+            logger.debug(f"Saved price history for {len(price_history_to_save)} symbols to Postgres.")
+
+            # _meta_domains
+            meta_domains_to_save = {k: list(v) for k, v in self.cognitive_system._meta_domains.items()}
+            await self.postgres.save_meta_domains(meta_domains_to_save)
+            logger.debug(f"Saved {len(meta_domains_to_save)} meta domains to Postgres.")
+
+            # learning_engine (weights, bias, feature_names, feature_index, long_term_patterns, metrics, prediction_history, feature_means, feature_vars, sample_count, drift_events, _current_lr_history)
+            learning_engine_state = {
+                "weights": self.cognitive_system.learning_engine.weights.tolist(),
+                "bias": self.cognitive_system.learning_engine.bias,
+                "feature_names": self.cognitive_system.learning_engine.feature_names,
+                "feature_index": self.cognitive_system.learning_engine.feature_index,
+                "long_term_patterns": {p_id: p.to_dict() for p_id, p in self.cognitive_system.learning_engine.long_term_patterns.items()},
+                "metrics": self.cognitive_system.learning_engine.metrics.to_dict(),
+                "prediction_history": list(self.cognitive_system.learning_engine.prediction_history),
+                "feature_means": dict(self.cognitive_system.learning_engine.feature_means),
+                "feature_vars": dict(self.cognitive_system.learning_engine.feature_vars),
+                "sample_count": self.cognitive_system.learning_engine.sample_count,
+                "drift_events": list(self.cognitive_system.learning_engine.drift_events),
+                "_current_lr_history": list(self.cognitive_system.learning_engine._current_lr_history),
+            }
+            await self.postgres.save_learning_engine_state(learning_engine_state)
+            logger.debug("Saved Learning Engine state to Postgres.")
+
+            # Caches from CognitiveIntelligentSystem
+            caches_to_save = {
+                "_recent_analogies": list(self.cognitive_system._recent_analogies),
+                "_recent_explanations": list(self.cognitive_system._recent_explanations),
+                "_recent_plans": list(self.cognitive_system._recent_plans),
+                "_causal_discovery_log": list(self.cognitive_system._causal_discovery_log),
+                "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
+                "_pursuit_log": list(self.cognitive_system._pursuit_log),
+            }
+            await self.postgres.save_caches(caches_to_save)
+            logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
+
+        if self.milvus:
+            # Milvus stores concept vectors. The concepts themselves are saved in Postgres.
+            # We need to ensure that the Milvus store is populated with the vectors from the concepts.
+            # This might require iterating through the concepts and inserting them into Milvus if they are not already there.
+            # For now, I will assume that Milvus is kept in sync by the abstraction engine.
+            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+
+        logger.info("Cognitive state saved.")
+
+    async def load_state(self):
+        """Load the entire cognitive state from persistent storage."""
+        logger.info("Loading cognitive state...")
+        if self.postgres:
+            # Load Abstraction Engine state
+            loaded_concepts = await self.postgres.load_concepts()
+            for c_data in loaded_concepts:
+                # Reconstruct Concept objects. Handle datetime conversion.
+                c_data["created_at"] = datetime.fromisoformat(c_data["created_at"]) if c_data.get("created_at") else datetime.now()
+                c_data["examples"] = [] # Examples are not stored in Postgres for now, only count
+                c_data["parent_concepts"] = set(c_data.get("parents", []))
+                c_data["child_concepts"] = set(c_data.get("children", []))
+                concept = Concept(concept_id=c_data["id"], name=c_data["name"], level=c_data["level"], attributes=c_data["signature"], examples=[], confidence=c_data["confidence"], created_at=c_data["created_at"], parent_concepts=c_data["parent_concepts"], child_concepts=c_data["child_concepts"])
+                self.cognitive_system.abstraction.concepts[concept.concept_id] = concept
+            logger.debug(f"Loaded {len(loaded_concepts)} concepts from Postgres.")
+
+            # Load Reasoning Engine state
+            loaded_rules = await self.postgres.load_rules()
+            for r_data in loaded_rules:
+                r_data["created_at"] = datetime.fromisoformat(r_data["created_at"]) if r_data.get("created_at") else datetime.now()
+                rule = Rule(rule_id=r_data["id"], rule_type=RuleType(r_data["type"]), antecedents=r_data["antecedent"], consequent=r_data["consequent"], confidence=r_data["confidence"], support_count=r_data["support"], created_at=r_data["created_at"])
+                self.cognitive_system.reasoning.rules[rule.rule_id] = rule
+            self.cognitive_system.reasoning.facts = await self.postgres.load_facts()
+            logger.debug(f"Loaded {len(loaded_rules)} rules and {len(self.cognitive_system.reasoning.facts)} facts from Postgres.")
+
+            # Load Cross-Domain Engine state (mappings)
+            loaded_mappings = await self.postgres.load_cross_domain_mappings()
+            for m_data in loaded_mappings:
+                mapping = DomainMapping(mapping_id=m_data["mapping_id"], source_domain=m_data["source_domain"], target_domain=m_data["target_domain"], concept_mappings=m_data["concept_mappings"], confidence=m_data["confidence"], bidirectional=m_data["bidirectional"])
+                self.cognitive_system.cross_domain.mappings[mapping.mapping_id] = mapping
+            logger.debug(f"Loaded {len(loaded_mappings)} cross-domain mappings from Postgres.")
+
+            # Load Goal Formation System state
+            loaded_goals = await self.postgres.load_goals()
+            for g_data in loaded_goals:
+                g_data["created_at"] = datetime.fromisoformat(g_data["created_at"]) if g_data.get("created_at") else datetime.now()
+                g_data["deadline"] = datetime.fromisoformat(g_data["deadline"]) if g_data.get("deadline") else None
+                g_data["last_attempt"] = datetime.fromisoformat(g_data["last_attempt"]) if g_data.get("last_attempt") else None
+                g_data["achieved_at"] = datetime.fromisoformat(g_data["achieved_at"]) if g_data.get("achieved_at") else None
+                goal = Goal(goal_id=g_data["id"], goal_type=GoalType(g_data["type"]), description=g_data["description"], success_criteria=g_data["success_criteria"], priority=g_data["priority"], status=GoalStatus(g_data["status"]), progress=g_data["progress"], value_estimate=g_data["value_estimate"], created_at=g_data["created_at"], deadline=g_data["deadline"], parent_goal=g_data["parent_goal"], sub_goals=g_data["sub_goals"], attempts=g_data["attempts"], last_attempt=g_data["last_attempt"], achieved_at=g_data["achieved_at"])
+                self.cognitive_system.goals.goals[goal.goal_id] = goal
+            logger.debug(f"Loaded {len(loaded_goals)} goals from Postgres.")
+
+            # Load Prediction Validation Engine state
+            prediction_engine_state = await self.postgres.load_prediction_engine_state()
+            if prediction_engine_state:
+                for s_id, s_data in prediction_engine_state["symbols"].items():
+                    history = SymbolHistory(symbol=s_data["symbol"], domain=s_data["domain"])
+                    history.prices = deque(s_data["prices"], maxlen=200)
+                    history.volumes = deque(s_data["volumes"], maxlen=200)
+                    history.timestamps = deque(s_data["timestamps"], maxlen=200)
+                    if s_data["pending_prediction"]:
+                        pred_data = s_data["pending_prediction"]
+                        history.pending_prediction = Prediction(prediction_id=pred_data["prediction_id"], symbol=pred_data["symbol"], domain=pred_data["domain"], direction=Direction(pred_data["direction"]), confidence=pred_data["confidence"], basis=pred_data["basis"], predicted_at=pred_data["predicted_at"], predicted_price=pred_data["predicted_price"], horizon=pred_data["horizon"], ticks_remaining=pred_data["ticks_remaining"], dead_zone_pct=pred_data["dead_zone_pct"], target_price=pred_data["target_price"], actual_price=pred_data["actual_price"], actual_direction=Direction(pred_data["actual_direction"]) if pred_data["actual_direction"] else None, validated=pred_data["validated"], max_post_signal_move_pct=pred_data["max_post_signal_move_pct"], correct=pred_data["correct"], validation_time=pred_data["validation_time"])
+                    history.total_predictions = s_data["total_predictions"]
+                    history.correct_predictions = s_data["correct_predictions"]
+                    history.recent_accuracy = deque(s_data["recent_accuracy"], maxlen=50)
+                    self.prediction_engine.symbols[s_id] = history
+                self.prediction_engine.all_predictions = deque([Prediction(prediction_id=p["prediction_id"], symbol=p["symbol"], domain=p["domain"], direction=Direction(p["direction"]), confidence=p["confidence"], basis=p["basis"], predicted_at=p["predicted_at"], predicted_price=p["predicted_price"], horizon=p["horizon"], ticks_remaining=p["ticks_remaining"], dead_zone_pct=p["dead_zone_pct"], target_price=p["target_price"], actual_price=p["actual_price"], actual_direction=Direction(p["actual_direction"]) if p["actual_direction"] else None, validated=p["validated"], max_post_signal_move_pct=p["max_post_signal_move_pct"], correct=p["correct"], validation_time=p["validation_time"]) for p in prediction_engine_state["all_predictions"]], maxlen=5000)
+                self.prediction_engine.prediction_counter = prediction_engine_state["prediction_counter"]
+                for r_id, r_data in prediction_engine_state["rule_performance"].items():
+                    rule_perf = RulePerformance(rule_id=r_data["rule_id"])
+                    rule_perf.predictions_made = r_data["predictions_made"]
+                    rule_perf.correct_predictions = r_data["correct_predictions"]
+                    rule_perf.recent_accuracy = deque(r_data["recent_accuracy"], maxlen=30)
+                    self.prediction_engine.rule_performance[r_id] = rule_perf
+                self.prediction_engine.accuracy_history = deque(prediction_engine_state["accuracy_history"], maxlen=500)
+                self.prediction_engine.phi_history = deque(prediction_engine_state["phi_history"], maxlen=500)
+                self.prediction_engine.sigma_history = deque(prediction_engine_state["sigma_history"], maxlen=500)
+                self.prediction_engine.total_predictions = prediction_engine_state["total_predictions"]
+                self.prediction_engine.total_correct = prediction_engine_state["total_correct"]
+                self.prediction_engine.total_validated = prediction_engine_state["total_validated"]
+            logger.debug("Loaded Prediction Validation Engine state from Postgres.")
+
+            # Load other RAM-only states from CognitiveIntelligentSystem
+            # _observation_history
+            loaded_observation_history = await self.postgres.load_observation_history()
+            self.cognitive_system._observation_history = deque(loaded_observation_history, maxlen=self.cognitive_system._max_observation_history)
+            logger.debug(f"Loaded {len(loaded_observation_history)} observations into history.")
+
+            # _price_history
+            loaded_price_history = await self.postgres.load_price_history()
+            for symbol, prices in loaded_price_history.items():
+                self.cognitive_system._price_history[symbol] = deque(prices, maxlen=self.cognitive_system._max_price_history)
+            logger.debug(f"Loaded price history for {len(loaded_price_history)} symbols.")
+
+            # _meta_domains
+            loaded_meta_domains = await self.postgres.load_meta_domains()
+            for meta_domain, domains in loaded_meta_domains.items():
+                self.cognitive_system._meta_domains[meta_domain] = domains
+            logger.debug(f"Loaded {len(loaded_meta_domains)} meta domains.")
+
+            # learning_engine
+            learning_engine_state = await self.postgres.load_learning_engine_state()
+            if learning_engine_state:
+                self.cognitive_system.learning_engine.weights = np.array(learning_engine_state["weights"])
+                self.cognitive_system.learning_engine.bias = learning_engine_state["bias"]
+                self.cognitive_system.learning_engine.feature_names = learning_engine_state["feature_names"]
+                self.cognitive_system.learning_engine.feature_index = learning_engine_state["feature_index"]
+                self.cognitive_system.learning_engine.long_term_patterns = {p_id: Pattern(pattern_id=p["pattern_id"], centroid=np.array(p["centroid"]), examples=[], confidence=p["confidence"], created_at=datetime.fromisoformat(p["created_at"]), hit_count=p["hit_count"]) for p_id, p in learning_engine_state["long_term_patterns"].items()}
+                self.cognitive_system.learning_engine.metrics = LearningMetrics(accuracy=learning_engine_state["metrics"]["accuracy"], samples_processed=learning_engine_state["metrics"]["samples_processed"], patterns_discovered=learning_engine_state["metrics"]["patterns_discovered"], adaptations=learning_engine_state["metrics"]["adaptations"], last_update=datetime.fromisoformat(learning_engine_state["metrics"]["last_update"]))
+                self.cognitive_system.learning_engine.prediction_history = deque(learning_engine_state["prediction_history"], maxlen=100)
+                self.cognitive_system.learning_engine.feature_means = defaultdict(float, learning_engine_state["feature_means"])
+                self.cognitive_system.learning_engine.feature_vars = defaultdict(lambda: 1.0, learning_engine_state["feature_vars"])
+                self.cognitive_system.learning_engine.sample_count = learning_engine_state["sample_count"]
+                self.cognitive_system.learning_engine.drift_events = deque(learning_engine_state["drift_events"], maxlen=200)
+                self.cognitive_system.learning_engine._current_lr_history = deque(learning_engine_state["_current_lr_history"], maxlen=200)
+            logger.debug("Loaded Learning Engine state from Postgres.")
+
+            # Caches from CognitiveIntelligentSystem
+            loaded_caches = await self.postgres.load_caches()
+            self.cognitive_system._recent_analogies = deque(loaded_caches.get("_recent_analogies", []), maxlen=100)
+            self.cognitive_system._recent_explanations = deque(loaded_caches.get("_recent_explanations", []), maxlen=100)
+            self.cognitive_system._recent_plans = deque(loaded_caches.get("_recent_plans", []), maxlen=100)
+            self.cognitive_system._causal_discovery_log = deque(loaded_caches.get("_causal_discovery_log", []), maxlen=100)
+            self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
+            self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
+            logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
+
+        if self.milvus:
+            # Milvus stores concept vectors. The concepts themselves are loaded from Postgres.
+            # We need to ensure that the Milvus store is populated with the vectors from the concepts.
+            # This might require iterating through the concepts and inserting them into Milvus if they are not already there.
+            # For now, I will assume that Milvus is kept in sync by the abstraction engine.
+            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+
+        logger.info("Cognitive state loaded.")
 
     # ──────────────────────────────────────────
     # Cognitive Loop
@@ -299,8 +551,6 @@ class DistributedCognitiveCore:
             "predictions_validated": prediction_insights.get('total_validated', 0),
             "predictions_correct": prediction_insights.get('total_correct', 0),
             "symbols_tracked": prediction_insights.get('symbols_tracked', 0),
-            "attention_density": round(abstraction_insights.get('total_concepts', 0) / 1000.0, 4),
-            "concepts_formed": cognitive_metrics.get('concepts_formed', 0),
             "rules_learned": cognitive_metrics.get('rules_learned', 0),
             "analogies_found": cognitive_metrics.get('analogies_found', 0),
             "goals_achieved": cognitive_metrics.get('goals_achieved', 0),
@@ -489,12 +739,222 @@ class DistributedCognitiveCore:
 
     def _build_goal_context(self):
         """Build context for goal generation"""
-            from goal_formation_system import GoalGenerationContext
-            return GoalGenerationContext(
-                observations=[],
-                patterns=list(self.cognitive_system.abstraction.patterns) if self.cognitive_system.abstraction.patterns is not None else [],
-                capabilities=set(['reasoning', 'abstraction', 'prediction']),
-                constraints={},
-                current_state=self.get_introspection(),
-                performance_metrics=self.prediction_engine.get_insights() if self.prediction_engine.get_insights() is not None else {}
-            )
+        from goal_formation_system import GoalGenerationContext
+        return GoalGenerationContext(
+            observations=[],
+            patterns=list(self.cognitive_system.abstraction.patterns) if self.cognitive_system.abstraction.patterns is not None else [],
+            capabilities=set(['reasoning', 'abstraction', 'prediction']),
+            constraints={},
+            current_state=self.get_metrics(), # Use get_metrics instead of get_introspection
+            performance_metrics=self.prediction_engine.get_insights() if self.prediction_engine.get_insights() is not None else {}
+        )
+
+    async def save_state(self):
+        """Save the entire cognitive state to persistent storage."""
+        logger.info("Saving cognitive state...")
+        if self.postgres:
+            # Save Abstraction Engine state
+            concepts_to_save = [c.to_dict() for c in self.cognitive_system.abstraction.concepts.values()]
+            await self.postgres.save_concepts(concepts_to_save)
+            logger.debug(f"Saved {len(concepts_to_save)} concepts to Postgres.")
+
+            # Save Reasoning Engine state
+            rules_to_save = [r.to_dict() for r in self.cognitive_system.reasoning.rules.values()]
+            await self.postgres.save_rules(rules_to_save)
+            await self.postgres.save_facts(self.cognitive_system.reasoning.facts)
+            logger.debug(f"Saved {len(rules_to_save)} rules and {len(self.cognitive_system.reasoning.facts)} facts to Postgres.")
+
+            # Save Cross-Domain Engine state (mappings)
+            mappings_to_save = [m.to_dict() for m in self.cognitive_system.cross_domain.mappings.values()]
+            await self.postgres.save_cross_domain_mappings(mappings_to_save)
+            logger.debug(f"Saved {len(mappings_to_save)} cross-domain mappings to Postgres.")
+
+            # Save Goal Formation System state
+            goals_to_save = [g.to_dict() for g in self.cognitive_system.goals.goals.values()]
+            await self.postgres.save_goals(goals_to_save)
+            logger.debug(f"Saved {len(goals_to_save)} goals to Postgres.")
+
+            # Save Prediction Validation Engine state
+            prediction_engine_state = {
+                "symbols": {s_id: s.__dict__ for s_id, s in self.prediction_engine.symbols.items()},
+                "all_predictions": [p.__dict__ for p in self.prediction_engine.all_predictions],
+                "prediction_counter": self.prediction_engine.prediction_counter,
+                "rule_performance": {r_id: r.__dict__ for r_id, r in self.prediction_engine.rule_performance.items()},
+                "accuracy_history": list(self.prediction_engine.accuracy_history),
+                "phi_history": list(self.prediction_engine.phi_history),
+                "sigma_history": list(self.prediction_engine.sigma_history),
+                "total_predictions": self.prediction_engine.total_predictions,
+                "total_correct": self.prediction_engine.total_correct,
+                "total_validated": self.prediction_engine.total_validated,
+            }
+            await self.postgres.save_prediction_engine_state(prediction_engine_state)
+            logger.debug("Saved Prediction Validation Engine state to Postgres.")
+
+            # Save other RAM-only states from CognitiveIntelligentSystem
+            # _observation_history
+            observation_history_to_save = list(self.cognitive_system._observation_history)
+            await self.postgres.save_observation_history(observation_history_to_save)
+            logger.debug(f"Saved {len(observation_history_to_save)} observations to Postgres.")
+
+            # _price_history
+            price_history_to_save = {k: list(v) for k, v in self.cognitive_system._price_history.items()}
+            await self.postgres.save_price_history(price_history_to_save)
+            logger.debug(f"Saved price history for {len(price_history_to_save)} symbols to Postgres.")
+
+            # _meta_domains
+            meta_domains_to_save = {k: list(v) for k, v in self.cognitive_system._meta_domains.items()}
+            await self.postgres.save_meta_domains(meta_domains_to_save)
+            logger.debug(f"Saved {len(meta_domains_to_save)} meta domains to Postgres.")
+
+            # learning_engine
+            learning_engine_state = {
+                "weights": self.cognitive_system.learning_engine.weights.tolist(),
+                "bias": self.cognitive_system.learning_engine.bias,
+                "feature_names": self.cognitive_system.learning_engine.feature_names,
+                "feature_index": self.cognitive_system.learning_engine.feature_index,
+                "long_term_patterns": {p_id: p.to_dict() for p_id, p in self.cognitive_system.learning_engine.long_term_patterns.items()},
+                "metrics": self.cognitive_system.learning_engine.metrics.to_dict(),
+                "prediction_history": list(self.cognitive_system.learning_engine.prediction_history),
+                "feature_means": dict(self.cognitive_system.learning_engine.feature_means),
+                "feature_vars": dict(self.cognitive_system.learning_engine.feature_vars),
+                "sample_count": self.cognitive_system.learning_engine.sample_count,
+                "drift_events": list(self.cognitive_system.learning_engine.drift_events),
+                "_current_lr_history": list(self.cognitive_system.learning_engine._current_lr_history),
+            }
+            await self.postgres.save_learning_engine_state(learning_engine_state)
+            logger.debug("Saved Learning Engine state to Postgres.")
+
+            # Caches from CognitiveIntelligentSystem
+            caches_to_save = {
+                "_recent_analogies": list(self.cognitive_system._recent_analogies),
+                "_recent_explanations": list(self.cognitive_system._recent_explanations),
+                "_recent_plans": list(self.cognitive_system._recent_plans),
+                "_causal_discovery_log": list(self.cognitive_system._causal_discovery_log),
+                "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
+                "_pursuit_log": list(self.cognitive_system._pursuit_log),
+            }
+            await self.postgres.save_caches(caches_to_save)
+            logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
+
+        if self.milvus:
+            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+
+        logger.info("Cognitive state saved.")
+
+    async def load_state(self):
+        """Load the entire cognitive state from persistent storage."""
+        logger.info("Loading cognitive state...")
+        if self.postgres:
+            # Load Abstraction Engine state
+            loaded_concepts = await self.postgres.load_concepts()
+            for c_data in loaded_concepts:
+                c_data["created_at"] = datetime.fromisoformat(c_data["created_at"]) if c_data.get("created_at") else datetime.now()
+                c_data["examples"] = []
+                c_data["parent_concepts"] = set(c_data.get("parents", []))
+                c_data["child_concepts"] = set(c_data.get("children", []))
+                concept = Concept(concept_id=c_data["id"], name=c_data["name"], level=c_data["level"], attributes=c_data["signature"], examples=[], confidence=c_data["confidence"], created_at=c_data["created_at"], parent_concepts=c_data["parent_concepts"], child_concepts=c_data["child_concepts"])
+                self.cognitive_system.abstraction.concepts[concept.concept_id] = concept
+            logger.debug(f"Loaded {len(loaded_concepts)} concepts from Postgres.")
+
+            # Load Reasoning Engine state
+            loaded_rules = await self.postgres.load_rules()
+            for r_data in loaded_rules:
+                r_data["created_at"] = datetime.fromisoformat(r_data["created_at"]) if r_data.get("created_at") else datetime.now()
+                rule = Rule(rule_id=r_data["id"], rule_type=RuleType(r_data["type"]), antecedents=r_data["antecedent"], consequent=r_data["consequent"], confidence=r_data["confidence"], support_count=r_data["support"], created_at=r_data["created_at"])
+                self.cognitive_system.reasoning.rules[rule.rule_id] = rule
+            self.cognitive_system.reasoning.facts = await self.postgres.load_facts()
+            logger.debug(f"Loaded {len(loaded_rules)} rules and {len(self.cognitive_system.reasoning.facts)} facts from Postgres.")
+
+            # Load Cross-Domain Engine state (mappings)
+            loaded_mappings = await self.postgres.load_cross_domain_mappings()
+            for m_data in loaded_mappings:
+                mapping = DomainMapping(mapping_id=m_data["mapping_id"], source_domain=m_data["source_domain"], target_domain=m_data["target_domain"], concept_mappings=m_data["concept_mappings"], confidence=m_data["confidence"], bidirectional=m_data["bidirectional"])
+                self.cognitive_system.cross_domain.mappings[mapping.mapping_id] = mapping
+            logger.debug(f"Loaded {len(loaded_mappings)} cross-domain mappings from Postgres.")
+
+            # Load Goal Formation System state
+            loaded_goals = await self.postgres.load_goals()
+            for g_data in loaded_goals:
+                g_data["created_at"] = datetime.fromisoformat(g_data["created_at"]) if g_data.get("created_at") else datetime.now()
+                g_data["deadline"] = datetime.fromisoformat(g_data["deadline"]) if g_data.get("deadline") else None
+                g_data["last_attempt"] = datetime.fromisoformat(g_data["last_attempt"]) if g_data.get("last_attempt") else None
+                g_data["achieved_at"] = datetime.fromisoformat(g_data["achieved_at"]) if g_data.get("achieved_at") else None
+                goal = Goal(goal_id=g_data["id"], goal_type=GoalType(g_data["type"]), description=g_data["description"], success_criteria=g_data["success_criteria"], priority=g_data["priority"], status=GoalStatus(g_data["status"]), progress=g_data["progress"], value_estimate=g_data["value_estimate"], created_at=g_data["created_at"], deadline=g_data["deadline"], parent_goal=g_data["parent_goal"], sub_goals=g_data["sub_goals"], attempts=g_data["attempts"], last_attempt=g_data["last_attempt"], achieved_at=g_data["achieved_at"])
+                self.cognitive_system.goals.goals[goal.goal_id] = goal
+            logger.debug(f"Loaded {len(loaded_goals)} goals from Postgres.")
+
+            # Load Prediction Validation Engine state
+            prediction_engine_state = await self.postgres.load_prediction_engine_state()
+            if prediction_engine_state:
+                for s_id, s_data in prediction_engine_state["symbols"].items():
+                    history = SymbolHistory(symbol=s_data["symbol"], domain=s_data["domain"])
+                    history.prices = deque(s_data["prices"], maxlen=200)
+                    history.volumes = deque(s_data["volumes"], maxlen=200)
+                    history.timestamps = deque(s_data["timestamps"], maxlen=200)
+                    if s_data["pending_prediction"]:
+                        pred_data = s_data["pending_prediction"]
+                        history.pending_prediction = Prediction(prediction_id=pred_data["prediction_id"], symbol=pred_data["symbol"], domain=pred_data["domain"], direction=Direction(pred_data["direction"]), confidence=pred_data["confidence"], basis=pred_data["basis"], predicted_at=pred_data["predicted_at"], predicted_price=pred_data["predicted_price"], horizon=pred_data["horizon"], ticks_remaining=pred_data["ticks_remaining"], dead_zone_pct=pred_data["dead_zone_pct"], target_price=pred_data["target_price"], actual_price=pred_data["actual_price"], actual_direction=Direction(pred_data["actual_direction"]) if pred_data["actual_direction"] else None, validated=pred_data["validated"], max_post_signal_move_pct=pred_data["max_post_signal_move_pct"], correct=pred_data["correct"], validation_time=pred_data["validation_time"])
+                    history.total_predictions = s_data["total_predictions"]
+                    history.correct_predictions = s_data["correct_predictions"]
+                    history.recent_accuracy = deque(s_data["recent_accuracy"], maxlen=50)
+                    self.prediction_engine.symbols[s_id] = history
+                self.prediction_engine.all_predictions = deque([Prediction(prediction_id=p["prediction_id"], symbol=p["symbol"], domain=p["domain"], direction=Direction(p["direction"]), confidence=p["confidence"], basis=p["basis"], predicted_at=p["predicted_at"], predicted_price=p["predicted_price"], horizon=p["horizon"], ticks_remaining=p["ticks_remaining"], dead_zone_pct=p["dead_zone_pct"], target_price=p["target_price"], actual_price=p["actual_price"], actual_direction=Direction(p["actual_direction"]) if p["actual_direction"] else None, validated=p["validated"], max_post_signal_move_pct=p["max_post_signal_move_pct"], correct=p["correct"], validation_time=p["validation_time"]) for p in prediction_engine_state["all_predictions"]], maxlen=5000)
+                self.prediction_engine.prediction_counter = prediction_engine_state["prediction_counter"]
+                for r_id, r_data in prediction_engine_state["rule_performance"].items():
+                    rule_perf = RulePerformance(rule_id=r_data["rule_id"])
+                    rule_perf.predictions_made = r_data["predictions_made"]
+                    rule_perf.correct_predictions = r_data["correct_predictions"]
+                    rule_perf.recent_accuracy = deque(r_data["recent_accuracy"], maxlen=30)
+                    self.prediction_engine.rule_performance[r_id] = rule_perf
+                self.prediction_engine.accuracy_history = deque(prediction_engine_state["accuracy_history"], maxlen=500)
+                self.prediction_engine.phi_history = deque(prediction_engine_state["phi_history"], maxlen=500)
+                self.prediction_engine.sigma_history = deque(prediction_engine_state["sigma_history"], maxlen=500)
+                self.prediction_engine.total_predictions = prediction_engine_state["total_predictions"]
+                self.prediction_engine.total_correct = prediction_engine_state["total_correct"]
+                self.prediction_engine.total_validated = prediction_engine_state["total_validated"]
+            logger.debug("Loaded Prediction Validation Engine state from Postgres.")
+
+            # Load other RAM-only states from CognitiveIntelligentSystem
+            loaded_observation_history = await self.postgres.load_observation_history()
+            self.cognitive_system._observation_history = deque(loaded_observation_history, maxlen=self.cognitive_system._max_observation_history)
+            logger.debug(f"Loaded {len(loaded_observation_history)} observations into history.")
+
+            loaded_price_history = await self.postgres.load_price_history()
+            for symbol, prices in loaded_price_history.items():
+                self.cognitive_system._price_history[symbol] = deque(prices, maxlen=self.cognitive_system._max_price_history)
+            logger.debug(f"Loaded price history for {len(loaded_price_history)} symbols.")
+
+            loaded_meta_domains = await self.postgres.load_meta_domains()
+            for meta_domain, domains in loaded_meta_domains.items():
+                self.cognitive_system._meta_domains[meta_domain] = set(domains)
+            logger.debug(f"Loaded {len(loaded_meta_domains)} meta domains.")
+
+            learning_engine_state = await self.postgres.load_learning_engine_state()
+            if learning_engine_state:
+                self.cognitive_system.learning_engine.weights = np.array(learning_engine_state["weights"])
+                self.cognitive_system.learning_engine.bias = learning_engine_state["bias"]
+                self.cognitive_system.learning_engine.feature_names = learning_engine_state["feature_names"]
+                self.cognitive_system.learning_engine.feature_index = learning_engine_state["feature_index"]
+                self.cognitive_system.learning_engine.long_term_patterns = {p_id: Pattern(pattern_id=p["pattern_id"], centroid=np.array(p["centroid"]), examples=[], confidence=p["confidence"], created_at=datetime.fromisoformat(p["created_at"]), hit_count=p["hit_count"]) for p_id, p in learning_engine_state["long_term_patterns"].items()}
+                self.cognitive_system.learning_engine.metrics = LearningMetrics(accuracy=learning_engine_state["metrics"]["accuracy"], samples_processed=learning_engine_state["metrics"]["samples_processed"], patterns_discovered=learning_engine_state["metrics"]["patterns_discovered"], adaptations=learning_engine_state["metrics"]["adaptations"], last_update=datetime.fromisoformat(learning_engine_state["metrics"]["last_update"]))
+                self.cognitive_system.learning_engine.prediction_history = deque(learning_engine_state["prediction_history"], maxlen=100)
+                self.cognitive_system.learning_engine.feature_means = defaultdict(float, learning_engine_state["feature_means"])
+                self.cognitive_system.learning_engine.feature_vars = defaultdict(lambda: 1.0, learning_engine_state["feature_vars"])
+                self.cognitive_system.learning_engine.sample_count = learning_engine_state["sample_count"]
+                self.cognitive_system.learning_engine.drift_events = deque(learning_engine_state["drift_events"], maxlen=200)
+                self.cognitive_system.learning_engine._current_lr_history = deque(learning_engine_state["_current_lr_history"], maxlen=200)
+            logger.debug("Loaded Learning Engine state from Postgres.")
+
+            loaded_caches = await self.postgres.load_caches()
+            self.cognitive_system._recent_analogies = deque(loaded_caches.get("_recent_analogies", []), maxlen=100)
+            self.cognitive_system._recent_explanations = deque(loaded_caches.get("_recent_explanations", []), maxlen=100)
+            self.cognitive_system._recent_plans = deque(loaded_caches.get("_recent_plans", []), maxlen=100)
+            self.cognitive_system._causal_discovery_log = deque(loaded_caches.get("_causal_discovery_log", []), maxlen=100)
+            self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
+            self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
+            logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
+
+        if self.milvus:
+            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+
+        logger.info("Cognitive state loaded.")

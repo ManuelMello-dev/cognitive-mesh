@@ -138,6 +138,9 @@ class CognitiveMeshOrchestrator:
         self.core.milvus = self.milvus
         self.core.redis = self.redis
 
+        # Load cognitive state from persistence
+        await self.core.load_state()
+
         # Start the cognitive loop (background thread)
         self.core.start_cognitive_loop()
 
@@ -277,6 +280,34 @@ class CognitiveMeshOrchestrator:
             logger.fatal(f"Unexpected error in main run loop: {e}", exc_info=True)
         finally:
             await self.shutdown()
+
+    async def shutdown(self):
+        """Gracefully shut down all components and persist state."""
+        logger.info("Shutting down Cognitive Mesh...")
+        self.running = False
+
+        # Stop cognitive loop first
+        self.core.stop_cognitive_loop()
+
+        # Save cognitive state
+        await self.core.save_state()
+
+        # Disconnect databases
+        if self.postgres and self.postgres.connected:
+            await self.postgres.disconnect()
+        if self.milvus and self.milvus.connected:
+            await self.milvus.disconnect()
+        if self.redis and self.redis.connected:
+            await self.redis.disconnect()
+
+        # Stop networking
+        if self.network:
+            await self.network.stop()
+        if self.pubsub:
+            await self.pubsub.stop_publisher()
+            await self.pubsub.stop_subscriber()
+
+        logger.info("Cognitive Mesh shut down successfully.")
 
     # ──────────────────────────────────────────
     # Market Discovery
@@ -488,6 +519,13 @@ class CognitiveMeshOrchestrator:
 
         # Stop cognitive loop
         self.core.stop_cognitive_loop()
+
+        # Save cognitive state to persistence
+        logger.info("Saving cognitive state to persistence...")
+        try:
+            await self.core.save_state()
+        except Exception as e:
+            logger.error(f"Failed to save cognitive state: {e}")
 
         # Stop scanner
         try:
