@@ -492,9 +492,9 @@ class DistributedCognitiveCore:
             from goal_formation_system import GoalGenerationContext
             return GoalGenerationContext(
                 observations=[],
-                patterns=self.cognitive_system.abstraction.patterns,
+                patterns=list(self.cognitive_system.abstraction.patterns) if self.cognitive_system.abstraction.patterns is not None else [],
                 capabilities=set(['reasoning', 'abstraction', 'prediction']),
                 constraints={},
                 current_state=self.get_introspection(),
-                performance_metrics=self.prediction_engine.get_insights()
+                performance_metrics=self.prediction_engine.get_insights() if self.prediction_engine.get_insights() is not None else {}
             )
