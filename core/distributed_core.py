@@ -79,6 +79,11 @@ class DistributedCognitiveCore:
         # Buffer for async ingestion
         self._pending_observations = deque(maxlen=500)
 
+        # Pre-computed state cache — updated by the cognitive loop, read by HTTP handlers
+        self._state_cache: Dict[str, Any] = {}
+        self._state_cache_lock = threading.Lock()
+        self._state_cache_ready = False
+
     async def ingest_historical_data(self, historical_observations: List[Tuple[Dict[str, Any], str]]):
         """Ingest historical observations, replaying them through the cognitive system."""
         logger.info(f"Ingesting {len(historical_observations)} historical observations...")
@@ -328,6 +333,39 @@ class DistributedCognitiveCore:
     # Cognitive Loop
     # ──────────────────────────────────────────
 
+    def _update_state_cache(self):
+        """Pre-compute the full state snapshot outside of HTTP request paths."""
+        try:
+            state = {
+                "metrics": self.get_metrics(),
+                "concepts": self.get_concepts_snapshot(),
+                "rules": self.get_rules_snapshot(),
+                "goals": self.get_goals_snapshot(),
+                "cross_domain": self.get_cross_domain_snapshot(),
+                "node_id": self.node_id,
+            }
+            with self._state_cache_lock:
+                self._state_cache = state
+                self._state_cache_ready = True
+        except Exception as e:
+            logger.error(f"Error updating state cache: {e}")
+
+    def get_cached_state(self) -> Dict[str, Any]:
+        """Return the pre-computed state cache. Falls back to live computation if not ready."""
+        with self._state_cache_lock:
+            if self._state_cache_ready:
+                return dict(self._state_cache)
+        # Cache not ready yet — return a lightweight live snapshot
+        return {
+            "metrics": self.get_metrics(),
+            "concepts": {},
+            "rules": {},
+            "goals": {},
+            "cross_domain": {},
+            "node_id": self.node_id,
+            "_cache_warming": True,
+        }
+
     def start_cognitive_loop(self):
         """Start the background cognitive loop"""
         if self._running:
@@ -362,6 +400,10 @@ class DistributedCognitiveCore:
                         except Exception as e:
                             self._errors += 1
                             logger.error(f"Error processing observation: {e}")
+
+                    # 1b. Update state cache every 5s (50 iterations at 0.1s sleep)
+                    if iteration % 50 == 0:
+                        self._update_state_cache()
 
                     # 2. Perform periodic maintenance (every ~10s)
                     if iteration % 100 == 0:

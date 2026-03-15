@@ -129,21 +129,12 @@ async def handle_metrics(request):
 
 
 async def handle_state(request):
-    """Full mesh state: metrics + concepts + rules + goals + cross-domain"""
+    """Full mesh state: served from pre-computed cache to avoid lock contention."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-
-        # Snapshots are already thread-safe due to internal locking in core
-        state = {
-            "metrics": core.get_metrics(),
-            "concepts": core.get_concepts_snapshot(),
-            "rules": core.get_rules_snapshot(),
-            "goals": core.get_goals_snapshot(),
-            "cross_domain": core.get_cross_domain_snapshot(),
-            "node_id": core.node_id,
-        }
+        state = core.get_cached_state()
         return _json_response(state)
     except Exception as e:
         logger.error(f"State query error: {e}")
