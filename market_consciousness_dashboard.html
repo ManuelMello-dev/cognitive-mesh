@@ -441,7 +441,7 @@
 </div>
 
 <script>
-    const API_BASE = window.location.origin + '/api';
+    const API_BASE = '/api';
     let globalState = {};
 
     function drawEEG() {
@@ -513,9 +513,18 @@
                 const state = await response.json();
                 globalState = state;
                 updateAllTabs(state);
+                // Clear connection lost if we successfully fetch
+                const consciousnessState = document.getElementById('consciousnessState');
+                if (consciousnessState && consciousnessState.textContent === 'Connection Lost...') {
+                    consciousnessState.textContent = 'Awaiting Mesh Activation...';
+                }
             } catch (error) {
                 console.error('State Fetch Error:', error);
-                document.getElementById('consciousnessState').textContent = 'Connection Lost...';
+                const consciousnessState = document.getElementById('consciousnessState');
+                if (consciousnessState) {
+                    consciousnessState.textContent = 'Connection Lost...';
+                    consciousnessState.className = 'consciousness-state chaos';
+                }
             }
         }
 
