@@ -423,6 +423,10 @@ class DistributedCognitiveCore:
         with self._lock:
             return self.cognitive_system.learning_engine.get_insights()
 
+    def get_prediction_snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return self.prediction_engine.get_insights()
+
     def get_state_summary(self) -> Dict[str, Any]:
         metrics = self.get_metrics()
         return {
