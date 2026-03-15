@@ -547,6 +547,7 @@
                 if (overlay) overlay.style.display = 'none';
                 globalState = state;
                 updateAllTabs(state);
+                // After a successful fetch, clear any error state so updateAllTabs can set the real state
                 if (consciousnessState && (consciousnessState.textContent === 'Connection Lost...' || consciousnessState.textContent === 'Connecting...')) {
                     consciousnessState.textContent = 'Awaiting Mesh Activation...';
                     consciousnessState.className = 'consciousness-state';
@@ -584,38 +585,54 @@
 	            if (mAttn) mAttn.textContent = `${((metrics.attention_density || metrics.attention || 0) * 100).toFixed(1)}%`;
 	            if (mAcc) mAcc.textContent = `${((metrics.prediction_accuracy || metrics.accuracy || 0) * 100).toFixed(1)}%`;
 	
-	            if (consciousnessState) {
-	                const currentState = state.state || metrics.state;
-	                const symbolCount = state.symbols_tracked || (state.symbols ? Object.keys(state.symbols).length : 0);
-	                
-	                if (currentState) {
-	                    consciousnessState.textContent = currentState;
-	                    consciousnessState.className = 'consciousness-state ' + currentState.toLowerCase();
-	                } else if (symbolCount > 0 || (metrics.phi > 0)) {
-	                    consciousnessState.textContent = 'CRITICAL';
-	                    consciousnessState.className = 'consciousness-state critical';
-	                } else {
-	                    consciousnessState.textContent = 'Awaiting Mesh Activation...';
-	                    consciousnessState.className = 'consciousness-state';
-	                }
-	            }
+            if (consciousnessState) {
+                // Only update if we're not in a Connection Lost state from a prior failure
+                if (consciousnessState.textContent !== 'Connection Lost...') {
+                    const symbolCount = metrics.symbols_tracked || 0;
+                    const phi = metrics.global_coherence_phi || metrics.phi || 0;
+                    const totalObs = metrics.total_observations || 0;
+                    if (phi > 0.7) {
+                        consciousnessState.textContent = 'ORDERED REGIME';
+                        consciousnessState.className = 'consciousness-state flow';
+                    } else if (phi > 0.4 || symbolCount > 0 || totalObs > 0) {
+                        consciousnessState.textContent = 'CRITICAL PHASE';
+                        consciousnessState.className = 'consciousness-state critical';
+                    } else {
+                        consciousnessState.textContent = 'Awaiting Mesh Activation...';
+                        consciousnessState.className = 'consciousness-state';
+                    }
+                }
+            }
 
-	            const symbolGrid = document.getElementById('symbolGrid');
-	            const symbolCountDisplay = document.getElementById('symbolCount');
-	            const symbols = state.symbols || state.market_data;
-	            if (symbolGrid && symbols) {
-	                symbolGrid.innerHTML = '';
-	                const symbolList = Array.isArray(symbols) ? symbols : Object.values(symbols);
-	                symbolList.forEach(s => {
-	                    const card = document.createElement('div');
-	                    card.className = 'symbol-card';
-	                    const price = typeof s.price === 'number' ? s.price.toFixed(2) : '0.00';
-	                    const acc = typeof s.accuracy === 'number' ? (s.accuracy * 100).toFixed(0) : '0';
-	                    card.innerHTML = `<div class="sym">${s.symbol}</div><div class="price">$${price}</div><div class="acc">${acc}%</div>`;
-	                    symbolGrid.appendChild(card);
-	                });
-	                if (symbolCountDisplay) symbolCountDisplay.textContent = symbolList.length;
-	            }
+            const symbolGrid = document.getElementById('symbolGrid');
+            const symbolCountDisplay = document.getElementById('symbolCount');
+            // Symbols come from concepts grouped by symbol, or from metrics.symbols_tracked count
+            if (symbolCountDisplay) {
+                symbolCountDisplay.textContent = metrics.symbols_tracked || 0;
+            }
+            // Build symbol cards from concepts (each concept has a symbol field)
+            if (symbolGrid && state.concepts) {
+                const seenSymbols = {};
+                Object.values(state.concepts).forEach(c => {
+                    if (c.symbol && !seenSymbols[c.symbol]) {
+                        seenSymbols[c.symbol] = c;
+                    }
+                });
+                const symbolEntries = Object.values(seenSymbols);
+                if (symbolEntries.length > 0) {
+                    symbolGrid.innerHTML = '';
+                    symbolEntries.forEach(c => {
+                        const card = document.createElement('div');
+                        card.className = 'symbol-card';
+                        const acc = c.prediction && typeof c.prediction.prediction_accuracy === 'number'
+                            ? (c.prediction.prediction_accuracy * 100).toFixed(0) : '0';
+                        const trend = c.prediction && c.prediction.trend ? c.prediction.trend : '';
+                        card.innerHTML = `<div class="sym">${c.symbol}</div><div class="price">${trend}</div><div class="acc">${acc}%</div>`;
+                        symbolGrid.appendChild(card);
+                    });
+                    if (symbolCountDisplay) symbolCountDisplay.textContent = symbolEntries.length;
+                }
+            }
 
             const logContainer = document.getElementById('logContainer');
             if (logContainer && state.log) {
@@ -639,16 +656,37 @@
                 });
             }
 
-            // Learning Tab
+            // Learning Tab — Concept Hierarchy
             const conceptContainer = document.getElementById('conceptContainer');
             if (conceptContainer && state.concepts) {
                 conceptContainer.innerHTML = '';
-                Object.values(state.concepts).forEach(c => {
+                const conceptList = Object.values(state.concepts);
+                conceptList.forEach(c => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
-                    item.textContent = `[${c.id}] ${c.description} (${c.examples} examples)`;
+                    const sym = c.symbol ? ` [${c.symbol}]` : '';
+                    const conf = typeof c.confidence === 'number' ? ` conf=${(c.confidence * 100).toFixed(0)}%` : '';
+                    const obs = typeof c.observation_count === 'number' ? ` ${c.observation_count} obs` : '';
+                    const domain = c.domain && c.domain !== 'unknown' ? ` (${c.domain})` : '';
+                    item.textContent = `[${c.id}]${sym}${domain}${conf}${obs}`;
                     conceptContainer.appendChild(item);
                 });
+                if (conceptList.length === 0) {
+                    conceptContainer.textContent = 'No concepts formed yet — system is learning...';
+                }
+            }
+
+            // Continuous Learning panel
+            const learningContainer = document.getElementById('learningContainer');
+            if (learningContainer && state.metrics) {
+                const m = state.metrics;
+                learningContainer.innerHTML = [
+                    `Patterns discovered: ${m.patterns_discovered || 0}`,
+                    `Samples processed: ${m.samples_processed || 0}`,
+                    `Learning accuracy: ${((m.learning_accuracy || 0) * 100).toFixed(1)}%`,
+                    `Concepts merged: ${m.concepts_merged || 0}`,
+                    `Concepts pruned: ${m.concepts_pruned || 0}`,
+                ].map(t => `<div class="log-entry">${t}</div>`).join('');
             }
 
             // Reasoning Tab
@@ -665,12 +703,19 @@
             const ruleContainer = document.getElementById('ruleContainer');
             if (ruleContainer && state.rules) {
                 ruleContainer.innerHTML = '';
-                state.rules.forEach(r => {
+                const ruleList = Object.values(state.rules);
+                ruleList.forEach(r => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
-                    item.textContent = `[${r.id}] ${r.text}`;
+                    const ant = Array.isArray(r.antecedents) ? r.antecedents.join(', ') : '';
+                    const con = Array.isArray(r.consequents) ? r.consequents.join(', ') : '';
+                    const conf = typeof r.confidence === 'number' ? ` (${(r.confidence * 100).toFixed(0)}%)` : '';
+                    item.textContent = `[${r.id}] IF ${ant || '?'} THEN ${con || '?'}${conf}`;
                     ruleContainer.appendChild(item);
                 });
+                if (ruleList.length === 0) {
+                    ruleContainer.textContent = 'No rules learned yet...';
+                }
             }
 
             // Cross-Domain Tab
@@ -701,12 +746,17 @@
             const goalContainer = document.getElementById('goalContainer');
             if (goalContainer && state.goals) {
                 goalContainer.innerHTML = '';
-                state.goals.forEach(g => {
+                const goalList = Object.values(state.goals);
+                goalList.forEach(g => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
-                    item.textContent = `[${g.id}] ${g.description} (Status: ${g.status})`;
+                    const prog = typeof g.progress === 'number' ? ` ${(g.progress * 100).toFixed(0)}%` : '';
+                    item.textContent = `[${g.id}] ${g.description || g.goal_type || '?'} — ${g.status || '?'}${prog}`;
                     goalContainer.appendChild(item);
                 });
+                if (goalList.length === 0) {
+                    goalContainer.textContent = 'No goals formed yet...';
+                }
             }
 
             // Providers Tab
