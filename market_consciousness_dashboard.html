@@ -770,6 +770,8 @@
             if (e.key === 'Enter') sendChatMessage();
         });
 
+        const API_BASE = window.location.origin;
+
         // Initial fetch and interval setup
         fetchState();
         fetchEEG();
