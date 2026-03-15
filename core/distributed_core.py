@@ -489,9 +489,12 @@ class DistributedCognitiveCore:
 
     def _build_goal_context(self):
         """Build context for goal generation"""
-        return {
-            'observations': [],
-            'patterns': self.cognitive_system.abstraction.patterns,
-            'capabilities': set(['reasoning', 'abstraction', 'prediction']),
-            'performance_metrics': self.prediction_engine.get_insights()
-        }
+            from goal_formation_system import GoalGenerationContext
+            return GoalGenerationContext(
+                observations=[],
+                patterns=self.cognitive_system.abstraction.patterns,
+                capabilities=set(['reasoning', 'abstraction', 'prediction']),
+                constraints={},
+                current_state=self.get_introspection(),
+                performance_metrics=self.prediction_engine.get_insights()
+            )
