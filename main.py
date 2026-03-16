@@ -137,6 +137,7 @@ class CognitiveMeshOrchestrator:
         self.core.postgres = self.postgres
         self.core.milvus = self.milvus
         self.core.redis = self.redis
+        self.core.data_provider = self.data_provider
 
         # Load cognitive state from persistence
         await self.core.load_state()

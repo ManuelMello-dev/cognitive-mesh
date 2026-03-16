@@ -84,6 +84,20 @@ class DistributedCognitiveCore:
         self._state_cache_lock = threading.Lock()
         self._state_cache_ready = False
 
+        # Data provider reference — set externally after init so providers tab works
+        self.data_provider = None
+
+        # Toggles — runtime feature flags
+        self._toggles: Dict[str, Any] = {
+            "cognitive_loop": True,
+            "concept_convergence": True,
+            "rule_feedback": True,
+            "deep_introspection": True,
+            "goal_formation": True,
+            "knowledge_transfer": True,
+            "prediction_engine": True,
+        }
+
     async def ingest_historical_data(self, historical_observations: List[Tuple[Dict[str, Any], str]]):
         """Ingest historical observations, replaying them through the cognitive system."""
         logger.info(f"Ingesting {len(historical_observations)} historical observations...")
@@ -336,19 +350,178 @@ class DistributedCognitiveCore:
     def _update_state_cache(self):
         """Pre-compute the full state snapshot outside of HTTP request paths."""
         try:
+            # Gather all data under the main lock in one pass
+            with self._lock:
+                metrics_raw = self.cognitive_system.cognitive_metrics.copy()
+                abstraction_insights = self.cognitive_system.abstraction.get_insights()
+                reasoning_insights = self.cognitive_system.reasoning.get_insights()
+                cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
+                goal_insights = self.cognitive_system.goals.get_insights()
+                learning_insights = self.cognitive_system.learning_engine.get_insights()
+                prediction_insights = self.prediction_engine.get_insights()
+
+                # Concepts
+                concept_domain_map = {}
+                for domain_id, domain in list(self.cognitive_system.cross_domain.domains.items()):
+                    for concept_id in getattr(domain, 'concepts', []):
+                        concept_domain_map[concept_id] = domain_id
+                concepts = {}
+                concept_items = list(self.cognitive_system.abstraction.concepts.items())
+                concept_items.sort(key=lambda x: getattr(x[1], 'created_at', datetime.now()), reverse=True)
+                for cid, concept in concept_items[:100]:
+                    concepts[cid] = {
+                        "id": cid,
+                        "symbol": getattr(concept, 'symbol', None),
+                        "domain": concept_domain_map.get(cid, getattr(concept, 'domain', 'unknown')),
+                        "confidence": round(getattr(concept, 'confidence', 0), 4),
+                        "observation_count": getattr(concept, 'observation_count', 0),
+                        "created_at": getattr(concept, 'created_at', datetime.now()).isoformat() if hasattr(getattr(concept, 'created_at', None), 'isoformat') else str(getattr(concept, 'created_at', '')),
+                    }
+
+                # Rules
+                rules = {}
+                for rid, rule in list(self.cognitive_system.reasoning.rules.items()):
+                    rules[rid] = {
+                        "id": rid,
+                        "antecedents": list(getattr(rule, 'antecedents', [])),
+                        "consequents": list(getattr(rule, 'consequents', [])),
+                        "confidence": round(getattr(rule, 'confidence', 0), 4),
+                        "support": getattr(rule, 'support', 0),
+                    }
+
+                # Facts
+                facts = []
+                for fact in list(self.cognitive_system.reasoning.facts)[:50]:
+                    if isinstance(fact, dict):
+                        facts.append(fact)
+                    elif hasattr(fact, '__dict__'):
+                        facts.append(fact.__dict__)
+                    else:
+                        facts.append({"value": str(fact)})
+
+                # Goals
+                goals = {}
+                for gid, goal in list(self.cognitive_system.goals.goals.items()):
+                    goals[gid] = {
+                        "id": gid,
+                        "description": getattr(goal, 'description', None),
+                        "goal_type": getattr(goal, 'goal_type', {}).value if hasattr(getattr(goal, 'goal_type', None), 'value') else str(getattr(goal, 'goal_type', '')),
+                        "status": getattr(goal, 'status', {}).value if hasattr(getattr(goal, 'status', None), 'value') else str(getattr(goal, 'status', '')),
+                        "progress": round(getattr(goal, 'progress', 0), 4),
+                    }
+
+                # Cross-domain mappings
+                cross_domain = {}
+                for mid, mapping in list(self.cognitive_system.cross_domain.mappings.items()):
+                    cross_domain[mid] = {
+                        "id": mid,
+                        "source_domain": getattr(mapping, 'source_domain', ''),
+                        "target_domain": getattr(mapping, 'target_domain', ''),
+                        "confidence": round(getattr(mapping, 'confidence', 0), 4),
+                    }
+
+                # Analogies
+                analogies = []
+                for a in list(self.cognitive_system._recent_analogies)[-20:]:
+                    if isinstance(a, dict):
+                        analogies.append(a)
+                    elif hasattr(a, '__dict__'):
+                        analogies.append(a.__dict__)
+
+                # Causal graph
+                try:
+                    causal_graph = self.cognitive_system.get_causal_graph_snapshot()
+                except Exception:
+                    causal_graph = {}
+
+            # Prediction insights (has its own internal lock)
+            recent_preds = prediction_insights.get('recent_predictions', [])
+            predictions = []
+            for i, p in enumerate(recent_preds):
+                predictions.append({
+                    "id": f"pred_{i}",
+                    "symbol": p.get('symbol', '?'),
+                    "type": p.get('direction', '?'),
+                    "confidence": p.get('confidence', 0),
+                    "horizon": p.get('horizon', '?'),
+                    "outcome": 'correct' if p.get('correct') else ('pending' if not p.get('validated') else 'wrong'),
+                })
+
+            # PHI/SIGMA from prediction engine
+            phi = prediction_insights.get('phi', 0.5)
+            sigma = prediction_insights.get('sigma', 0.5)
+
+            # Build metrics dict
+            metrics = {
+                "global_coherence_phi": round(phi, 4),
+                "noise_level_sigma": round(sigma, 4),
+                "prediction_accuracy": prediction_insights.get('global_accuracy', 0),
+                "predictions_validated": prediction_insights.get('total_validated', 0),
+                "predictions_correct": prediction_insights.get('total_correct', 0),
+                "symbols_tracked": prediction_insights.get('symbols_tracked', 0),
+                "rules_learned": metrics_raw.get('rules_learned', 0),
+                "analogies_found": metrics_raw.get('analogies_found', 0),
+                "goals_achieved": metrics_raw.get('goals_achieved', 0),
+                "knowledge_transfers": metrics_raw.get('knowledge_transfers', 0),
+                "causal_links_discovered": metrics_raw.get('causal_links_discovered', 0),
+                "total_concepts": abstraction_insights.get('total_concepts', 0),
+                "total_rules": reasoning_insights.get('total_rules', 0),
+                "total_facts": reasoning_insights.get('total_facts', 0),
+                "total_domains": cross_domain_insights.get('total_domains', 0),
+                "total_goals": goal_insights.get('total_goals', 0),
+                "active_goals": goal_insights.get('active_goals', 0),
+                "achieved_goals": goal_insights.get('achieved_goals', 0),
+                "total_mappings": cross_domain_insights.get('total_mappings', 0),
+                "learning_accuracy": learning_insights.get('metrics', {}).get('accuracy', 0),
+                "patterns_discovered": learning_insights.get('total_patterns', 0),
+                "samples_processed": learning_insights.get('metrics', {}).get('samples_processed', 0),
+                "concepts_merged": self._concepts_merged,
+                "concepts_pruned": self._concepts_pruned,
+                "total_observations": self._observation_count,
+                "pending_observations": len(self._pending_observations),
+                "errors": self._errors,
+                "uptime_seconds": time.time() - self._start_time,
+                "last_observation_time": self._last_observation_time,
+                "cognitive_loop_running": self._running,
+                "attention_density": min(1.0, prediction_insights.get('symbols_tracked', 0) / max(len(self.cognitive_system.abstraction.concepts), 1)),
+            }
+
+            # Providers
+            providers = {}
+            if self.data_provider:
+                try:
+                    raw_status = self.data_provider.get_provider_status()
+                    all_providers = raw_status.get('stock', []) + raw_status.get('crypto', [])
+                    for p in all_providers:
+                        name = p.get('name', '?')
+                        providers[name] = {
+                            "name": name,
+                            "status": p.get('state', 'unknown'),
+                            "assets_tracked": p.get('failures', 0),
+                            "latency_ms": 0,
+                        }
+                except Exception as e:
+                    logger.debug(f"Provider status error in cache: {e}")
+
             state = {
-                "metrics": self.get_metrics(),
-                "concepts": self.get_concepts_snapshot(),
-                "rules": self.get_rules_snapshot(),
-                "goals": self.get_goals_snapshot(),
-                "cross_domain": self.get_cross_domain_snapshot(),
+                "metrics": metrics,
+                "concepts": concepts,
+                "rules": rules,
+                "facts": facts,
+                "goals": goals,
+                "cross_domain": cross_domain,
+                "analogies": analogies,
+                "causal_graph": causal_graph,
+                "predictions": predictions,
+                "providers": providers,
+                "toggles": dict(self._toggles),
                 "node_id": self.node_id,
             }
             with self._state_cache_lock:
                 self._state_cache = state
                 self._state_cache_ready = True
         except Exception as e:
-            logger.error(f"Error updating state cache: {e}")
+            logger.error(f"Error updating state cache: {e}", exc_info=True)
 
     def get_cached_state(self) -> Dict[str, Any]:
         """Return the pre-computed state cache. Falls back to live computation if not ready."""
@@ -778,6 +951,19 @@ class DistributedCognitiveCore:
     def get_transfer_suggestions(self) -> list:
         with self._lock:
             return self.cognitive_system.get_transfer_suggestions_snapshot()
+
+    def get_toggles(self) -> Dict[str, Any]:
+        """Return current toggle states"""
+        return dict(self._toggles)
+
+    def set_toggle(self, key: str, value: Any) -> Dict[str, Any]:
+        """Set a toggle value and return the updated toggles dict"""
+        if key in self._toggles:
+            self._toggles[key] = value
+            logger.info(f"Toggle '{key}' set to {value}")
+            return {"success": True, "key": key, "value": value, "toggles": dict(self._toggles)}
+        else:
+            return {"success": False, "error": f"Unknown toggle '{key}'", "toggles": dict(self._toggles)}
 
     def _build_goal_context(self):
         """Build context for goal generation"""

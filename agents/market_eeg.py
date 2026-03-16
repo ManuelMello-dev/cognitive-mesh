@@ -26,9 +26,12 @@ class MarketEEG:
         - SIGMA (Noise/Volatility) -> Gamma Amplitude
         - Attention Density (Volume) -> Beta Amplitude
         - Inverse Coherence -> Theta Amplitude
+        Reads from the pre-computed state cache to avoid lock contention.
         """
         try:
-            metrics = self.core.get_metrics()
+            # Use cached state to avoid blocking on the cognitive loop lock
+            cached = self.core.get_cached_state()
+            metrics = cached.get('metrics', {})
             phi = metrics.get("global_coherence_phi", 0.5)
             sigma = metrics.get("noise_level_sigma", 0.5)
             attention = metrics.get("attention_density", 0.5)

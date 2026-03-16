@@ -769,9 +769,10 @@
                 });
             }
 
-            // Toggles Tab
+            // Toggles Tab — render once when real data arrives (not during cache warm-up)
             const toggleContainer = document.getElementById('toggleContainer');
-            if (toggleContainer && state.toggles && toggleContainer.children.length === 0) {
+            const togglesReady = state.toggles && !state._cache_warming;
+            if (toggleContainer && togglesReady && toggleContainer.children.length === 0) {
                 Object.entries(state.toggles).forEach(([key, value]) => {
                     const row = document.createElement('div');
                     row.className = 'toggle-row';
