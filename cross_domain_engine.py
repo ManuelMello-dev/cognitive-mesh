@@ -127,7 +127,7 @@ class CrossDomainEngine:
         )
         
         self.domains[domain_id] = domain
-        logger.info(f"Registered domain: {name} (id: {domain_id})")
+        logger.debug(f"Registered domain: {name} (id: {domain_id})")
         
         return domain
     

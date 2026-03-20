@@ -42,9 +42,14 @@ function createGateway() {
         target: TARGET,
         changeOrigin: true,
         ws: true,
-        logLevel: 'debug',
+        logLevel: 'warn',       // Reduce proxy log noise (was 'debug')
+        proxyTimeout: 30000,    // 30s proxy timeout — prevents Railway 499s
+        timeout: 30000,         // 30s socket inactivity timeout
         onError: (err, req, res) => {
-            console.error('[OpenClaw] Proxy Error:', err.message);
+            // Only log non-ECONNREFUSED errors (backend still starting is expected)
+            if (err.code !== 'ECONNREFUSED') {
+                console.error('[OpenClaw] Proxy Error:', err.message);
+            }
             if (!res.headersSent) {
                 res.writeHead(503, { 'Content-Type': 'application/json' });
             }
@@ -57,7 +62,7 @@ function createGateway() {
     });
 
     const server = http.createServer((req, res) => {
-        // Health check endpoints for Railway
+        // Health check endpoints for Railway — always fast, no proxy needed
         if (req.url === '/health' || req.url === '/healthz') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ 
@@ -71,6 +76,10 @@ function createGateway() {
         // Forward all other requests to Python backend
         proxy(req, res);
     });
+
+    // Set server-level timeout to match proxy timeout
+    server.timeout = 35000;
+    server.keepAliveTimeout = 65000;  // > Railway's 60s idle timeout
 
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`[OpenClaw] Gateway is listening on 0.0.0.0:${PORT}`);

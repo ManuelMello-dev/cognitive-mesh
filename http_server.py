@@ -116,12 +116,18 @@ async def handle_ingest(request):
 # ──────────────────────────────────────────────
 
 async def handle_metrics(request):
-    """Return current mesh metrics (PHI, SIGMA, concepts, rules, goals)"""
+    """Return current mesh metrics (PHI, SIGMA, concepts, rules, goals).
+    Reads from the pre-computed state cache to avoid lock contention."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        metrics = core.get_metrics()
+        # Read from cache to avoid blocking under the cognitive loop lock
+        cached = core.get_cached_state()
+        metrics = cached.get('metrics', {})
+        if not metrics:
+            # Fallback for first few seconds before cache is warm
+            metrics = core.get_metrics()
         return web.json_response(metrics)
     except Exception as e:
         logger.error(f"Metrics error: {e}")
