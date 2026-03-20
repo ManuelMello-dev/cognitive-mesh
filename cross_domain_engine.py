@@ -157,10 +157,16 @@ class CrossDomainEngine:
         concept_vectors: Optional[Dict[str, np.ndarray]] = None
     ) -> Optional[DomainMapping]:
         """
-        Discover structural mapping between domains
+        Discover structural mapping between domains.
+        Returns existing mapping if already discovered (deduplication guard).
         """
         if source_domain_id not in self.domains or target_domain_id not in self.domains:
             return None
+
+        # Deduplication: return existing mapping if already discovered
+        for m in self.mappings.values():
+            if m.source_domain == source_domain_id and m.target_domain == target_domain_id:
+                return m
         
         source = self.domains[source_domain_id]
         target = self.domains[target_domain_id]
@@ -206,7 +212,7 @@ class CrossDomainEngine:
         )
         
         self.mappings[mapping_id] = mapping
-        logger.info(
+        logger.debug(
             f"Discovered mapping: {source.name} -> {target.name} "
             f"({len(mappings)} concepts, conf: {confidence:.2f})"
         )

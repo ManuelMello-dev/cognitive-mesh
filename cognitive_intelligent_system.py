@@ -279,16 +279,29 @@ class CognitiveIntelligentSystem:
         return [str(f) for f in facts if isinstance(f, str)]
 
     def _check_cross_domain_opportunities(self, current_domain: str):
-        """Check for opportunities to transfer knowledge from other domains."""
-        # Simple implementation: look for analogous domains
-        meta = "crypto" if current_domain.startswith("crypto:") else "stock"
-        other_domains = [d for d in self._meta_domains[meta] if d != current_domain]
+        """Check for cross-domain (crypto <-> stock) mapping opportunities.
         
-        for other in other_domains:
-            mapping = self.cross_domain.discover_domain_mapping(other, current_domain)
-            if mapping and mapping.confidence > 0.7:
-                self.cognitive_metrics['analogies_found'] += 1
-                logger.info(f"Found cross-domain mapping: {other} -> {current_domain}")
+        Only runs every 50 iterations and only compares the two meta-domains
+        (crypto vs stock), not intra-domain symbol pairs, to avoid O(N²) log spam.
+        """
+        # Rate-limit: only run every 50 observations
+        if self.iteration % 50 != 0:
+            return
+
+        # Only do true cross-domain: crypto meta-domain vs stock meta-domain
+        crypto_domain = "crypto"
+        stock_domain = "stock"
+        if crypto_domain not in self.cross_domain.domains or stock_domain not in self.cross_domain.domains:
+            return
+
+        mapping = self.cross_domain.discover_domain_mapping(crypto_domain, stock_domain)
+        if mapping and mapping.confidence > 0.5:
+            self.cognitive_metrics['analogies_found'] += 1
+            logger.info(
+                f"Cross-domain mapping: crypto <-> stock "
+                f"(conf: {mapping.confidence:.2f}, "
+                f"{len(mapping.concept_mappings)} concept pairs)"
+            )
 
     def get_metrics(self) -> Dict[str, Any]:
         """Return combined cognitive metrics."""
