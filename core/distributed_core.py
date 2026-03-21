@@ -353,12 +353,30 @@ class DistributedCognitiveCore:
             # Gather all data under the main lock in one pass
             with self._lock:
                 metrics_raw = self.cognitive_system.cognitive_metrics.copy()
-                abstraction_insights = self.cognitive_system.abstraction.get_insights()
-                reasoning_insights = self.cognitive_system.reasoning.get_insights()
-                cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
-                goal_insights = self.cognitive_system.goals.get_insights()
-                learning_insights = self.cognitive_system.learning_engine.get_insights()
-                prediction_insights = self.prediction_engine.get_insights()
+                try:
+                    abstraction_insights = self.cognitive_system.abstraction.get_insights()
+                except Exception:
+                    abstraction_insights = {"total_concepts": len(self.cognitive_system.abstraction.concepts)}
+                try:
+                    reasoning_insights = self.cognitive_system.reasoning.get_insights()
+                except Exception:
+                    reasoning_insights = {"total_rules": 0, "total_facts": 0}
+                try:
+                    cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
+                except Exception:
+                    cross_domain_insights = {"total_domains": 0, "total_mappings": 0}
+                try:
+                    goal_insights = self.cognitive_system.goals.get_insights()
+                except Exception:
+                    goal_insights = {"total_goals": 0, "active_goals": 0, "achieved_goals": 0}
+                try:
+                    learning_insights = self.cognitive_system.learning_engine.get_insights()
+                except Exception:
+                    learning_insights = {"metrics": {"accuracy": 0, "samples_processed": 0}, "total_patterns": 0}
+                try:
+                    prediction_insights = self.prediction_engine.get_insights()
+                except Exception:
+                    prediction_insights = {"phi": 0.5, "sigma": 0.5, "global_accuracy": 0, "total_validated": 0, "total_correct": 0, "symbols_tracked": 0}
 
                 # Concepts
                 concept_domain_map = {}
@@ -772,13 +790,30 @@ class DistributedCognitiveCore:
         """Get combined metrics"""
         with self._lock:
             cognitive_metrics = self.cognitive_system.cognitive_metrics.copy()
-            abstraction_insights = self.cognitive_system.abstraction.get_insights()
-            reasoning_insights = self.cognitive_system.reasoning.get_insights()
-            cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
-            goal_insights = self.cognitive_system.goals.get_insights()
-            learning_insights = self.cognitive_system.learning_engine.get_insights()
-            prediction_insights = self.prediction_engine.get_insights()
-
+            try:
+                abstraction_insights = self.cognitive_system.abstraction.get_insights()
+            except Exception:
+                abstraction_insights = {"total_concepts": len(self.cognitive_system.abstraction.concepts)}
+            try:
+                reasoning_insights = self.cognitive_system.reasoning.get_insights()
+            except Exception:
+                reasoning_insights = {"total_rules": 0, "total_facts": 0}
+            try:
+                cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
+            except Exception:
+                cross_domain_insights = {"total_domains": 0, "total_mappings": 0}
+            try:
+                goal_insights = self.cognitive_system.goals.get_insights()
+            except Exception:
+                goal_insights = {"total_goals": 0, "active_goals": 0, "achieved_goals": 0}
+            try:
+                learning_insights = self.cognitive_system.learning_engine.get_insights()
+            except Exception:
+                learning_insights = {"metrics": {"accuracy": 0, "samples_processed": 0}, "total_patterns": 0}
+            try:
+                prediction_insights = self.prediction_engine.get_insights()
+            except Exception:
+                prediction_insights = {"phi": 0.5, "sigma": 0.5, "global_accuracy": 0, "total_validated": 0, "total_correct": 0, "symbols_tracked": 0}
         phi = prediction_insights.get('phi', 0.5)
         sigma = prediction_insights.get('sigma', 0.5)
 
@@ -819,6 +854,43 @@ class DistributedCognitiveCore:
     # ──────────────────────────────────────────
     # Snapshots
     # ──────────────────────────────────────────
+    def get_introspection(self) -> Dict[str, Any]:
+        """Full system introspection from all cognitive engines."""
+        with self._lock:
+            try:
+                abstraction_insights = self.cognitive_system.abstraction.get_insights()
+            except Exception:
+                abstraction_insights = {}
+            try:
+                reasoning_insights = self.cognitive_system.reasoning.get_insights()
+            except Exception:
+                reasoning_insights = {}
+            try:
+                cross_domain_insights = self.cognitive_system.cross_domain.get_insights()
+            except Exception:
+                cross_domain_insights = {}
+            try:
+                goal_insights = self.cognitive_system.goals.get_insights()
+            except Exception:
+                goal_insights = {}
+            try:
+                learning_insights = self.cognitive_system.learning_engine.get_insights()
+            except Exception:
+                learning_insights = {}
+            try:
+                prediction_insights = self.prediction_engine.get_insights()
+            except Exception:
+                prediction_insights = {}
+        return {
+            "abstraction": abstraction_insights,
+            "reasoning": reasoning_insights,
+            "cross_domain": cross_domain_insights,
+            "goals": goal_insights,
+            "learning": learning_insights,
+            "predictions": prediction_insights,
+            "node_id": self.node_id,
+            "uptime_seconds": time.time() - self._start_time,
+        }
 
     def get_concepts_snapshot(self) -> Dict[str, Any]:
         with self._lock:

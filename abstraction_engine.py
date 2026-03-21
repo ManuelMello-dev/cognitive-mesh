@@ -238,3 +238,16 @@ class AbstractionEngine:
     def _generate_concept_name(self, attributes: Dict[str, Any]) -> str:
         key_attrs = sorted(list(attributes.keys()))[:2]
         return f"Pattern_{'_'.join(key_attrs)}"
+
+    def get_insights(self) -> Dict[str, Any]:
+        """Return summary insights about the abstraction engine state."""
+        total = len(self.concepts)
+        avg_confidence = 0.0
+        if total > 0:
+            avg_confidence = sum(c.confidence for c in self.concepts.values()) / total
+        return {
+            "total_concepts": total,
+            "avg_confidence": round(avg_confidence, 4),
+            "buffer_size": len(self.observation_buffer),
+            "max_concepts": self.max_concepts,
+        }
