@@ -453,10 +453,18 @@ class CognitiveMeshOrchestrator:
     # ──────────────────────────────────────────
 
     async def _gossip_loop(self):
-        """Periodically broadcast gossip state"""
+        """Periodically broadcast gossip state — reads from cache to avoid lock contention"""
         while self.running:
             try:
-                state = self.core.get_state_summary()
+                # Use cache to avoid acquiring self._lock in the aiohttp event loop
+                cached = self.core.get_cached_state()
+                state = {
+                    "node_id": cached.get('node_id', self.core.node_id),
+                    "phi": cached.get('metrics', {}).get('global_coherence_phi', 0),
+                    "sigma": cached.get('metrics', {}).get('noise_level_sigma', 0),
+                    "metrics": cached.get('metrics', {}),
+                    "timestamp": time.time()
+                }
                 if self.network:
                     await self.network.broadcast_gossip(state)
                 await asyncio.sleep(30)
@@ -465,22 +473,24 @@ class CognitiveMeshOrchestrator:
                 await asyncio.sleep(15)
 
     async def _metrics_reporter_loop(self):
-        """Periodically report system-wide metrics"""
+        """Periodically report system-wide metrics — reads from cache to avoid lock contention"""
         while self.running:
             try:
-                metrics = self.core.get_metrics()
-                if self.pubsub:
+                # Use cache to avoid acquiring self._lock in the aiohttp event loop
+                cached = self.core.get_cached_state()
+                metrics = cached.get('metrics', {})
+                if self.pubsub and metrics:
                     await self.pubsub.publish("metrics", metrics)
 
                 # Log a summary periodically
                 logger.info(
-                    f"METRICS | PHI={metrics['global_coherence_phi']:.3f} "
-                    f"SIGMA={metrics['noise_level_sigma']:.3f} "
-                    f"Concepts={metrics['total_concepts']} "
-                    f"Rules={metrics['total_rules']} "
-                    f"Goals={metrics['total_goals']} "
-                    f"Obs={metrics['total_observations']} "
-                    f"Transfers={metrics['knowledge_transfers']} "
+                    f"METRICS | PHI={metrics.get('global_coherence_phi', 0):.3f} "
+                    f"SIGMA={metrics.get('noise_level_sigma', 0):.3f} "
+                    f"Concepts={metrics.get('total_concepts', 0)} "
+                    f"Rules={metrics.get('total_rules', 0)} "
+                    f"Goals={metrics.get('total_goals', 0)} "
+                    f"Obs={metrics.get('total_observations', 0)} "
+                    f"Transfers={metrics.get('knowledge_transfers', 0)} "
                     f"Crypto={len(self.crypto_symbols)} "
                     f"Stocks={len(self.stock_symbols)}"
                 )

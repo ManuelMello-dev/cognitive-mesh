@@ -2,7 +2,8 @@
 HTTP Server — Cognitive Mesh API
 =================================
 Exposes the full cognitive state via REST endpoints and GPT I/O.
-Now includes all 25 hidden intelligence endpoints.
+ALL endpoints read exclusively from the pre-computed state cache.
+ZERO lock acquisition in any HTTP handler — no 502 timeouts possible.
 """
 
 import os
@@ -112,22 +113,18 @@ async def handle_ingest(request):
 
 
 # ──────────────────────────────────────────────
-# Core State Endpoints
+# Core State Endpoints — ALL read from cache only
 # ──────────────────────────────────────────────
 
 async def handle_metrics(request):
     """Return current mesh metrics (PHI, SIGMA, concepts, rules, goals).
-    Reads from the pre-computed state cache to avoid lock contention."""
+    Reads exclusively from the pre-computed state cache — zero lock contention."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        # Read from cache to avoid blocking under the cognitive loop lock
         cached = core.get_cached_state()
         metrics = cached.get('metrics', {})
-        if not metrics:
-            # Fallback for first few seconds before cache is warm
-            metrics = core.get_metrics()
         return web.json_response(metrics)
     except Exception as e:
         logger.error(f"Metrics error: {e}")
@@ -135,7 +132,7 @@ async def handle_metrics(request):
 
 
 async def handle_state(request):
-    """Full mesh state: served from pre-computed cache to avoid lock contention.
+    """Full mesh state: served from pre-computed cache — zero lock contention.
     JSON serialization runs in a thread executor to avoid blocking the aiohttp event loop."""
     try:
         core = request.app.get('core')
@@ -152,12 +149,22 @@ async def handle_state(request):
 
 
 async def handle_introspection(request):
-    """Full system introspection from all 7 engines"""
+    """Full system introspection — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        introspection = core.get_introspection()
+        cached = core.get_cached_state()
+        introspection = cached.get('introspection', {
+            "metrics": cached.get('metrics', {}),
+            "concepts": cached.get('concepts', {}),
+            "rules": cached.get('rules', {}),
+            "goals": cached.get('goals', {}),
+            "cross_domain": cached.get('cross_domain', {}),
+            "causal_graph": cached.get('causal_graph', {}),
+            "analogies": cached.get('analogies', []),
+            "_cache_warming": cached.get('_cache_warming', False),
+        })
         return _json_response(introspection)
     except Exception as e:
         logger.error(f"Introspection error: {e}")
@@ -165,12 +172,13 @@ async def handle_introspection(request):
 
 
 async def handle_goals(request):
-    """Get all goals and their status"""
+    """Get all goals and their status — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        goals = core.get_goals_snapshot()
+        cached = core.get_cached_state()
+        goals = cached.get('goals', {})
         return _json_response({"goals": goals})
     except Exception as e:
         logger.error(f"Goals error: {e}")
@@ -178,12 +186,16 @@ async def handle_goals(request):
 
 
 async def handle_learning(request):
-    """Get learning engine state"""
+    """Get learning engine state — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        learning = core.get_learning_snapshot()
+        cached = core.get_cached_state()
+        learning = cached.get('learning', {
+            "metrics": cached.get('metrics', {}),
+            "_cache_warming": cached.get('_cache_warming', False),
+        })
         return _json_response(learning)
     except Exception as e:
         logger.error(f"Learning error: {e}")
@@ -195,12 +207,17 @@ async def handle_learning(request):
 # ──────────────────────────────────────────────
 
 async def handle_predictions(request):
-    """Get prediction engine state: accuracy, trends, per-symbol performance"""
+    """Get prediction engine state — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        predictions = core.get_prediction_snapshot()
+        cached = core.get_cached_state()
+        predictions = cached.get('prediction_snapshot', {
+            "predictions": cached.get('predictions', []),
+            "metrics": cached.get('metrics', {}),
+            "_cache_warming": cached.get('_cache_warming', False),
+        })
         return _json_response(predictions)
     except Exception as e:
         logger.error(f"Predictions error: {e}")
@@ -212,14 +229,15 @@ async def handle_predictions(request):
 # ──────────────────────────────────────────────
 
 async def handle_analyze_patterns(request):
-    """Deep pattern analysis across concepts and rules"""
+    """Deep pattern analysis across concepts and rules — reads from state cache."""
     try:
         core = request.app.get('core')
         reasoner = request.app.get('reasoner')
         if not core or not reasoner:
             return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
-        concepts = core.get_concepts_snapshot()
-        rules = core.get_rules_snapshot()
+        cached = core.get_cached_state()
+        concepts = cached.get('concepts', {})
+        rules = cached.get('rules', {})
         analysis = await reasoner.analyze_patterns(concepts, rules)
         return web.json_response(analysis)
     except Exception as e:
@@ -228,13 +246,14 @@ async def handle_analyze_patterns(request):
 
 
 async def handle_generate_hypotheses(request):
-    """Generate testable hypotheses from recent observations"""
+    """Generate testable hypotheses from recent observations — reads from state cache."""
     try:
         core = request.app.get('core')
         reasoner = request.app.get('reasoner')
         if not core or not reasoner:
             return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
-        concepts = core.get_concepts_snapshot()
+        cached = core.get_cached_state()
+        concepts = cached.get('concepts', {})
         recent_obs = []
         for c in concepts.values():
             if c.get("examples"):
@@ -247,14 +266,15 @@ async def handle_generate_hypotheses(request):
 
 
 async def handle_formulate_goals(request):
-    """Formulate strategic goals based on current mesh state"""
+    """Formulate strategic goals based on current mesh state — reads from state cache."""
     try:
         core = request.app.get('core')
         reasoner = request.app.get('reasoner')
         if not core or not reasoner:
             return web.json_response({"error": "Core or Reasoner not initialized"}, status=503)
-        metrics = core.get_metrics()
-        concepts = core.get_concepts_snapshot()
+        cached = core.get_cached_state()
+        metrics = cached.get('metrics', {})
+        concepts = cached.get('concepts', {})
         goals = await reasoner.formulate_goals(metrics, concepts)
         return web.json_response({"goals": goals})
     except Exception as e:
@@ -311,28 +331,30 @@ async def handle_provider_status(request):
 
 
 # ══════════════════════════════════════════════
-# NEW: Hidden Intelligence Endpoints
+# Hidden Intelligence Endpoints — ALL read from cache
 # ══════════════════════════════════════════════
 
 async def handle_causal_graph(request):
-    """Get the causal influence graph"""
+    """Get the causal influence graph — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response(core.get_causal_graph())
+        cached = core.get_cached_state()
+        return _json_response(cached.get('causal_graph', {}))
     except Exception as e:
         logger.error(f"Causal graph error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_concept_hierarchy(request):
-    """Get the concept hierarchy (levels, parent/child)"""
+    """Get the concept hierarchy (levels, parent/child) — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response(core.get_concept_hierarchy())
+        cached = core.get_cached_state()
+        return _json_response(cached.get('concept_hierarchy', {}))
     except Exception as e:
         logger.error(f"Concept hierarchy error: {e}")
         return web.json_response({"error": str(e)}, status=500)
@@ -358,124 +380,142 @@ async def handle_price_filters(request):
 
 
 async def handle_analogies(request):
-    """Get recent analogies discovered between concepts"""
+    """Get recent analogies discovered between concepts — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"analogies": core.get_analogies()})
+        cached = core.get_cached_state()
+        return _json_response({"analogies": cached.get('analogies', [])})
     except Exception as e:
         logger.error(f"Analogies error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_explanations(request):
-    """Get recent rule explanations (backward chaining traces)"""
+    """Get recent rule explanations (backward chaining traces) — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"explanations": core.get_explanations()})
+        cached = core.get_cached_state()
+        return _json_response({"explanations": cached.get('explanations', [])})
     except Exception as e:
         logger.error(f"Explanations error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_plans(request):
-    """Get recent plans created for goal pursuit"""
+    """Get recent plans created for goal pursuit — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"plans": core.get_plans()})
+        cached = core.get_cached_state()
+        return _json_response({"plans": cached.get('plans', [])})
     except Exception as e:
         logger.error(f"Plans error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_pursuit_log(request):
-    """Get the autonomous pursuit log"""
+    """Get the autonomous pursuit log — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"pursuits": core.get_pursuit_log()})
+        cached = core.get_cached_state()
+        return _json_response({"pursuits": cached.get('pursuits', [])})
     except Exception as e:
         logger.error(f"Pursuit log error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_transfer_suggestions(request):
-    """Get cross-domain transfer opportunity suggestions"""
+    """Get cross-domain transfer opportunity suggestions — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"suggestions": core.get_transfer_suggestions()})
+        cached = core.get_cached_state()
+        return _json_response({"suggestions": cached.get('transfer_suggestions', [])})
     except Exception as e:
         logger.error(f"Transfer suggestions error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_strategy_performance(request):
-    """Get goal strategy performance (meta-learning)"""
+    """Get goal strategy performance (meta-learning) — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response(core.get_strategy_performance())
+        cached = core.get_cached_state()
+        return _json_response(cached.get('strategy_performance', {}))
     except Exception as e:
         logger.error(f"Strategy performance error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_feature_importances(request):
-    """Get learned feature importances from the online model weights"""
+    """Get learned feature importances from the online model weights — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"features": core.get_feature_importances()})
+        cached = core.get_cached_state()
+        return _json_response({"features": cached.get('feature_importances', [])})
     except Exception as e:
         logger.error(f"Feature importances error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_drift_events(request):
-    """Get distribution drift events"""
+    """Get distribution drift events — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response({"events": core.get_drift_events()})
+        cached = core.get_cached_state()
+        return _json_response({"events": cached.get('drift_events', [])})
     except Exception as e:
         logger.error(f"Drift events error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_orchestrator(request):
-    """Get orchestrator health status"""
+    """Get orchestrator health status — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return _json_response(core.get_orchestrator_status())
+        cached = core.get_cached_state()
+        return _json_response(cached.get('orchestrator_status', {
+            "status": "warming" if cached.get('_cache_warming') else "running",
+            "node_id": cached.get('node_id', ''),
+            "metrics": cached.get('metrics', {}),
+        }))
     except Exception as e:
         logger.error(f"Orchestrator error: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
 
 # ══════════════════════════════════════════════
-# NEW: Toggle Endpoints
+# Toggle Endpoints
 # ══════════════════════════════════════════════
 
 async def handle_get_toggles(request):
-    """Get current toggle states"""
+    """Get current toggle states — reads from state cache."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
-        return web.json_response(core.get_toggles())
+        cached = core.get_cached_state()
+        toggles = cached.get('toggles', {})
+        # Fallback: read directly from core._toggles (no lock needed — dict read is atomic in CPython)
+        if not toggles:
+            toggles = dict(core._toggles)
+        return web.json_response(toggles)
     except Exception as e:
         logger.error(f"Toggles error: {e}")
         return web.json_response({"error": str(e)}, status=500)
@@ -545,7 +585,7 @@ async def start_http_server(core=None, data_provider=None):
     # Data providers
     app.router.add_get('/api/providers', handle_provider_status)
 
-    # ── NEW: Hidden Intelligence Endpoints ──
+    # ── Hidden Intelligence Endpoints ──
     app.router.add_get('/api/causal', handle_causal_graph)
     app.router.add_get('/api/hierarchy', handle_concept_hierarchy)
     app.router.add_get('/api/analogies', handle_analogies)
@@ -558,7 +598,7 @@ async def start_http_server(core=None, data_provider=None):
     app.router.add_get('/api/drift', handle_drift_events)
     app.router.add_get('/api/orchestrator', handle_orchestrator)
 
-    # ── NEW: Toggle Endpoints ──
+    # ── Toggle Endpoints ──
     app.router.add_get('/api/toggles', handle_get_toggles)
     app.router.add_post("/api/toggles", handle_set_toggle)
     app.router.add_post("/api/price_filters", handle_price_filters)

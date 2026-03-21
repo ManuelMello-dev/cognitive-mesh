@@ -349,14 +349,16 @@ class DistributedCognitiveCore:
 
     def _update_state_cache(self):
         """Pre-compute the full state snapshot outside of HTTP request paths.
-        IMPORTANT: The main lock is held only for raw data extraction (snapshot).
-        All dict-building and formatting happens OUTSIDE the lock to prevent
-        blocking the aiohttp event loop and causing 502 timeouts.
+        CRITICAL: self._lock is held for the ABSOLUTE MINIMUM time possible.
+        Phase 1 only snapshots raw object references and scalar values.
+        All dict-building, formatting, and sorting happens OUTSIDE the lock.
         """
         try:
-            # ── PHASE 1: Snapshot raw data under lock (minimal hold time) ──
+            # ── PHASE 1: Snapshot ONLY raw references and scalars under lock ──
+            # This is intentionally minimal — no dict building, no sorting, no formatting.
             with self._lock:
                 metrics_raw = self.cognitive_system.cognitive_metrics.copy()
+                # Snapshot raw engine insight dicts (these are lightweight .copy() calls)
                 try:
                     abstraction_insights = self.cognitive_system.abstraction.get_insights()
                 except Exception:
@@ -382,89 +384,15 @@ class DistributedCognitiveCore:
                 except Exception:
                     prediction_insights = {"phi": 0.5, "sigma": 0.5, "global_accuracy": 0, "total_validated": 0, "total_correct": 0, "symbols_tracked": 0}
 
-                # Concepts
-                concept_domain_map = {}
-                for domain_id, domain in list(self.cognitive_system.cross_domain.domains.items()):
-                    for concept_id in getattr(domain, 'concepts', []):
-                        concept_domain_map[concept_id] = domain_id
-                concepts = {}
-                concept_items = list(self.cognitive_system.abstraction.concepts.items())
-                concept_items.sort(key=lambda x: getattr(x[1], 'created_at', datetime.now()), reverse=True)
-                for cid, concept in concept_items[:100]:
-                    concepts[cid] = {
-                        "id": cid,
-                        "symbol": getattr(concept, 'symbol', None),
-                        "domain": concept_domain_map.get(cid, getattr(concept, 'domain', 'unknown')),
-                        "confidence": round(getattr(concept, 'confidence', 0), 4),
-                        "observation_count": getattr(concept, 'observation_count', 0),
-                        "created_at": getattr(concept, 'created_at', datetime.now()).isoformat() if hasattr(getattr(concept, 'created_at', None), 'isoformat') else str(getattr(concept, 'created_at', '')),
-                    }
-
-                # Rules — capped at 200 most recent to prevent unbounded state dict growth
-                rules = {}
-                rule_items = list(self.cognitive_system.reasoning.rules.items())[-200:]
-                for rid, rule in rule_items:
-                    rules[rid] = {
-                        "id": rid,
-                        "antecedents": list(getattr(rule, 'antecedents', []))[:10],
-                        "consequents": list(getattr(rule, 'consequents', []))[:10],
-                        "confidence": round(getattr(rule, 'confidence', 0), 4),
-                        "support": getattr(rule, 'support', 0),
-                    }
-
-                # Facts — stored as plain strings in reasoning_engine.py (Set[str])
-                # Parse them into subject/predicate/object for dashboard display
-                facts = []
-                for fact in list(self.cognitive_system.reasoning.facts)[:50]:
-                    if isinstance(fact, dict):
-                        facts.append(fact)
-                    elif hasattr(fact, '__dict__'):
-                        facts.append(fact.__dict__)
-                    elif isinstance(fact, str):
-                        # Try to parse "subject_predicate_object" or just use the string
-                        parts = fact.split('_', 2)
-                        if len(parts) == 3:
-                            facts.append({"subject": parts[0], "predicate": parts[1], "object": parts[2]})
-                        else:
-                            facts.append({"subject": fact, "predicate": "is", "object": "true"})
-                    else:
-                        facts.append({"subject": str(fact), "predicate": "is", "object": "true"})
-
-                # Goals
-                goals = {}
-                for gid, goal in list(self.cognitive_system.goals.goals.items()):
-                    goals[gid] = {
-                        "id": gid,
-                        "description": getattr(goal, 'description', None),
-                        "goal_type": getattr(goal, 'goal_type', {}).value if hasattr(getattr(goal, 'goal_type', None), 'value') else str(getattr(goal, 'goal_type', '')),
-                        "status": getattr(goal, 'status', {}).value if hasattr(getattr(goal, 'status', None), 'value') else str(getattr(goal, 'status', '')),
-                        "progress": round(getattr(goal, 'progress', 0), 4),
-                    }
-
-                # Cross-domain mappings — capped at 100
-                cross_domain = {}
-                for mid, mapping in list(self.cognitive_system.cross_domain.mappings.items())[-100:]:
-                    cross_domain[mid] = {
-                        "id": mid,
-                        "source_domain": getattr(mapping, 'source_domain', ''),
-                        "target_domain": getattr(mapping, 'target_domain', ''),
-                        "confidence": round(getattr(mapping, 'confidence', 0), 4),
-                    }
-
-                # Analogies
-                analogies = []
-                for a in list(self.cognitive_system._recent_analogies)[-20:]:
-                    if isinstance(a, dict):
-                        analogies.append(a)
-                    elif hasattr(a, '__dict__'):
-                        analogies.append(a.__dict__)
-
-                # Causal graph
-                try:
-                    causal_graph = self.cognitive_system.get_causal_graph_snapshot()
-                except Exception:
-                    causal_graph = {}
-                # Snapshot scalars needed for metrics outside the lock
+                # Snapshot raw object collections as shallow lists (no dict-building here)
+                _raw_concept_items = list(self.cognitive_system.abstraction.concepts.items())
+                _raw_rule_items = list(self.cognitive_system.reasoning.rules.items())[-200:]
+                _raw_facts = list(self.cognitive_system.reasoning.facts)[:50]
+                _raw_goal_items = list(self.cognitive_system.goals.goals.items())
+                _raw_mapping_items = list(self.cognitive_system.cross_domain.mappings.items())[-100:]
+                _raw_domain_items = list(self.cognitive_system.cross_domain.domains.items())
+                _raw_analogies = list(self.cognitive_system._recent_analogies)[-20:]
+                # Snapshot scalars
                 _concepts_merged = self._concepts_merged
                 _concepts_pruned = self._concepts_pruned
                 _observation_count = self._observation_count
@@ -475,7 +403,89 @@ class DistributedCognitiveCore:
                 _running = self._running
                 _toggles = dict(self._toggles)
                 _node_id = self.node_id
-            # ── PHASE 2: Build state dicts OUTSIDE the lock ──
+            # ── PHASE 2: Build ALL state dicts OUTSIDE the lock ──
+            # Causal graph (has its own internal state, safe to call outside lock)
+            try:
+                causal_graph = self.cognitive_system.get_causal_graph_snapshot()
+            except Exception:
+                causal_graph = {}
+
+            # Build concept_domain_map from raw domain items
+            concept_domain_map = {}
+            for domain_id, domain in _raw_domain_items:
+                for concept_id in getattr(domain, 'concepts', []):
+                    concept_domain_map[concept_id] = domain_id
+
+            # Build concepts dict
+            _raw_concept_items.sort(key=lambda x: getattr(x[1], 'created_at', datetime.now()), reverse=True)
+            concepts = {}
+            for cid, concept in _raw_concept_items[:100]:
+                concepts[cid] = {
+                    "id": cid,
+                    "symbol": getattr(concept, 'symbol', None),
+                    "domain": concept_domain_map.get(cid, getattr(concept, 'domain', 'unknown')),
+                    "confidence": round(getattr(concept, 'confidence', 0), 4),
+                    "observation_count": getattr(concept, 'observation_count', 0),
+                    "created_at": getattr(concept, 'created_at', datetime.now()).isoformat() if hasattr(getattr(concept, 'created_at', None), 'isoformat') else str(getattr(concept, 'created_at', '')),
+                }
+
+            # Build rules dict
+            rules = {}
+            for rid, rule in _raw_rule_items:
+                rules[rid] = {
+                    "id": rid,
+                    "antecedents": list(getattr(rule, 'antecedents', []))[:10],
+                    "consequents": list(getattr(rule, 'consequents', []))[:10],
+                    "confidence": round(getattr(rule, 'confidence', 0), 4),
+                    "support": getattr(rule, 'support', 0),
+                }
+
+            # Build facts list
+            facts = []
+            for fact in _raw_facts:
+                if isinstance(fact, dict):
+                    facts.append(fact)
+                elif hasattr(fact, '__dict__'):
+                    facts.append(fact.__dict__)
+                elif isinstance(fact, str):
+                    parts = fact.split('_', 2)
+                    if len(parts) == 3:
+                        facts.append({"subject": parts[0], "predicate": parts[1], "object": parts[2]})
+                    else:
+                        facts.append({"subject": fact, "predicate": "is", "object": "true"})
+                else:
+                    facts.append({"subject": str(fact), "predicate": "is", "object": "true"})
+
+            # Build goals dict
+            goals = {}
+            for gid, goal in _raw_goal_items:
+                goals[gid] = {
+                    "id": gid,
+                    "description": getattr(goal, 'description', None),
+                    "goal_type": getattr(goal, 'goal_type', {}).value if hasattr(getattr(goal, 'goal_type', None), 'value') else str(getattr(goal, 'goal_type', '')),
+                    "status": getattr(goal, 'status', {}).value if hasattr(getattr(goal, 'status', None), 'value') else str(getattr(goal, 'status', '')),
+                    "progress": round(getattr(goal, 'progress', 0), 4),
+                }
+
+            # Build cross_domain dict
+            cross_domain = {}
+            for mid, mapping in _raw_mapping_items:
+                cross_domain[mid] = {
+                    "id": mid,
+                    "source_domain": getattr(mapping, 'source_domain', ''),
+                    "target_domain": getattr(mapping, 'target_domain', ''),
+                    "confidence": round(getattr(mapping, 'confidence', 0), 4),
+                }
+
+            # Build analogies list
+            analogies = []
+            for a in _raw_analogies:
+                if isinstance(a, dict):
+                    analogies.append(a)
+                elif hasattr(a, '__dict__'):
+                    analogies.append(a.__dict__)
+
+            # ── PHASE 3: Build metrics and final state dict (all outside lock) ──
             # Prediction insights (has its own internal lock)
             recent_preds = prediction_insights.get('recent_predictions', [])
             predictions = []
@@ -566,17 +576,58 @@ class DistributedCognitiveCore:
             logger.error(f"Error updating state cache: {e}", exc_info=True)
 
     def get_cached_state(self) -> Dict[str, Any]:
-        """Return the pre-computed state cache. Falls back to live computation if not ready."""
+        """Return the pre-computed state cache.
+        NEVER acquires self._lock — always returns immediately.
+        Returns empty defaults while cache is warming (first ~5s after boot).
+        """
         with self._state_cache_lock:
             if self._state_cache_ready:
                 return dict(self._state_cache)
-        # Cache not ready yet — return a lightweight live snapshot
+        # Cache not ready yet — return empty defaults immediately (NO lock acquisition)
         return {
-            "metrics": self.get_metrics(),
+            "metrics": {
+                "global_coherence_phi": 0.5,
+                "noise_level_sigma": 0.5,
+                "prediction_accuracy": 0,
+                "predictions_validated": 0,
+                "predictions_correct": 0,
+                "symbols_tracked": 0,
+                "rules_learned": 0,
+                "analogies_found": 0,
+                "goals_achieved": 0,
+                "knowledge_transfers": 0,
+                "causal_links_discovered": 0,
+                "total_concepts": 0,
+                "total_rules": 0,
+                "total_facts": 0,
+                "total_domains": 0,
+                "total_goals": 0,
+                "active_goals": 0,
+                "achieved_goals": 0,
+                "total_mappings": 0,
+                "learning_accuracy": 0,
+                "patterns_discovered": 0,
+                "samples_processed": 0,
+                "concepts_merged": 0,
+                "concepts_pruned": 0,
+                "total_observations": self._observation_count,
+                "pending_observations": len(self._pending_observations),
+                "errors": self._errors,
+                "uptime_seconds": time.time() - self._start_time,
+                "last_observation_time": self._last_observation_time,
+                "cognitive_loop_running": self._running,
+                "attention_density": 0,
+            },
             "concepts": {},
             "rules": {},
+            "facts": [],
             "goals": {},
             "cross_domain": {},
+            "analogies": [],
+            "causal_graph": {},
+            "predictions": [],
+            "providers": {},
+            "toggles": dict(self._toggles),
             "node_id": self.node_id,
             "_cache_warming": True,
         }
