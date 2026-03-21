@@ -135,13 +135,17 @@ async def handle_metrics(request):
 
 
 async def handle_state(request):
-    """Full mesh state: served from pre-computed cache to avoid lock contention."""
+    """Full mesh state: served from pre-computed cache to avoid lock contention.
+    JSON serialization runs in a thread executor to avoid blocking the aiohttp event loop."""
     try:
         core = request.app.get('core')
         if not core:
             return web.json_response({"error": "Core not initialized"}, status=503)
         state = core.get_cached_state()
-        return _json_response(state)
+        # Run JSON serialization in thread executor to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        body = await loop.run_in_executor(None, lambda: json.dumps(state, default=json_serial))
+        return web.Response(text=body, content_type='application/json')
     except Exception as e:
         logger.error(f"State query error: {e}")
         return web.json_response({"error": str(e)}, status=500)

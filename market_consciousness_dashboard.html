@@ -734,12 +734,30 @@
             const causalContainer = document.getElementById('causalContainer');
             if (causalContainer && state.causal_graph) {
                 causalContainer.innerHTML = '';
-                Object.entries(state.causal_graph).forEach(([key, value]) => {
+                const cg = state.causal_graph;
+                // causal_graph = { causal_links: [...], discovered_count: N }
+                const links = Array.isArray(cg.causal_links) ? cg.causal_links : [];
+                const count = cg.discovered_count || 0;
+                if (links.length === 0) {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
-                    item.textContent = `${key} -> ${Object.keys(value).join(', ')}`;
+                    item.textContent = `Discovered: ${count} causal links (accumulating...)`;
                     causalContainer.appendChild(item);
-                });
+                } else {
+                    links.slice(-30).forEach(link => {
+                        const item = document.createElement('div');
+                        item.className = 'log-entry';
+                        if (typeof link === 'string') {
+                            item.textContent = link;
+                        } else if (link && link.cause) {
+                            const str = link.strength !== undefined ? ` (str: ${typeof link.strength === 'number' ? link.strength.toFixed(2) : link.strength})` : '';
+                            item.textContent = `${link.cause} → ${link.effect}${str}`;
+                        } else {
+                            item.textContent = JSON.stringify(link);
+                        }
+                        causalContainer.appendChild(item);
+                    });
+                }
             }
 
             // Goals Tab

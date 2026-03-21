@@ -400,26 +400,35 @@ class DistributedCognitiveCore:
                         "created_at": getattr(concept, 'created_at', datetime.now()).isoformat() if hasattr(getattr(concept, 'created_at', None), 'isoformat') else str(getattr(concept, 'created_at', '')),
                     }
 
-                # Rules
+                # Rules — capped at 200 most recent to prevent unbounded state dict growth
                 rules = {}
-                for rid, rule in list(self.cognitive_system.reasoning.rules.items()):
+                rule_items = list(self.cognitive_system.reasoning.rules.items())[-200:]
+                for rid, rule in rule_items:
                     rules[rid] = {
                         "id": rid,
-                        "antecedents": list(getattr(rule, 'antecedents', [])),
-                        "consequents": list(getattr(rule, 'consequents', [])),
+                        "antecedents": list(getattr(rule, 'antecedents', []))[:10],
+                        "consequents": list(getattr(rule, 'consequents', []))[:10],
                         "confidence": round(getattr(rule, 'confidence', 0), 4),
                         "support": getattr(rule, 'support', 0),
                     }
 
-                # Facts
+                # Facts — stored as plain strings in reasoning_engine.py (Set[str])
+                # Parse them into subject/predicate/object for dashboard display
                 facts = []
                 for fact in list(self.cognitive_system.reasoning.facts)[:50]:
                     if isinstance(fact, dict):
                         facts.append(fact)
                     elif hasattr(fact, '__dict__'):
                         facts.append(fact.__dict__)
+                    elif isinstance(fact, str):
+                        # Try to parse "subject_predicate_object" or just use the string
+                        parts = fact.split('_', 2)
+                        if len(parts) == 3:
+                            facts.append({"subject": parts[0], "predicate": parts[1], "object": parts[2]})
+                        else:
+                            facts.append({"subject": fact, "predicate": "is", "object": "true"})
                     else:
-                        facts.append({"value": str(fact)})
+                        facts.append({"subject": str(fact), "predicate": "is", "object": "true"})
 
                 # Goals
                 goals = {}
@@ -432,9 +441,9 @@ class DistributedCognitiveCore:
                         "progress": round(getattr(goal, 'progress', 0), 4),
                     }
 
-                # Cross-domain mappings
+                # Cross-domain mappings — capped at 100
                 cross_domain = {}
-                for mid, mapping in list(self.cognitive_system.cross_domain.mappings.items()):
+                for mid, mapping in list(self.cognitive_system.cross_domain.mappings.items())[-100:]:
                     cross_domain[mid] = {
                         "id": mid,
                         "source_domain": getattr(mapping, 'source_domain', ''),
