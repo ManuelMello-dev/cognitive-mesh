@@ -1,4 +1,5 @@
 import http from 'http';
+import fs from 'fs';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { spawn } from 'child_process';
 import path from 'path';
@@ -14,6 +15,17 @@ const TARGET = process.env.COGNITIVE_MESH_BASE_URL || `http://localhost:${PYTHON
 
 console.log(`[OpenClaw] Starting gateway on port ${PORT}...`);
 console.log(`[OpenClaw] Proxying to backend at ${TARGET}`);
+
+// Pre-load the dashboard HTML at startup so it is always served instantly.
+// This eliminates 502s on GET / during Python startup and under cognitive loop load.
+const DASHBOARD_PATH = path.join(__dirname, 'market_consciousness_dashboard.html');
+let dashboardHtml = null;
+try {
+    dashboardHtml = fs.readFileSync(DASHBOARD_PATH, 'utf8');
+    console.log(`[OpenClaw] Dashboard HTML pre-loaded (${dashboardHtml.length} bytes)`);
+} catch (e) {
+    console.warn('[OpenClaw] Could not pre-load dashboard HTML:', e.message);
+}
 
 // 1. Start the Python Backend
 function startBackend() {
@@ -42,8 +54,8 @@ function createGateway() {
         target: TARGET,
         changeOrigin: true,
         ws: true,
-        logLevel: 'warn',       // Reduce proxy log noise (was 'debug')
-        proxyTimeout: 30000,    // 30s proxy timeout — prevents Railway 499s
+        logLevel: 'warn',       // Reduce proxy log noise
+        proxyTimeout: 30000,    // 30s proxy timeout
         timeout: 30000,         // 30s socket inactivity timeout
         onError: (err, req, res) => {
             // Only log non-ECONNREFUSED errors (backend still starting is expected)
@@ -73,7 +85,28 @@ function createGateway() {
             return;
         }
 
-        // Forward all other requests to Python backend
+        // Serve dashboard HTML directly from the gateway — never proxy to Python for this.
+        // The Python backend's handle_dashboard reads the same file from disk, but doing it
+        // here means the dashboard always loads instantly even if Python is busy or starting.
+        if (req.url === '/' || req.url === '/index.html') {
+            if (dashboardHtml) {
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(dashboardHtml);
+            } else {
+                // Fallback: read from disk on demand
+                try {
+                    const html = fs.readFileSync(DASHBOARD_PATH, 'utf8');
+                    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                    res.end(html);
+                } catch (e) {
+                    res.writeHead(503, { 'Content-Type': 'text/plain' });
+                    res.end('Dashboard not found');
+                }
+            }
+            return;
+        }
+
+        // Forward all other requests (all /api/* routes) to Python backend
         proxy(req, res);
     });
 

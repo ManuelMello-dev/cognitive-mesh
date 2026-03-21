@@ -513,7 +513,7 @@
 
         async function fetchEEG() {
             try {
-                const response = await fetchWithTimeout(`${API_BASE}/eeg`, 4000);
+                const response = await fetchWithTimeout(`${API_BASE}/eeg`, 8000);
                 const data = await response.json();
                 if (data && !data.error) {
                     // EEG returns amplitude values keyed by wave name
@@ -900,10 +900,10 @@
         setTimeout(fetchState, 2000);
         setInterval(fetchState, 3000); // Main state update every 3s
 
-        // EEG: start after 3s, poll every 1s (reduced from 500ms to ease startup load)
+        // EEG: start after 3s, poll every 3s (matches state poll — prevents 499 floods on Railway)
         setTimeout(() => {
             fetchEEG();
-            setInterval(fetchEEG, 1000);
+            setInterval(fetchEEG, 3000);
         }, 3000);
 
         // Initial drawing of the canvas
