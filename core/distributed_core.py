@@ -348,9 +348,13 @@ class DistributedCognitiveCore:
     # ──────────────────────────────────────────
 
     def _update_state_cache(self):
-        """Pre-compute the full state snapshot outside of HTTP request paths."""
+        """Pre-compute the full state snapshot outside of HTTP request paths.
+        IMPORTANT: The main lock is held only for raw data extraction (snapshot).
+        All dict-building and formatting happens OUTSIDE the lock to prevent
+        blocking the aiohttp event loop and causing 502 timeouts.
+        """
         try:
-            # Gather all data under the main lock in one pass
+            # ── PHASE 1: Snapshot raw data under lock (minimal hold time) ──
             with self._lock:
                 metrics_raw = self.cognitive_system.cognitive_metrics.copy()
                 try:
@@ -451,7 +455,18 @@ class DistributedCognitiveCore:
                     causal_graph = self.cognitive_system.get_causal_graph_snapshot()
                 except Exception:
                     causal_graph = {}
-
+                # Snapshot scalars needed for metrics outside the lock
+                _concepts_merged = self._concepts_merged
+                _concepts_pruned = self._concepts_pruned
+                _observation_count = self._observation_count
+                _pending_len = len(self._pending_observations)
+                _errors = self._errors
+                _start_time = self._start_time
+                _last_obs_time = self._last_observation_time
+                _running = self._running
+                _toggles = dict(self._toggles)
+                _node_id = self.node_id
+            # ── PHASE 2: Build state dicts OUTSIDE the lock ──
             # Prediction insights (has its own internal lock)
             recent_preds = prediction_insights.get('recent_predictions', [])
             predictions = []
@@ -493,15 +508,15 @@ class DistributedCognitiveCore:
                 "learning_accuracy": learning_insights.get('metrics', {}).get('accuracy', 0),
                 "patterns_discovered": learning_insights.get('total_patterns', 0),
                 "samples_processed": learning_insights.get('metrics', {}).get('samples_processed', 0),
-                "concepts_merged": self._concepts_merged,
-                "concepts_pruned": self._concepts_pruned,
-                "total_observations": self._observation_count,
-                "pending_observations": len(self._pending_observations),
-                "errors": self._errors,
-                "uptime_seconds": time.time() - self._start_time,
-                "last_observation_time": self._last_observation_time,
-                "cognitive_loop_running": self._running,
-                "attention_density": min(1.0, prediction_insights.get('symbols_tracked', 0) / max(len(self.cognitive_system.abstraction.concepts), 1)),
+                "concepts_merged": _concepts_merged,
+                "concepts_pruned": _concepts_pruned,
+                "total_observations": _observation_count,
+                "pending_observations": _pending_len,
+                "errors": _errors,
+                "uptime_seconds": time.time() - _start_time,
+                "last_observation_time": _last_obs_time,
+                "cognitive_loop_running": _running,
+                "attention_density": min(1.0, prediction_insights.get('symbols_tracked', 0) / max(abstraction_insights.get('total_concepts', 1), 1)),
             }
 
             # Providers
@@ -532,8 +547,8 @@ class DistributedCognitiveCore:
                 "causal_graph": causal_graph,
                 "predictions": predictions,
                 "providers": providers,
-                "toggles": dict(self._toggles),
-                "node_id": self.node_id,
+                "toggles": _toggles,
+                "node_id": _node_id,
             }
             with self._state_cache_lock:
                 self._state_cache = state
