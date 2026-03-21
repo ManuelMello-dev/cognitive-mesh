@@ -7,6 +7,10 @@ Enhanced with:
 - Per-symbol trend/momentum/volatility
 - Cross-domain insight synthesis
 - PHI/SIGMA trend awareness
+
+CRITICAL: All data reads use get_cached_state() to avoid acquiring self._lock.
+Calling get_metrics/get_concepts_snapshot/get_rules_snapshot directly acquires
+the main threading lock and blocks the aiohttp event loop, causing Connection Lost.
 """
 import logging
 import os
@@ -59,16 +63,22 @@ Maintain an analytical, sovereign, and highly intelligent tone.
 Do not hallucinate data. Only report what is in the mesh state."""
 
     async def chat(self, user_message: str, history: List[Dict[str, str]] = None) -> str:
-        """Process user message using the full mesh state as context"""
+        """Process user message using the full mesh state as context.
+
+        IMPORTANT: Uses get_cached_state() exclusively to avoid acquiring self._lock.
+        Direct snapshot methods (get_metrics, get_concepts_snapshot, get_rules_snapshot)
+        all acquire the main threading lock and block the aiohttp event loop.
+        """
         if not self.client:
             return "Interpreter is in Offline Mode. Set OPENAI_API_KEY to enable the Global Mind interface."
 
         try:
-            # Gather current system context
-            metrics = self.core.get_metrics()
-            concepts = self.core.get_concepts_snapshot()
-            rules = self.core.get_rules_snapshot()
-            predictions = self.core.get_prediction_snapshot()
+            # Use pre-built state cache — zero lock contention
+            cached = self.core.get_cached_state()
+            metrics = cached.get('metrics', {})
+            concepts = cached.get('concepts', {})
+            rules = cached.get('rules', {})
+            predictions_list = cached.get('predictions', [])
 
             # Build rich concept summary with prediction data
             concept_summary = []
@@ -79,58 +89,22 @@ Do not hallucinate data. Only report what is in the mesh state."""
             )
             for c in sorted_concepts[:30]:
                 symbol = c.get("symbol", "???")
-                price = None
-                volume = None
-
-                # Get latest price from examples
-                if c.get("examples"):
-                    latest = c["examples"][-1] if c["examples"] else {}
-                    if isinstance(latest, dict):
-                        price = latest.get("price")
-                        volume = latest.get("volume")
-                        if not symbol or symbol == "???":
-                            symbol = latest.get("symbol", "???")
-
                 entry = {
                     "symbol": symbol,
                     "domain": c.get("domain"),
-                    "price": price,
                     "confidence": round(c.get("confidence", 0), 4),
                     "observations": c.get("observation_count", 0),
-                    "level": c.get("level", 0),
                 }
-
-                # Add prediction data for this symbol
-                pred = c.get("prediction", {})
-                if pred:
-                    entry["prediction_accuracy"] = pred.get("prediction_accuracy")
-                    entry["trend"] = pred.get("trend")
-                    entry["momentum"] = pred.get("momentum")
-                    entry["volatility"] = pred.get("volatility")
-
                 concept_summary.append(entry)
 
-            # Build prediction summary
+            # Build prediction summary from cached metrics
             pred_summary = {
-                "global_accuracy": predictions.get("global_accuracy", 0),
-                "total_predictions": predictions.get("total_predictions", 0),
-                "total_validated": predictions.get("total_validated", 0),
-                "symbols_tracked": predictions.get("symbols_tracked", 0),
+                "global_accuracy": metrics.get("prediction_accuracy", 0),
+                "total_predictions": metrics.get("predictions_validated", 0),
+                "total_validated": metrics.get("predictions_validated", 0),
+                "symbols_tracked": metrics.get("symbols_tracked", 0),
+                "recent_predictions": predictions_list[-5:] if predictions_list else [],
             }
-
-            # Top performing symbols
-            sym_accs = predictions.get("symbol_accuracies", {})
-            top_symbols = sorted(
-                sym_accs.items(),
-                key=lambda x: x[1].get("accuracy", 0),
-                reverse=True
-            )[:10]
-            pred_summary["top_symbols"] = {
-                sym: data for sym, data in top_symbols
-            }
-
-            # Recent predictions
-            pred_summary["recent_predictions"] = predictions.get("recent_predictions", [])[-5:]
 
             mesh_context = {
                 "system_metrics": {
@@ -144,6 +118,9 @@ Do not hallucinate data. Only report what is in the mesh state."""
                     "domains_active": metrics.get("total_domains"),
                     "concepts_merged": metrics.get("concepts_merged"),
                     "concepts_pruned": metrics.get("concepts_pruned"),
+                    "attention_density": metrics.get("attention_density"),
+                    "learning_accuracy": metrics.get("learning_accuracy"),
+                    "patterns_discovered": metrics.get("patterns_discovered"),
                 },
                 "active_concepts": concept_summary,
                 "prediction_engine": pred_summary,
@@ -185,13 +162,16 @@ IMPORTANT:
             return f"The Global Mind is experiencing high noise (SIGMA spike): {str(e)}"
 
     async def synthesize_cross_domain(self, domain_a: str, domain_b: str) -> str:
-        """Generate deep cross-domain insights between two domains."""
+        """Generate deep cross-domain insights between two domains.
+        Uses cached state to avoid lock contention."""
         if not self.client:
             return "LLM interpreter is offline. Cannot synthesize cross-domain insights."
 
         try:
-            concepts = self.core.get_concepts_snapshot()
-            predictions = self.core.get_prediction_snapshot()
+            # Use cache to avoid lock contention
+            cached = self.core.get_cached_state()
+            concepts = cached.get('concepts', {})
+            metrics = cached.get('metrics', {})
 
             # Filter by domain
             concepts_a = {k: v for k, v in concepts.items() if v.get("domain", "").startswith(domain_a)}
@@ -200,8 +180,10 @@ IMPORTANT:
             if not concepts_a or not concepts_b:
                 return f"Insufficient data in one or both domains ({domain_a}, {domain_b}) for synthesis."
 
-            context_a = self._build_domain_context(concepts_a, domain_a, predictions)
-            context_b = self._build_domain_context(concepts_b, domain_b, predictions)
+            context_a = self._build_domain_context_from_cache(concepts_a, domain_a)
+            context_b = self._build_domain_context_from_cache(concepts_b, domain_b)
+            global_accuracy = metrics.get('prediction_accuracy', 0)
+            total_validated = metrics.get('predictions_validated', 0)
 
             prompt = f"""You are the Global Mind of a cognitive mesh analyzing cross-domain relationships.
 
@@ -212,8 +194,8 @@ DOMAIN B ({domain_b}):
 {context_b}
 
 PREDICTION ENGINE STATE:
-Global Accuracy: {predictions.get('global_accuracy', 0):.1%}
-Validated: {predictions.get('total_validated', 0)} predictions
+Global Accuracy: {global_accuracy:.1%}
+Validated: {total_validated} predictions
 
 Provide a deep synthesis:
 1. Identify phase-locking patterns or correlations
@@ -241,59 +223,31 @@ Speak as the mesh's consciousness, not as an external observer."""
             logger.error(f"Cross-domain synthesis error: {e}")
             return f"Error synthesizing insights: {str(e)}"
 
-    def _build_domain_context(self, concepts: Dict[str, Any], domain: str, predictions: Dict) -> str:
-        """Build a rich context string for a specific domain"""
+    def _build_domain_context_from_cache(self, concepts: Dict[str, Any], domain: str) -> str:
+        """Build a rich context string for a specific domain from cached concepts"""
         if not concepts:
             return "No concepts available"
 
-        sym_accs = predictions.get("symbol_accuracies", {})
         lines = []
         for c in list(concepts.values())[:10]:
             symbol = c.get("symbol", "???")
-            price = "N/A"
-            volume = "N/A"
-
-            if c.get("examples"):
-                ex = c["examples"][-1] if c["examples"] else {}
-                if isinstance(ex, dict):
-                    price = ex.get("price", "N/A")
-                    volume = ex.get("volume", "N/A")
-                    if symbol == "???":
-                        symbol = ex.get("symbol", "???")
-
-            # Add prediction data
-            sym_data = sym_accs.get(symbol, {})
-            acc = sym_data.get("accuracy", "N/A")
-            trend = sym_data.get("trend", "N/A")
-            momentum = sym_data.get("momentum", "N/A")
-
+            confidence = c.get('confidence', 0)
+            obs = c.get('observation_count', 0)
             lines.append(
-                f"- {symbol}: price={price}, volume={volume}, "
-                f"confidence={c.get('confidence', 0):.3f}, "
-                f"pred_accuracy={acc}, trend={trend}, momentum={momentum}"
+                f"- {symbol}: confidence={confidence:.3f}, observations={obs}, domain={domain}"
             )
 
         return "\n".join(lines)
 
     async def analyze_state(self) -> Dict[str, Any]:
-        """Perform a deep analysis of the current mesh state"""
-        metrics = self.core.get_metrics()
-        predictions = self.core.get_prediction_snapshot()
+        """Perform a deep analysis of the current mesh state using cache."""
+        cached = self.core.get_cached_state()
+        metrics = cached.get('metrics', {})
         return {
             "phi": metrics.get("global_coherence_phi"),
             "sigma": metrics.get("noise_level_sigma"),
-            "prediction_accuracy": predictions.get("global_accuracy", 0),
-            "predictions_validated": predictions.get("total_validated", 0),
-            "symbols_tracked": predictions.get("symbols_tracked", 0),
-            "status": "converging" if metrics.get("global_coherence_phi", 0) > 0.6 else "learning",
-            "improving": self._is_accuracy_improving(predictions),
+            "prediction_accuracy": metrics.get("prediction_accuracy", 0),
+            "predictions_validated": metrics.get("predictions_validated", 0),
+            "symbols_tracked": metrics.get("symbols_tracked", 0),
+            "status": "converging" if (metrics.get("global_coherence_phi") or 0) > 0.6 else "learning",
         }
-
-    def _is_accuracy_improving(self, predictions: Dict) -> bool:
-        """Check if accuracy is trending upward"""
-        trend = predictions.get("accuracy_trend", [])
-        if len(trend) < 5:
-            return False
-        recent = [t["accuracy"] for t in trend[-5:]]
-        earlier = [t["accuracy"] for t in trend[:5]] if len(trend) >= 10 else [0.5]
-        return sum(recent) / len(recent) > sum(earlier) / len(earlier)
