@@ -43,6 +43,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CognitiveMesh")
 
+# ── Per-module log level overrides ────────────────────────────────────────────
+# Railway hard-caps at 500 log lines/sec. These internal modules are very noisy
+# at INFO level (they log on every observation, every concept formed, every
+# ZeroMQ publish). Raising them to WARNING keeps the important signal visible
+# while eliminating the flood. CognitiveMesh (top-level) stays at INFO.
+_QUIET_MODULES = [
+    "abstraction_engine",       # logs every concept formation
+    "reasoning_engine",         # logs every rule inference
+    "continuous_learning_engine",
+    "cognitive_intelligent_system",
+    "cross_domain_engine",
+    "always_on_orchestrator",
+    "ZeroMQNetwork",            # logs every ZMQ send/publish
+    "gossip",
+    "gossip_amfg",
+    "MarketDataProviders",      # keep warnings (circuit breaker trips) but not debug
+    "DistributedCore",          # very verbose at INFO during state save/load
+    "self_writing_engine",
+    "prediction_validation_engine",
+    "goal_formation_system",
+]
+for _mod in _QUIET_MODULES:
+    logging.getLogger(_mod).setLevel(logging.WARNING)
+# MarketDataProviders: keep WARNING (circuit breaker trips, rate limits) but silence debug
+logging.getLogger("MarketDataProviders").setLevel(logging.WARNING)
+# ──────────────────────────────────────────────────────────────────────────────
+
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

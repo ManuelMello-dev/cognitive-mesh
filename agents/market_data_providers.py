@@ -316,11 +316,24 @@ class OrtexProvider(BaseProvider):
     Endpoint: GET https://api.ortex.com/api/v1/stock/{exchange}/{ticker}/closing_prices
     Auth: Header 'Ortex-Api-Key: <key>'
     Returns end-of-day close, open, high, low, volume.
-    Env var: ORTEX_API_KEY
+    Env vars checked in order: ORTEX_API_KEY, ORTEX_KEY, ORTEX_TOKEN
     """
     NAME = "ortex"
     REQUIRES_KEY = True
-    KEY_ENV = "ORTEX_API_KEY"
+    KEY_ENV = "ORTEX_API_KEY"  # primary env var name
+    # Fallback env var names in case the Railway variable was named differently
+    _KEY_FALLBACKS = ["ORTEX_API_KEY", "ORTEX_KEY", "ORTEX_TOKEN", "ORTEX"]
+
+    def __init__(self):
+        super().__init__()
+        # Try all known variable names if the primary one is empty
+        if not self.api_key:
+            for var in self._KEY_FALLBACKS:
+                val = os.getenv(var, "").strip()
+                if val:
+                    self.api_key = val
+                    logger.info(f"OrtexProvider: using API key from env var '{var}'")
+                    break
     # Exchange symbols to try in order for US-listed stocks
     _EXCHANGE_PRIORITY = ["nasdaq", "nyse", "us"]
 
