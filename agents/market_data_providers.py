@@ -6,8 +6,8 @@ consecutively it is tripped OPEN and skipped for a cooldown period, then
 re-tested (HALF_OPEN). On success it resets to CLOSED.
 
 Provider cascade order (first success wins):
-  STOCKS:  Yahoo Finance Chart → CNBC → Alpha Vantage* → Polygon* → Twelve Data* → FMP* → Tiingo*
-  CRYPTO:  Binance → CoinGecko → CryptoCompare → Kraken → KuCoin → MEXC
+  STOCKS:  Yahoo Finance Chart → CNBC → ORTEX* → Alpha Vantage* → Polygon* → Twelve Data* → FMP* → Tiingo*
+  CRYPTO:  CryptoCompare → Kraken → KuCoin → MEXC → CoinGecko → Binance
 
   * = requires env-var API key; auto-disabled when key is absent.
 """
@@ -310,6 +310,69 @@ class TiingoProvider(BaseProvider):
             return self._tick(symbol, price, volume, change)
 
 
+class OrtexProvider(BaseProvider):
+    """
+    ORTEX — institutional-grade daily OHLCV data.
+    Endpoint: GET https://api.ortex.com/api/v1/stock/{exchange}/{ticker}/closing_prices
+    Auth: Header 'Ortex-Api-Key: <key>'
+    Returns end-of-day close, open, high, low, volume.
+    Env var: ORTEX_API_KEY
+    """
+    NAME = "ortex"
+    REQUIRES_KEY = True
+    KEY_ENV = "ORTEX_API_KEY"
+    # Exchange symbols to try in order for US-listed stocks
+    _EXCHANGE_PRIORITY = ["nasdaq", "nyse", "us"]
+
+    async def fetch(self, symbol: str) -> Optional[Dict[str, Any]]:
+        session = await self._get_session()
+        headers = {"accept": "application/json", "Ortex-Api-Key": self.api_key}
+        # Try exchanges in priority order until one returns data
+        for exchange in self._EXCHANGE_PRIORITY:
+            url = (
+                f"https://api.ortex.com/api/v1/stock/{exchange}"
+                f"/{symbol.upper()}/closing_prices"
+            )
+            params = {"to_date": "LATEST"}
+            try:
+                async with session.get(url, headers=headers, params=params) as resp:
+                    if resp.status == 404:
+                        continue  # symbol not on this exchange — try next
+                    if resp.status == 429:
+                        raise Exception("Rate limit exceeded")
+                    if resp.status == 403:
+                        raise Exception("Not authorized — check ORTEX_API_KEY")
+                    if resp.status != 200:
+                        raise Exception(f"HTTP {resp.status}")
+                    data = await resp.json()
+                    # Response: {"data": [{"date": ..., "open": ..., "high": ...,
+                    #                       "low": ..., "close": ..., "volume": ...}]}
+                    rows = data.get("data", [])
+                    if not rows:
+                        continue
+                    row = rows[-1] if isinstance(rows, list) else rows
+                    close = float(row.get("close", 0))
+                    open_p = float(row.get("open", close))
+                    volume = float(row.get("volume", 0))
+                    high = float(row.get("high", close))
+                    low = float(row.get("low", close))
+                    change = ((close - open_p) / open_p * 100) if open_p else 0
+                    if close <= 0:
+                        continue
+                    return self._tick(symbol, close, volume, change, {
+                        "high_24h": high,
+                        "low_24h": low,
+                        "open": open_p,
+                        "source": f"ortex/{exchange}",
+                    })
+            except Exception as e:
+                if "Rate limit" in str(e) or "Not authorized" in str(e):
+                    raise  # propagate so circuit breaker trips immediately
+                logger.debug(f"  [ortex/{exchange}] {symbol}: {e}")
+                continue
+        raise Exception(f"No ORTEX data found for {symbol} on any exchange")
+
+
 # ──────────────────────────────────────────────
 # FREE CRYPTO PROVIDERS
 # ──────────────────────────────────────────────
@@ -517,33 +580,48 @@ class MultiSourceDataProvider:
     For each symbol, tries providers in order until one succeeds.
 
     Key design decisions:
-      - Crypto cascade: CryptoCompare first (no rate limit), then Kraken,
-        KuCoin, MEXC, CoinGecko (rate-limited), Binance last (geo-blocked
-        from most cloud datacenters — HTTP 451).
-      - Per-provider semaphores prevent flooding any single API.
-      - Batch fetches use a global concurrency limiter (10 concurrent).
+      - Stock cascade: Yahoo/CNBC free first, then ORTEX (paid, institutional
+        OHLCV), then Alpha Vantage, Polygon, TwelveData, FMP, Tiingo.
+      - Crypto cascade: CryptoCompare first (reliable), then Kraken/KuCoin/
+        MEXC, CoinGecko (rate-limited), Binance last (geo-blocked 451).
+      - BATCH_CONCURRENCY reduced to 3 to prevent rate-limit exhaustion.
+      - Per-provider semaphores enforce conservative per-API limits.
+      - Batch fetches use a global concurrency limiter (3 concurrent).
     """
 
-    # Max concurrent requests across all providers in a batch
-    BATCH_CONCURRENCY = 10
+    # Max concurrent requests across ALL providers combined.
+    # Lowered from 10 → 3 to prevent rate-limit exhaustion across providers.
+    # Each symbol fetch already tries multiple providers in cascade, so
+    # 3 concurrent symbols = up to 3 simultaneous outbound connections.
+    BATCH_CONCURRENCY = 3
 
-    # Per-provider concurrency limits (name → max simultaneous requests)
+    # Per-provider concurrency limits (name → max simultaneous requests).
+    # Conservative values to stay well within free-tier rate limits.
     _PROVIDER_LIMITS = {
-        "coingecko": 3,      # 10-30 req/min free tier
-        "binance": 8,        # generous but geo-blocked
-        "cryptocompare": 8,  # no hard limit on basic endpoint
-        "kraken": 5,
-        "kucoin": 5,
-        "mexc": 5,
-        "yahoo_chart": 8,
-        "cnbc": 5,
+        "ortex": 2,          # paid tier — conservative to protect credits
+        "coingecko": 1,      # 10-30 req/min free tier — very aggressive limiter
+        "binance": 3,        # generous but geo-blocked on most cloud IPs
+        "cryptocompare": 3,  # no hard limit on basic endpoint
+        "kraken": 2,
+        "kucoin": 2,
+        "mexc": 2,
+        "yahoo_chart": 3,
+        "cnbc": 2,
+        "alphavantage": 1,   # 5 req/min on free tier
+        "polygon": 2,        # 5 req/min on free tier
+        "twelvedata": 1,     # 8 req/min on free tier
+        "fmp": 1,            # 250 req/day
+        "tiingo": 2,         # 500 req/hour
     }
 
     def __init__(self):
         # Stock providers — order = priority
+        # ORTEX is positioned 3rd: after free providers (Yahoo, CNBC) but
+        # before other paid providers, so it acts as the primary paid fallback.
         self.stock_providers: List[BaseProvider] = [
             YahooFinanceChartProvider(),
             CNBCQuoteProvider(),
+            OrtexProvider(),
             AlphaVantageProvider(),
             PolygonProvider(),
             TwelveDataProvider(),
