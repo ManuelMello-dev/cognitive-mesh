@@ -1,15 +1,24 @@
+"""
+Cognitive Mesh — Configuration
+================================
+All settings are read from environment variables with sensible defaults.
+No domain-specific values (symbols, asset classes, etc.) belong here.
+Domain-specific configuration lives in the relevant DataPlugin.
+"""
+
 import os
 from typing import List, Set
 
+
 class Config:
-    # System Identity
+    # ── System Identity ───────────────────────────────────────────────────────
     NODE_ID = os.getenv("NODE_ID", "global_mind_01")
 
-    # Networking
+    # ── Networking ────────────────────────────────────────────────────────────
     PORT = int(os.getenv("PORT", 8080))
-    UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 30))  # 30s between cycles
+    UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 30))  # seconds between cycles
 
-    # Cognitive Core Config
+    # ── Cognitive Core ────────────────────────────────────────────────────────
     CONCEPT_SIMILARITY_THRESHOLD = float(os.getenv("CONCEPT_SIMILARITY_THRESHOLD", 0.75))
     MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", 0.01))
     CONCEPT_HALF_LIFE_HOURS = float(os.getenv("CONCEPT_HALF_LIFE_HOURS", 72.0))
@@ -18,27 +27,31 @@ class Config:
     GOAL_GENERATION_INTERVAL = int(os.getenv("GOAL_GENERATION_INTERVAL", 50))
     MAX_RULES_PER_OBSERVATION = int(os.getenv("MAX_RULES_PER_OBSERVATION", 5))
 
-    # Data Sources — fetch ALL discovered symbols each cycle
-    DEFAULT_SYMBOLS = ""  # No hardcoded symbols - purely organic data
-    PRIORITY_SYMBOLS = []  # No priority symbols - all data is equal
-    DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 150))  # Cover all symbols in one pass
+    # ── Self-Evolution ────────────────────────────────────────────────────────
+    # How often (in cognitive cycles) to attempt a self-evolution pass
+    EVOLUTION_INTERVAL = int(os.getenv("EVOLUTION_INTERVAL", 25))
 
-    # Market Scanner Price Filters
+    # ── Data Collection ───────────────────────────────────────────────────────
+    # Maximum observations to ingest per cycle across all plugins
+    DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 150))
+
+    # ── Plugin Flags ─────────────────────────────────────────────────────────
+    # Set DISABLE_MARKET_PLUGIN=1 to run without financial data
+    DISABLE_MARKET_PLUGIN = os.getenv("DISABLE_MARKET_PLUGIN", "").lower() in ("1", "true", "yes")
+
+    # Market plugin price scan filters (only relevant when market plugin is active)
     MIN_SCAN_PRICE = float(os.getenv("MIN_SCAN_PRICE", 0.0))
     MAX_SCAN_PRICE = float(os.getenv("MAX_SCAN_PRICE", float("inf")))
 
-    # Database URLs
+    # ── Persistence ───────────────────────────────────────────────────────────
     POSTGRES_URL = os.getenv("POSTGRES_URL")
     MILVUS_HOST = os.getenv("MILVUS_HOST")
     REDIS_URL = os.getenv("REDIS_URL")
 
-    # LLM Config
+    # ── LLM Interpreter (optional) ────────────────────────────────────────────
+    # The LLM is NOT a reasoning engine — it is an optional prose interpreter.
+    # The mesh reasons natively; the LLM translates output into human language.
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4.1-mini")
-
-    @classmethod
-    def get_symbols(cls) -> Set[str]:
-        symbols_str = os.getenv("SYMBOLS", cls.DEFAULT_SYMBOLS)
-        if not symbols_str or symbols_str.strip() == "":
-            return set()
-        return set(s.strip() for s in symbols_str.split(",") if s.strip())
+    # Set LLM_ENABLED=0 to fully disable the LLM interpreter layer
+    LLM_ENABLED = os.getenv("LLM_ENABLED", "1").lower() not in ("0", "false", "no")

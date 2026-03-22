@@ -1,8 +1,8 @@
 """
 Cognitive Mesh — Main Entry Point
 ==================================
-Wires the CognitiveIntelligentSystem (7 engines) to real-time market data
-providers and exposes the cognitive state via HTTP/GPT I/O.
+Wires the CognitiveIntelligentSystem (7 engines) to real-time data
+sources and exposes the cognitive state via HTTP/GPT I/O.
 
 Architecture:
   HTTP Server (port 8080)
@@ -13,14 +13,18 @@ Architecture:
     ├─ CrossDomainEngine       — knowledge transfer
     ├─ OpenEndedGoalSystem     — autonomous goals
     ├─ ContinuousLearningEngine — online learning
-    ├─ SelfEvolvingSystem      — code evolution
+    ├─ SelfEvolvingSystem      — code evolution (ACTIVE)
     └─ AlwaysOnOrchestrator    — fault tolerance
   DistributedCognitiveCore
     └─ Async wrapper with DB persistence + cognitive loop thread
-  MarketScanner
-    └─ Autonomous discovery of trending tickers from free APIs
-  MultiSourceDataProvider
-    └─ 13 providers with circuit breakers (stocks + crypto)
+  DataPlugin system (domain-agnostic)
+    └─ MarketPlugin (financial) — optional, loaded if enabled
+    └─ Any other plugin can be added without touching the core
+
+The core is completely domain-agnostic.  All domain-specific logic
+lives in DataPlugin subclasses under agents/plugins/.  The orchestrator
+simply calls plugin.fetch() each cycle and ingests the returned
+observations into the core.
 """
 
 import os
@@ -33,7 +37,7 @@ import threading
 from typing import List, Dict, Any, Set
 
 # ──────────────────────────────────────────────
-# Configure logging to STDOUT (Railway classifies stderr as errors)
+# Configure logging to STDOUT
 # ──────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -43,40 +47,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CognitiveMesh")
 
-# ── Per-module log level overrides ────────────────────────────────────────────
-# Railway hard-caps at 500 log lines/sec. These internal modules are very noisy
-# at INFO level (they log on every observation, every concept formed, every
-# ZeroMQ publish). Raising them to WARNING keeps the important signal visible
-# while eliminating the flood. CognitiveMesh (top-level) stays at INFO.
+# Per-module log level overrides (noisy internal modules)
 _QUIET_MODULES = [
-    "abstraction_engine",       # logs every concept formation
-    "reasoning_engine",         # logs every rule inference
+    "abstraction_engine",
+    "reasoning_engine",
     "continuous_learning_engine",
     "cognitive_intelligent_system",
     "cross_domain_engine",
     "always_on_orchestrator",
-    "ZeroMQNetwork",            # logs every ZMQ send/publish
+    "ZeroMQNetwork",
     "gossip",
     "gossip_amfg",
-    "MarketDataProviders",      # keep warnings (circuit breaker trips) but not debug
-    "DistributedCore",          # very verbose at INFO during state save/load
+    "MarketDataProviders",
+    "DistributedCore",
     "self_writing_engine",
     "prediction_validation_engine",
     "goal_formation_system",
 ]
 for _mod in _QUIET_MODULES:
     logging.getLogger(_mod).setLevel(logging.WARNING)
-# MarketDataProviders: keep WARNING (circuit breaker trips, rate limits) but silence debug
-logging.getLogger("MarketDataProviders").setLevel(logging.WARNING)
+
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.config import Config
 from core.distributed_core import DistributedCognitiveCore
-from agents.market_data_providers import MultiSourceDataProvider
-from agents.market_scanner import MarketScanner
 from http_server import start_http_server
 
 # Optional stores
@@ -101,28 +97,210 @@ except ImportError:
     ZMQPubSub = None
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# DataPlugin base class
+# ──────────────────────────────────────────────────────────────────────────────
+
+class DataPlugin:
+    """
+    Base class for all data source plugins.
+
+    A plugin is responsible for:
+      1. Discovering entities to observe (optional, can be static)
+      2. Fetching observations each cycle
+      3. Returning a list of (observation_dict, domain_string) tuples
+
+    The observation_dict MUST contain at least:
+      - 'value'     : float  — the primary observable
+      - 'entity_id' : str    — unique identifier for this stream
+
+    Optional fields:
+      - 'secondary_value' : float  — e.g. volume, confidence, intensity
+      - 'timestamp'       : float  — unix timestamp (defaults to now)
+      - any domain-specific fields (will be stored as metadata)
+    """
+
+    name: str = "base"
+
+    async def initialize(self) -> None:
+        """Called once at startup."""
+        pass
+
+    async def fetch(self) -> List[tuple]:
+        """
+        Fetch a batch of observations.
+        Returns: list of (observation_dict, domain_string)
+        """
+        return []
+
+    async def close(self) -> None:
+        """Called at shutdown."""
+        pass
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MarketPlugin — financial data (optional, backward-compatible)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MarketPlugin(DataPlugin):
+    """
+    Financial market data plugin.
+    Wraps the existing MultiSourceDataProvider and MarketScanner.
+    Translates financial ticks into the generic observation schema.
+    """
+
+    name = "market"
+
+    def __init__(self):
+        self._provider = None
+        self._scanner = None
+        self._crypto_symbols: Set[str] = set()
+        self._stock_symbols: Set[str] = set()
+        self._crypto_offset = 0
+        self._stock_offset = 0
+        self.MAX_BATCH_SIZE = 20
+
+    async def initialize(self) -> None:
+        try:
+            from agents.market_data_providers import MultiSourceDataProvider
+            from agents.market_scanner import MarketScanner
+            self._provider = MultiSourceDataProvider()
+            self._scanner = MarketScanner()
+            logger.info("MarketPlugin: initialized (MultiSourceDataProvider + MarketScanner)")
+        except ImportError as e:
+            logger.warning(f"MarketPlugin: could not import market modules ({e}) — plugin disabled")
+            self._provider = None
+
+    async def discover(self) -> None:
+        """Discover new tradeable assets."""
+        if not self._scanner:
+            return
+        try:
+            discovered = await self._scanner.scan(
+                min_price=Config.MIN_SCAN_PRICE,
+                max_price=Config.MAX_SCAN_PRICE,
+            )
+            new_crypto = discovered.get("crypto", set())
+            new_stocks = discovered.get("stocks", set())
+            if new_crypto:
+                self._crypto_symbols.update(new_crypto)
+                logger.info(f"MarketPlugin: discovered {len(new_crypto)} crypto symbols")
+            if new_stocks:
+                self._stock_symbols.update(new_stocks)
+                logger.info(f"MarketPlugin: discovered {len(new_stocks)} stock symbols")
+        except Exception as e:
+            logger.error(f"MarketPlugin discovery error: {e}")
+
+    async def fetch(self) -> List[tuple]:
+        if not self._provider:
+            return []
+
+        all_crypto = sorted(self._crypto_symbols)
+        all_stocks = sorted(self._stock_symbols)
+        if not all_crypto and not all_stocks:
+            return []
+
+        # Sliding window selection
+        crypto_count = min(len(all_crypto), self.MAX_BATCH_SIZE // 2)
+        stock_count = min(len(all_stocks), self.MAX_BATCH_SIZE - crypto_count)
+        if crypto_count == 0:
+            stock_count = min(len(all_stocks), self.MAX_BATCH_SIZE)
+        if stock_count == 0:
+            crypto_count = min(len(all_crypto), self.MAX_BATCH_SIZE)
+
+        batch = []
+        if all_crypto:
+            for i in range(crypto_count):
+                idx = (self._crypto_offset + i) % len(all_crypto)
+                batch.append(all_crypto[idx])
+            self._crypto_offset = (self._crypto_offset + crypto_count) % len(all_crypto)
+        if all_stocks:
+            for i in range(stock_count):
+                idx = (self._stock_offset + i) % len(all_stocks)
+                batch.append(all_stocks[idx])
+            self._stock_offset = (self._stock_offset + stock_count) % len(all_stocks)
+
+        try:
+            ticks = await self._provider.fetch_batch(batch)
+        except Exception as e:
+            logger.error(f"MarketPlugin fetch error: {e}")
+            return []
+
+        results = []
+        for tick in ticks:
+            if not tick or isinstance(tick, Exception):
+                continue
+            symbol = tick.get('symbol', '')
+            if not symbol:
+                continue
+            is_crypto = self._provider.is_crypto(symbol)
+            domain = f"crypto:{symbol}" if is_crypto else f"stock:{symbol}"
+
+            # Translate to generic observation schema
+            observation = {
+                "entity_id": symbol,
+                "value": tick.get('price'),
+                "secondary_value": tick.get('volume', 0),
+                "timestamp": tick.get('timestamp', time.time()),
+                # Preserve original fields for backward compatibility
+                "symbol": symbol,
+                "price": tick.get('price'),
+                "volume": tick.get('volume', 0),
+            }
+            if observation["value"] is not None:
+                results.append((observation, domain))
+
+        return results
+
+    async def close(self) -> None:
+        if self._provider:
+            try:
+                await self._provider.close()
+            except Exception:
+                pass
+        if self._scanner:
+            try:
+                await self._scanner.close()
+            except Exception:
+                pass
+
+    @property
+    def stream_count(self) -> int:
+        return len(self._crypto_symbols) + len(self._stock_symbols)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CognitiveMeshOrchestrator
+# ──────────────────────────────────────────────────────────────────────────────
+
 class CognitiveMeshOrchestrator:
     """
-    Main orchestrator — wires market data into the CognitiveIntelligentSystem
-    and runs the cognitive loop alongside the HTTP server.
+    Domain-agnostic orchestrator.
+
+    Manages a list of DataPlugins and feeds their observations into the
+    DistributedCognitiveCore.  Adding a new data domain requires only
+    implementing a DataPlugin subclass — the core never needs to change.
     """
 
     def __init__(self):
         self.node_id = Config.NODE_ID
-        self.crypto_symbols: Set[str] = set()
-        self.stock_symbols: Set[str] = set()
         self.update_interval = Config.UPDATE_INTERVAL
 
-        # Market scanner — autonomous asset discovery
-        self.scanner = MarketScanner()
+        # ── Data plugins ──────────────────────────────────────────────────
+        self.plugins: List[DataPlugin] = []
 
-        # Data provider (13 sources, circuit breakers)
-        self.data_provider = MultiSourceDataProvider()
+        # Market plugin is loaded by default (can be disabled via env var)
+        if os.getenv("DISABLE_MARKET_PLUGIN", "").lower() not in ("1", "true", "yes"):
+            self.market_plugin = MarketPlugin()
+            self.plugins.append(self.market_plugin)
+        else:
+            self.market_plugin = None
+            logger.info("MarketPlugin disabled via DISABLE_MARKET_PLUGIN env var")
 
-        # Core cognitive system (wraps CognitiveIntelligentSystem)
+        # ── Core cognitive system ─────────────────────────────────────────
         self.core = DistributedCognitiveCore(node_id=self.node_id)
 
-        # Optional networking
+        # ── Optional networking ───────────────────────────────────────────
         self.network = None
         self.pubsub = None
         if ZMQNode and ZMQPubSub:
@@ -132,12 +310,17 @@ class CognitiveMeshOrchestrator:
             except Exception as e:
                 logger.warning(f"ZeroMQ init failed (non-critical): {e}")
 
-        # Optional persistence
+        # ── Optional persistence ──────────────────────────────────────────
         self.postgres = None
         self.milvus = None
         self.redis = None
 
         self.running = False
+
+    def register_plugin(self, plugin: DataPlugin) -> None:
+        """Register an additional data plugin at runtime."""
+        self.plugins.append(plugin)
+        logger.info(f"Registered DataPlugin: {plugin.name}")
 
     # ──────────────────────────────────────────
     # Initialization
@@ -146,6 +329,13 @@ class CognitiveMeshOrchestrator:
     async def initialize(self):
         """Initialize all system components"""
         logger.info(f"Initializing Cognitive Mesh: {self.node_id}")
+
+        # Initialize all plugins
+        for plugin in self.plugins:
+            try:
+                await plugin.initialize()
+            except Exception as e:
+                logger.warning(f"Plugin '{plugin.name}' init error: {e}")
 
         # Start networking (optional)
         if self.network and self.pubsub:
@@ -158,14 +348,17 @@ class CognitiveMeshOrchestrator:
             except Exception as e:
                 logger.warning(f"Networking init error (non-critical): {e}")
 
-        # Connect to databases if configured
+        # Connect to databases
         await self._init_databases()
 
         # Link databases to core
         self.core.postgres = self.postgres
         self.core.milvus = self.milvus
         self.core.redis = self.redis
-        self.core.data_provider = self.data_provider
+
+        # Expose the market provider to the core for the HTTP provider status tab
+        if self.market_plugin and self.market_plugin._provider:
+            self.core.data_provider = self.market_plugin._provider
 
         # Load cognitive state from persistence
         await self.core.load_state()
@@ -177,7 +370,6 @@ class CognitiveMeshOrchestrator:
 
     async def _init_databases(self):
         """Initialize database connections — all non-blocking with timeouts"""
-        # PostgreSQL
         if Config.POSTGRES_URL and PostgresStore:
             try:
                 self.postgres = PostgresStore(Config.POSTGRES_URL)
@@ -190,14 +382,12 @@ class CognitiveMeshOrchestrator:
                 logger.warning(f"PostgreSQL connection failed: {e} — skipping")
                 self.postgres = None
 
-        # Milvus — deferred to background
         if Config.MILVUS_HOST and MilvusStore:
             logger.info("Milvus configured — connecting in background...")
             asyncio.create_task(self._connect_milvus_background())
         else:
             logger.info("Milvus not configured — running without vector store")
 
-        # Redis
         if Config.REDIS_URL and RedisCache:
             try:
                 self.redis = RedisCache(Config.REDIS_URL)
@@ -250,27 +440,21 @@ class CognitiveMeshOrchestrator:
 
     def _start_http_thread(self):
         """
-        Run the aiohttp HTTP server in a DEDICATED THREAD with its own event loop.
-
-        ROOT CAUSE OF 499 TIMEOUTS:
-        The data collection loop makes 10 concurrent aiohttp requests per cycle
-        (12s timeout each, BATCH_CONCURRENCY=10). When these run in the SAME
-        event loop as the HTTP server, the event loop is saturated and cannot
-        service incoming dashboard requests — causing 2-9s response times and
-        Railway 499 client-abort timeouts.
-
-        THE FIX:
-        By giving the HTTP server its own dedicated event loop in a separate
-        thread, it is completely isolated from data collection I/O. The HTTP
-        server can always respond in <50ms regardless of what the data
-        collection loop is doing.
+        Run the aiohttp HTTP server in a dedicated thread with its own
+        event loop to prevent data-collection I/O from blocking HTTP responses.
         """
         http_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(http_loop)
         try:
             logger.info("HTTP server thread: starting aiohttp on dedicated event loop")
+            # Pass the market provider for the providers status tab (if available)
+            data_provider = (
+                self.market_plugin._provider
+                if self.market_plugin and self.market_plugin._provider
+                else None
+            )
             http_loop.run_until_complete(
-                start_http_server(self.core, self.data_provider)
+                start_http_server(self.core, data_provider)
             )
         except Exception as e:
             logger.error(f"HTTP server thread error: {e}", exc_info=True)
@@ -285,49 +469,46 @@ class CognitiveMeshOrchestrator:
         self.running = True
 
         try:
-            # PHASE 1: Start HTTP server in its OWN DEDICATED THREAD
-            # This isolates the HTTP event loop from the data collection event loop,
-            # eliminating 499 timeouts caused by event loop saturation from concurrent
-            # aiohttp fetch requests (BATCH_CONCURRENCY=10, timeout=12s each).
+            # PHASE 1: Start HTTP server in dedicated thread
             logger.info("PHASE 1: Starting HTTP server (dedicated thread)...")
             http_thread = threading.Thread(
                 target=self._start_http_thread,
                 name="http-server",
-                daemon=True,  # Dies automatically when main process exits
+                daemon=True,
             )
             http_thread.start()
-            await asyncio.sleep(2)  # Allow aiohttp to bind to port
+            await asyncio.sleep(2)
             if http_thread.is_alive():
-                logger.info("HTTP server task is running.")
+                logger.info("HTTP server is running.")
             else:
                 logger.error("HTTP server thread died unexpectedly")
 
-            # PHASE 2: Initialize mesh (DB, networking, cognitive loop)
+            # PHASE 2: Initialize mesh
             logger.info("PHASE 2: Mesh initialization...")
             await self.initialize()
 
-            # PHASE 3: Initial market scan — discover assets autonomously
-            logger.info("PHASE 3: Autonomous market discovery...")
-            await self._initial_market_scan()
+            # PHASE 3: Initial data discovery
+            logger.info("PHASE 3: Initial data discovery...")
+            await self._initial_discovery()
 
-            # PHASE 4: Start data collection and auxiliary loops
-            logger.info("PHASE 4: Starting execution loops.")
+            # PHASE 4: Start execution loops
+            stream_count = sum(
+                getattr(p, 'stream_count', 0) for p in self.plugins
+            )
             logger.info("=" * 60)
             logger.info("  COGNITIVE MESH IS LIVE")
             logger.info("  Engines: Abstraction, Reasoning, CrossDomain,")
             logger.info("           Goals, Learning, Evolution, Orchestrator")
-            logger.info("  Data:    13 providers (stocks + crypto)")
-            logger.info(f"  Crypto:  {len(self.crypto_symbols)} symbols discovered")
-            logger.info(f"  Stocks:  {len(self.stock_symbols)} symbols discovered")
-            logger.info("  GPT I/O: /api/chat, /api/ingest, /api/state")
+            logger.info(f"  Plugins: {[p.name for p in self.plugins]}")
+            logger.info(f"  Streams: {stream_count} discovered")
+            logger.info("  API:     /api/chat, /api/ingest, /api/state")
             logger.info("=" * 60)
 
             loops = [
                 self._data_collection_loop(),
-                self._market_rescan_loop(),
+                self._discovery_loop(),
                 self._metrics_reporter_loop(),
             ]
-            # Add optional networking loops
             if self.network:
                 loops.append(self._gossip_loop())
                 loops.append(self._network_listener_loop())
@@ -343,138 +524,79 @@ class CognitiveMeshOrchestrator:
         finally:
             await self.shutdown()
 
-
     # ──────────────────────────────────────────
-    # Market Discovery
+    # Discovery
     # ──────────────────────────────────────────
 
-    async def _initial_market_scan(self):
-        """Perform aggressive initial market scan to seed the mesh immediately"""
-        try:
-            logger.info("Aggressive initial scan: Discovering first 50+ assets...")
-            discovered = await self.scanner.scan(min_price=Config.MIN_SCAN_PRICE, max_price=Config.MAX_SCAN_PRICE)
-            self.crypto_symbols.update(discovered.get("crypto", set()))
-            self.stock_symbols.update(discovered.get("stocks", set()))
+    async def _initial_discovery(self):
+        """Ask all plugins to discover their initial entity sets."""
+        for plugin in self.plugins:
+            if hasattr(plugin, 'discover'):
+                try:
+                    await plugin.discover()
+                except Exception as e:
+                    logger.error(f"Plugin '{plugin.name}' initial discovery error: {e}")
 
-            # Immediate first data collection pass to trigger consciousness
-            if self.crypto_symbols or self.stock_symbols:
-                logger.info("Seeding mesh with first observations...")
-                await self._collect_all_data()
+        # Seed the mesh with first observations immediately
+        observations = []
+        for plugin in self.plugins:
+            try:
+                obs = await plugin.fetch()
+                observations.extend(obs)
+            except Exception as e:
+                logger.error(f"Plugin '{plugin.name}' initial fetch error: {e}")
 
-            logger.info(
-                f"Initial scan complete: "
-                f"{len(self.crypto_symbols)} crypto, "
-                f"{len(self.stock_symbols)} stocks"
-            )
-        except Exception as e:
-            logger.error(f"Initial market scan failed: {e}")
+        if observations:
+            logger.info(f"Seeding mesh with {len(observations)} initial observations...")
+            for observation, domain in observations:
+                await self.core.ingest(observation, domain)
 
-    async def _market_rescan_loop(self):
-        """Periodically rescan for new trending assets"""
+    async def _discovery_loop(self):
+        """Periodically ask plugins to discover new entities."""
         while self.running:
             try:
-                # Rescan every 5 minutes
-                await asyncio.sleep(300)
-
-                discovered = await self.scanner.scan(min_price=Config.MIN_SCAN_PRICE, max_price=Config.MAX_SCAN_PRICE)
-                new_crypto = discovered.get("crypto", set())
-                new_stocks = discovered.get("stocks", set())
-
-                if new_crypto:
-                    self.crypto_symbols.update(new_crypto)
-                    logger.info(f"Rescan: added {len(new_crypto)} new crypto symbols")
-                if new_stocks:
-                    self.stock_symbols.update(new_stocks)
-                    logger.info(f"Rescan: added {len(new_stocks)} new stock symbols")
-
+                await asyncio.sleep(300)  # every 5 minutes
+                for plugin in self.plugins:
+                    if hasattr(plugin, 'discover'):
+                        try:
+                            await plugin.discover()
+                        except Exception as e:
+                            logger.error(f"Plugin '{plugin.name}' discovery error: {e}")
             except Exception as e:
-                logger.error(f"Market rescan error: {e}")
+                logger.error(f"Discovery loop error: {e}")
                 await asyncio.sleep(60)
 
     # ──────────────────────────────────────────
     # Data Collection Loop
     # ──────────────────────────────────────────
 
-    async def _collect_all_data(self):
-        """One-time collection of all discovered symbols"""
-        batch = sorted(self.crypto_symbols) + sorted(self.stock_symbols)
-        if not batch:
-            return
-            
-        logger.info(f"Seeding batch [{len(batch)} symbols]...")
-        ticks = await self.data_provider.fetch_batch(batch)
-        
-        success_count = 0
-        for tick in ticks:
-            if not tick or isinstance(tick, Exception):
-                continue
-            symbol = tick.get('symbol', '')
-            domain = f"crypto:{symbol}" if self.data_provider.is_crypto(symbol) else f"stock:{symbol}"
-            await self.core.ingest(tick, domain)
-            success_count += 1
-            
-        if success_count > 0:
-            logger.info(f"Seeding complete: Ingested {success_count} observations")
-
     async def _data_collection_loop(self):
         """
-        Continuously collect market data and feed it into the cognitive system.
-        Uses a SLIDING WINDOW fetcher to prevent overwhelming the cognitive core
-        when tracking many symbols (e.g., 70+).
+        Continuously fetch observations from all plugins and feed them
+        into the cognitive core.
         """
-        logger.info("Starting data collection loop (Sliding Window Mode)")
-        # Max symbols to fetch per cycle to prevent cognitive backlog
-        MAX_BATCH_SIZE = 20
-        crypto_offset = 0
-        stock_offset = 0
+        logger.info("Starting data collection loop (plugin-based)")
         while self.running:
             try:
-                # Get current full symbol list
-                all_crypto = sorted(list(self.crypto_symbols))
-                all_stocks = sorted(list(self.stock_symbols))
-                if not all_crypto and not all_stocks:
-                    logger.info("No symbols to fetch yet — waiting for market scan...")
-                    await asyncio.sleep(10)
-                    continue
-                # Select a sliding window subset
-                crypto_count = min(len(all_crypto), MAX_BATCH_SIZE // 2)
-                stock_count = min(len(all_stocks), MAX_BATCH_SIZE - crypto_count)
-                if crypto_count == 0: stock_count = min(len(all_stocks), MAX_BATCH_SIZE)
-                if stock_count == 0: crypto_count = min(len(all_crypto), MAX_BATCH_SIZE)
-                batch = []
-                if all_crypto:
-                    for i in range(crypto_count):
-                        idx = (crypto_offset + i) % len(all_crypto)
-                        batch.append(all_crypto[idx])
-                    crypto_offset = (crypto_offset + crypto_count) % len(all_crypto)
-                if all_stocks:
-                    for i in range(stock_count):
-                        idx = (stock_offset + i) % len(all_stocks)
-                        batch.append(all_stocks[idx])
-                    stock_offset = (stock_offset + stock_count) % len(all_stocks)
-                logger.info(f"Fetching window [{len(batch)} symbols]: {batch[:10]}{'...' if len(batch) > 10 else ''}")
-                ticks = await self.data_provider.fetch_batch(batch)
-                # Feed each tick into the cognitive system
-                success_count = 0
-                for tick in ticks:
-                    if not tick or isinstance(tick, Exception):
-                        continue
-                    symbol = tick.get('symbol', '')
-                    if self.data_provider.is_crypto(symbol):
-                        domain = f"crypto:{symbol}"
-                    else:
-                        domain = f"stock:{symbol}"
-                    # Ingest into the cognitive core (queues for cognitive loop)
-                    await self.core.ingest(tick, domain)
-                    success_count += 1
-                    # Cache in Redis if available
-                    if self.redis:
-                        try:
-                            await self.redis.cache_tick(symbol, tick)
-                        except Exception:
-                            pass
-                if success_count > 0:
-                    logger.info(f"Ingested {success_count}/{len(batch)} ticks (Window rotation: C:{crypto_offset} S:{stock_offset})")
+                total_ingested = 0
+                for plugin in self.plugins:
+                    try:
+                        observations = await plugin.fetch()
+                        for observation, domain in observations:
+                            await self.core.ingest(observation, domain)
+                            # Cache in Redis if available (generic key)
+                            if self.redis:
+                                try:
+                                    entity_id = observation.get('entity_id', domain)
+                                    await self.redis.cache_tick(entity_id, observation)
+                                except Exception:
+                                    pass
+                            total_ingested += 1
+                    except Exception as e:
+                        logger.error(f"Plugin '{plugin.name}' fetch error: {e}")
+
+                if total_ingested > 0:
+                    logger.info(f"Ingested {total_ingested} observations across {len(self.plugins)} plugin(s)")
 
                 await asyncio.sleep(self.update_interval)
 
@@ -487,17 +609,16 @@ class CognitiveMeshOrchestrator:
     # ──────────────────────────────────────────
 
     async def _gossip_loop(self):
-        """Periodically broadcast gossip state — reads from cache to avoid lock contention"""
+        """Periodically broadcast gossip state"""
         while self.running:
             try:
-                # Use cache to avoid acquiring self._lock in the aiohttp event loop
                 cached = self.core.get_cached_state()
                 state = {
                     "node_id": cached.get('node_id', self.core.node_id),
                     "phi": cached.get('metrics', {}).get('global_coherence_phi', 0),
                     "sigma": cached.get('metrics', {}).get('noise_level_sigma', 0),
                     "metrics": cached.get('metrics', {}),
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
                 if self.network:
                     await self.network.broadcast_gossip(state)
@@ -507,16 +628,15 @@ class CognitiveMeshOrchestrator:
                 await asyncio.sleep(15)
 
     async def _metrics_reporter_loop(self):
-        """Periodically report system-wide metrics — reads from cache to avoid lock contention"""
+        """Periodically report system-wide metrics"""
         while self.running:
             try:
-                # Use cache to avoid acquiring self._lock in the aiohttp event loop
                 cached = self.core.get_cached_state()
                 metrics = cached.get('metrics', {})
                 if self.pubsub and metrics:
                     await self.pubsub.publish("metrics", metrics)
 
-                # Log a summary periodically
+                stream_count = sum(getattr(p, 'stream_count', 0) for p in self.plugins)
                 logger.info(
                     f"METRICS | PHI={metrics.get('global_coherence_phi', 0):.3f} "
                     f"SIGMA={metrics.get('noise_level_sigma', 0):.3f} "
@@ -524,11 +644,9 @@ class CognitiveMeshOrchestrator:
                     f"Rules={metrics.get('total_rules', 0)} "
                     f"Goals={metrics.get('total_goals', 0)} "
                     f"Obs={metrics.get('total_observations', 0)} "
-                    f"Transfers={metrics.get('knowledge_transfers', 0)} "
-                    f"Crypto={len(self.crypto_symbols)} "
-                    f"Stocks={len(self.stock_symbols)}"
+                    f"Streams={metrics.get('streams_tracked', stream_count)} "
+                    f"Evolution={self.core._evolution_counter}"
                 )
-
                 await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"Error in metrics reporter: {e}")
@@ -575,42 +693,32 @@ class CognitiveMeshOrchestrator:
         self.running = False
         logger.info("Shutting down Cognitive Mesh...")
 
-        # Stop cognitive loop
         self.core.stop_cognitive_loop()
 
-        # Save cognitive state to persistence
         logger.info("Saving cognitive state to persistence...")
         try:
             await self.core.save_state()
         except Exception as e:
             logger.error(f"Failed to save cognitive state: {e}")
 
-        # Stop scanner
-        try:
-            await self.scanner.close()
-        except Exception:
-            pass
+        # Shutdown plugins
+        for plugin in self.plugins:
+            try:
+                await plugin.close()
+            except Exception:
+                pass
 
-        # Stop networking
         tasks = []
         if self.network:
             tasks.append(self.network.stop())
         if self.pubsub:
             tasks.append(self.pubsub.stop())
-
-        # Disconnect databases
         if self.postgres:
             tasks.append(self.postgres.disconnect())
         if self.milvus:
             tasks.append(self.milvus.disconnect())
         if self.redis:
             tasks.append(self.redis.disconnect())
-
-        # Close data provider sessions
-        try:
-            await self.data_provider.close()
-        except Exception:
-            pass
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -622,7 +730,6 @@ async def main():
     """Main entry point"""
     orchestrator = CognitiveMeshOrchestrator()
 
-    # Handle SIGTERM gracefully (Railway sends SIGTERM before stopping)
     loop = asyncio.get_event_loop()
 
     def handle_sigterm():

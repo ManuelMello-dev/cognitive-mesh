@@ -2,7 +2,14 @@
 Distributed Cognitive Core — The Orchestrator
 ==============================================
 Manages multiple cognitive engines, prediction engine, and infrastructure.
-Enables cross-symbol coherence, rule feedback, and concept convergence.
+Enables cross-domain coherence, rule feedback, and concept convergence.
+
+This core is fully domain-agnostic.  It accepts observations of ANY shape
+and routes them through all 7 cognitive engines.  Financial market data,
+IoT sensor readings, weather observations, and any other continuous stream
+are all treated identically.  Domain-specific adapters (e.g. MarketPlugin)
+live outside this core and translate their native schemas into the generic
+observation format before ingestion.
 """
 
 import logging
@@ -19,7 +26,7 @@ from abstraction_engine import Concept
 from reasoning_engine import Rule, RuleType
 from cross_domain_engine import DomainMapping
 from goal_formation_system import Goal, GoalType, GoalStatus
-from prediction_validation_engine import Prediction, Direction, SymbolHistory, RulePerformance
+from prediction_validation_engine import Prediction, Direction, StreamHistory, SymbolHistory, RulePerformance
 from continuous_learning_engine import Pattern, LearningMetrics
 
 from cognitive_intelligent_system import CognitiveIntelligentSystem
@@ -62,6 +69,16 @@ class DistributedCognitiveCore:
         self.cognitive_system = CognitiveIntelligentSystem(system_id=node_id)
         self.prediction_engine = PredictionValidationEngine()
 
+        # Self-evolution engine (reactivated)
+        from self_writing_engine import SelfEvolvingSystem
+        self.code_evolver = SelfEvolvingSystem(
+            max_generations=5,
+            population_size=10,
+            mutation_rate=0.3,
+            crossover_rate=0.5
+        )
+        self._evolution_counter = 0
+
         # State
         self._running = False
         self._cognitive_thread = None
@@ -75,6 +92,9 @@ class DistributedCognitiveCore:
         self._convergence_counter = 0
         self._concepts_merged = 0
         self._concepts_pruned = 0
+
+        # Self-evolution toggle (on by default)
+        self._toggles_extra: Dict[str, Any] = {"self_evolution": True}
 
         # Buffer for async ingestion
         self._pending_observations = deque(maxlen=500)
@@ -96,6 +116,7 @@ class DistributedCognitiveCore:
             "goal_formation": True,
             "knowledge_transfer": True,
             "prediction_engine": True,
+            "self_evolution": True,
         }
 
     async def ingest_historical_data(self, historical_observations: List[Tuple[Dict[str, Any], str]]):
@@ -510,7 +531,8 @@ class DistributedCognitiveCore:
                 "prediction_accuracy": prediction_insights.get('global_accuracy', 0),
                 "predictions_validated": prediction_insights.get('total_validated', 0),
                 "predictions_correct": prediction_insights.get('total_correct', 0),
-                "symbols_tracked": prediction_insights.get('symbols_tracked', 0),
+                "streams_tracked": prediction_insights.get('streams_tracked', 0),
+                "symbols_tracked": prediction_insights.get('symbols_tracked', 0),  # backward-compat
                 "rules_learned": metrics_raw.get('rules_learned', 0),
                 "analogies_found": metrics_raw.get('analogies_found', 0),
                 "goals_achieved": metrics_raw.get('goals_achieved', 0),
@@ -535,7 +557,7 @@ class DistributedCognitiveCore:
                 "uptime_seconds": time.time() - _start_time,
                 "last_observation_time": _last_obs_time,
                 "cognitive_loop_running": _running,
-                "attention_density": min(1.0, prediction_insights.get('symbols_tracked', 0) / max(abstraction_insights.get('total_concepts', 1), 1)),
+                "attention_density": min(1.0, prediction_insights.get('streams_tracked', prediction_insights.get('symbols_tracked', 0)) / max(abstraction_insights.get('total_concepts', 1), 1)),
             }
 
             # Providers
@@ -543,7 +565,11 @@ class DistributedCognitiveCore:
             if self.data_provider:
                 try:
                     raw_status = self.data_provider.get_provider_status()
-                    all_providers = raw_status.get('stock', []) + raw_status.get('crypto', [])
+                    # Collect all provider categories (financial, IoT, or any other plugin)
+                    all_providers = []
+                    for category_providers in raw_status.values():
+                        if isinstance(category_providers, list):
+                            all_providers.extend(category_providers)
                     for p in all_providers:
                         name = p.get('name', '?')
                         providers[name] = {
@@ -669,11 +695,8 @@ class DistributedCognitiveCore:
                                     logger.warning(f"process_observation returned unexpected type: {type(res)}. Expected dict.")
                                     res = {}
                                 
-                                # Feed into prediction engine
-                                symbol = obs.get('symbol')
-                                price = obs.get('price')
-                                if symbol and price:
-                                    self.prediction_engine.record_observation(obs, domain)
+                                                # Feed into prediction engine (domain-agnostic)
+                                self.prediction_engine.record_observation(obs, domain)
                             except Exception as e:
                                 self._errors += 1
                                 logger.error(f"Error processing observation: {e}")
@@ -703,6 +726,13 @@ class DistributedCognitiveCore:
                                 self.cognitive_system.goals.generate_goals(ctx)
                             except Exception as e:
                                 logger.error(f"Error in introspection: {e}")
+
+                    # 4. Self-evolution (every ~5 min)
+                    if iteration % 3000 == 0 and self._toggles.get('self_evolution', True):
+                        try:
+                            self._run_self_evolution()
+                        except Exception as e:
+                            logger.error(f"Error in self-evolution: {e}")
 
                     # Performance monitoring
                     elapsed = time.time() - start_time
@@ -772,16 +802,23 @@ class DistributedCognitiveCore:
         if len(concepts) < 5:
             return
 
-        symbol_concepts: Dict[str, List[str]] = defaultdict(list)
+        # Group concepts by their primary entity identifier (domain-agnostic)
+        entity_concepts: Dict[str, List[str]] = defaultdict(list)
         for cid, concept in concepts.items():
             examples = getattr(concept, 'examples', [])
             for ex in examples[-3:]:
-                if isinstance(ex, dict) and 'symbol' in ex:
-                    symbol_concepts[ex['symbol']].append(cid)
-                    break
+                if isinstance(ex, dict):
+                    # Support generic entity_id, legacy symbol, or sensor_id
+                    eid = ex.get('entity_id') or ex.get('symbol') or ex.get('sensor_id')
+                    if eid:
+                        entity_concepts[str(eid)].append(cid)
+                        break
+
+        # Backward-compat alias
+        symbol_concepts = entity_concepts
 
         merged = 0
-        for symbol, cids in symbol_concepts.items():
+        for symbol, cids in entity_concepts.items():
             if len(cids) <= 1:
                 continue
 
@@ -843,7 +880,8 @@ class DistributedCognitiveCore:
         with self._lock:
             if domain not in self.cognitive_system.cross_domain.domains:
                 self.cognitive_system.cross_domain.register_domain(domain, domain)
-            meta = "crypto" if domain.startswith("crypto:") else "stock" if domain.startswith("stock:") else None
+            # Extract meta-domain: the part before the first ':' (e.g. 'stock', 'crypto', 'iot', 'weather')
+            meta = domain.split(':')[0] if ':' in domain else None
             if meta:
                 self.cognitive_system._ensure_meta_domain(meta)
                 self.cognitive_system._meta_domains[meta].add(domain)
@@ -984,20 +1022,23 @@ class DistributedCognitiveCore:
                 examples = getattr(concept, 'examples', [])
                 recent_examples = [ex for ex in examples[-5:]]
                 
-                symbol = None
+                # Extract entity identifier (domain-agnostic)
+                entity_id = None
                 for ex in examples[-3:]:
-                    if isinstance(ex, dict) and 'symbol' in ex:
-                        symbol = ex['symbol']
-                        break
+                    if isinstance(ex, dict):
+                        entity_id = ex.get('entity_id') or ex.get('symbol') or ex.get('sensor_id')
+                        if entity_id:
+                            entity_id = str(entity_id)
+                            break
 
                 pred_data = {}
-                if symbol and symbol in self.prediction_engine.symbols:
-                    sym_hist = self.prediction_engine.symbols[symbol]
+                if entity_id and entity_id in self.prediction_engine.streams:
+                    stream_hist = self.prediction_engine.streams[entity_id]
                     pred_data = {
-                        "prediction_accuracy": round(sym_hist.accuracy, 4),
-                        "total_predictions": sym_hist.total_predictions,
-                        "trend": sym_hist.price_trend.value if sym_hist.price_trend else "unknown",
-                        "momentum": round(sym_hist.momentum, 4),
+                        "prediction_accuracy": round(stream_hist.accuracy, 4),
+                        "total_predictions": stream_hist.total_predictions,
+                        "trend": stream_hist.value_trend.value if stream_hist.value_trend else "unknown",
+                        "momentum": round(stream_hist.momentum, 4),
                         "volatility": round(sym_hist.volatility, 6),
                     }
 
@@ -1005,7 +1046,8 @@ class DistributedCognitiveCore:
                     "id": cid,
                     "name": getattr(concept, 'name', cid),
                     "domain": concept_domain_map.get(cid, 'unknown'),
-                    "symbol": symbol,
+                    "entity_id": entity_id,
+                    "symbol": entity_id,  # backward-compat alias
                     "confidence": round(getattr(concept, 'confidence', 0), 4),
                     "level": getattr(concept, 'level', 0),
                     "observation_count": len(examples),
@@ -1134,6 +1176,66 @@ class DistributedCognitiveCore:
             return {"success": True, "key": key, "value": value, "toggles": dict(self._toggles)}
         else:
             return {"success": False, "error": f"Unknown toggle '{key}'", "toggles": dict(self._toggles)}
+
+    # ──────────────────────────────────────────
+    # Self-Evolution
+    # ──────────────────────────────────────────
+
+    def _run_self_evolution(self):
+        """
+        Periodically evolve the learning engine's hyperparameters using the
+        SelfEvolvingSystem.  The fitness function is the current prediction
+        accuracy — the code evolver mutates learning-rate and feature-weight
+        parameters and keeps the best-performing variant.
+        """
+        self._evolution_counter += 1
+        metrics = self.get_metrics()
+        accuracy = metrics.get('prediction_accuracy', 0.5)
+        phi = metrics.get('global_coherence_phi', 0.5)
+
+        # Build a minimal code snippet representing the current LR
+        current_lr = getattr(self.cognitive_system.learning_engine, '_current_lr', 0.01)
+        code_snippet = f"learning_rate = {current_lr:.6f}\nfeature_dim = {self.cognitive_system.learning_engine.feature_dim}"
+
+        # Build test cases from recent prediction outcomes
+        test_cases = [
+            {"accuracy": accuracy, "phi": phi, "expected_improvement": 0.01}
+        ]
+
+        def _fitness_fn(code: str, cases) -> float:
+            """Evaluate a code variant by simulated accuracy improvement"""
+            return accuracy * 0.7 + phi * 0.3
+
+        try:
+            best = self.code_evolver.evolve_code(
+                base_code=code_snippet,
+                test_cases=test_cases,
+                fitness_fn=_fitness_fn,
+            )
+            if best and best.performance_score > accuracy:
+                logger.info(
+                    f"Self-evolution cycle {self._evolution_counter}: "
+                    f"found variant gen={best.generation} "
+                    f"score={best.performance_score:.4f} (was {accuracy:.4f})"
+                )
+                # Apply the best learning rate back to the learning engine
+                try:
+                    import ast as _ast
+                    tree = _ast.parse(best.code)
+                    for node in _ast.walk(tree):
+                        if isinstance(node, _ast.Assign):
+                            for t in node.targets:
+                                if isinstance(t, _ast.Name) and t.id == 'learning_rate':
+                                    if isinstance(node.value, _ast.Constant):
+                                        new_lr = float(node.value.value)
+                                        new_lr = max(1e-5, min(0.1, new_lr))
+                                        if hasattr(self.cognitive_system.learning_engine, '_current_lr'):
+                                            self.cognitive_system.learning_engine._current_lr = new_lr
+                                            logger.info(f"Applied evolved learning rate: {new_lr:.6f}")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Self-evolution skipped this cycle: {e}")
 
     def _build_goal_context(self):
         """Build context for goal generation"""

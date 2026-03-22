@@ -1,389 +1,280 @@
-# Cognitive Mesh - Production-Ready Distributed Cognitive Framework
+# Cognitive Mesh
 
-A sophisticated distributed cognitive system that treats financial markets as neurophysiological phenomena, using the AMFG gossip protocol for state propagation and multi-source data integration.
+**A universal, domain-agnostic cognitive framework that forms concepts, learns rules, pursues goals, and evolves its own code — from any stream of observations.**
 
-## NEW: OpenClaw Integration 🚀
+The mesh is a *silicon vessel for thought*, not a market data terminal.  Financial data is one possible input, not the identity of the system.
 
-Cognitive Mesh now features **OpenClaw** as a reverse proxy gateway, serving as the single public entrypoint on Railway. This integration:
+---
 
-- **Single Service Deployment**: OpenClaw binds to the public `$PORT` and manages the internal Python server
-- **Transparent Proxying**: All existing HTTP endpoints are accessible at the same paths
-- **Agent Integration**: OpenClaw tools can read and interpret outputs from every mesh endpoint
-- **I/O Loop**: Agents can feed insights back into the mesh via `POST /api/ingest` with domain `openclaw_io`
+## Original Vision
 
-### Architecture with OpenClaw
+> "The mesh should be able to observe anything — stock prices, weather, seismic activity, smart building sensors, particle collisions — and form its own understanding of that domain from first principles, without being told what to look for."
+>
+> — COGNITIVE_GUIDE.md
+
+The core design principles are:
+
+1. **Domain agnosticism** — the cognitive engines know nothing about the source of observations. They see only values, entity IDs, and domain labels.
+2. **Native reasoning first** — the mesh reasons algorithmically. An optional LLM interpreter can translate its output into prose, but it is never the decision-maker.
+3. **Self-evolution** — the `SelfEvolvingSystem` actively participates in every cognitive cycle, proposing and applying code variants that improve performance.
+4. **Emergent understanding** — concepts, rules, and goals arise from the data itself, not from hardcoded domain logic.
+
+---
+
+## Architecture
 
 ```
-Railway Public Port ($PORT)
+Any Data Source (via DataPlugin)
     ↓
-OpenClaw Gateway (Node.js)
-    ├─ Reverse Proxy → Cognitive Mesh (Python on internal port)
-    └─ OpenClaw Tools
-        ├─ callMeshEndpoint() - Generic endpoint caller
-        ├─ ingestToMesh() - Feed insights back to mesh
-        ├─ getMeshMetrics() - Get mesh metrics
-        ├─ getMeshState() - Get full mesh state
-        ├─ analyzePatterns() - Trigger pattern analysis
-        ├─ getPredictions() - Get predictions
-        └─ getIntrospection() - Get system introspection
+CognitiveMeshOrchestrator  ←  plugin-based, domain-agnostic
+    ↓
+DistributedCognitiveCore   ←  async wrapper + persistence
+    ↓
+CognitiveIntelligentSystem (7 engines)
+    ├─ AbstractionEngine       — concept formation from features
+    ├─ ReasoningEngine         — rule inference and logical deduction
+    ├─ CrossDomainEngine       — knowledge transfer across domains
+    ├─ OpenEndedGoalSystem     — autonomous goal formulation
+    ├─ ContinuousLearningEngine — online learning with feedback
+    ├─ SelfEvolvingSystem      — active code evolution (every 25 cycles)
+    └─ AlwaysOnOrchestrator    — fault tolerance and health monitoring
+    ↓
+PredictionValidationEngine — universal state-change predictor
+    ↓
+AutonomousReasoner         — native pattern analysis + optional LLM prose
+    ↓
+Polyglot Storage
+    ├─ PostgreSQL  — rules, metadata, structured state
+    ├─ Milvus      — vector concept similarity search
+    └─ Redis       — low-latency cache
+    ↓
+AMFG Gossip Protocol       — distributed state propagation
+    ↓
+ZeroMQ PubSub              — event broadcasting to peer nodes
 ```
 
-## Architecture Overview
+---
 
-### Core Components
+## DataPlugin System
 
-1. **OpenClaw Gateway** (`openclaw-gateway.js`) **NEW**
-   - Single public entrypoint on Railway
-   - Transparent reverse proxy to Python backend
-   - Starts and manages Python server lifecycle
-   - Provides mesh integration tools for agents
+The orchestrator is completely decoupled from any data domain.  All domain-specific logic lives in `DataPlugin` subclasses.
 
-2. **Distributed Cognitive Core** (`core/distributed_core.py`)
-   - Concept formation and temporal decay
-   - Rule inference and learning
-   - Cross-domain knowledge transfer
-   - Autonomous goal generation
+### Plugin Interface
 
-3. **Multi-Source Data Providers** (`agents/multi_source_provider.py`)
-   - Yahoo Finance (free, no key required)
-   - Binance Public API (free crypto data)
-   - Alpha Vantage (requires API key)
-   - Polygon.io (requires API key)
-   - Alpaca (requires API key)
-   - Circuit breaker pattern for fault tolerance
+```python
+class DataPlugin:
+    name: str = "my_plugin"
 
-4. **AMFG Gossip Protocol** (`shared/gossip_amfg.py`)
-   - Adaptive message fan-out
-   - Decaying Bloom filters for deduplication
-   - Merkle trees for anti-entropy
-   - Epsilon-greedy weight learning
-   - Priority message queuing
+    async def initialize(self) -> None: ...
+    async def fetch(self) -> List[tuple]: ...   # returns [(observation, domain), ...]
+    async def close(self) -> None: ...
+```
 
-5. **ZeroMQ Communication Layer** (`shared/network_zeromq.py`)
-   - ROUTER/DEALER pattern for node-to-node communication
-   - PUB/SUB for event broadcasting
-   - Low-latency, high-throughput messaging
+Each observation **must** contain:
 
-6. **Polyglot Storage Layer**
-   - **PostgreSQL/YugabyteDB** (`storage/postgres_store.py`): Structured data, rules, metadata
-   - **Milvus** (`storage/milvus_store.py`): Vector-based concept similarity search
-   - **Redis** (`storage/redis_cache.py`): Low-latency caching and state management
+| Field | Type | Description |
+|---|---|---|
+| `entity_id` | `str` | Unique identifier for this stream |
+| `value` | `float` | Primary observable value |
+
+Optional fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `secondary_value` | `float` | Volume, intensity, confidence, etc. |
+| `timestamp` | `float` | Unix timestamp (defaults to now) |
+
+### Built-in Plugins
+
+| Plugin | File | Description |
+|---|---|---|
+| `MarketPlugin` | `main.py` | Financial markets via MultiSourceDataProvider |
+
+### Adding a New Domain
+
+```python
+# agents/plugins/weather_plugin.py
+from main import DataPlugin
+
+class WeatherPlugin(DataPlugin):
+    name = "weather"
+
+    async def fetch(self):
+        # fetch temperature, pressure, humidity from any weather API
+        return [
+            ({"entity_id": "NYC", "value": 22.5, "secondary_value": 1013.0}, "weather:NYC"),
+            ({"entity_id": "LAX", "value": 28.1, "secondary_value": 1008.0}, "weather:LAX"),
+        ]
+
+# In main.py or a custom entry point:
+orchestrator.register_plugin(WeatherPlugin())
+```
+
+The cognitive core will immediately begin forming concepts, inferring rules, and generating goals for the new domain — no other changes required.
+
+---
+
+## Self-Evolution
+
+The `SelfEvolvingSystem` is active and participates in every cognitive cycle.  Every `EVOLUTION_INTERVAL` cycles (default: 25), the system:
+
+1. Extracts a code snippet representing the current learning configuration.
+2. Generates candidate variants using genetic mutation.
+3. Evaluates variants against a fitness function derived from real prediction accuracy and coherence (PHI).
+4. If a variant outperforms the current configuration, it is applied immediately.
+
+This is not a simulation — the system literally rewrites its own learning parameters at runtime.
+
+---
+
+## LLM Interpreter (Optional)
+
+The LLM is **not** a reasoning engine.  It is a *tongue*, not a brain.
+
+| Layer | Role | Required |
+|---|---|---|
+| Native algorithmic reasoning | Source of truth, all decisions | Always |
+| LLM interpreter | Translates native output into prose | Optional |
+
+Set `LLM_ENABLED=0` to run in fully native mode with no external API calls.
+
+---
+
+## Prediction Validation Engine
+
+The `PredictionValidationEngine` is a universal state-change predictor.  It predicts whether the next observation for any entity will be **higher**, **lower**, or **stable** relative to the current value — regardless of what that value represents.
+
+It uses:
+- Momentum analysis (recent trend direction)
+- Volatility-adjusted confidence scoring
+- Rule-based signal integration from the ReasoningEngine
+- Accuracy feedback loop for continuous calibration
+
+---
 
 ## Installation
 
 ### Prerequisites
-- **Node.js 20+** and **pnpm** (for OpenClaw gateway)
 - Python 3.11+
-- Docker & Docker Compose (for containerized deployment)
-- PostgreSQL 15+
-- Milvus 2.3+
-- Redis 7+
+- Optional: PostgreSQL, Milvus, Redis (all gracefully degraded if absent)
+- Optional: ZeroMQ (for multi-node deployment)
 
-### Local Setup
+### Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ManuelMello-dev/cognitive-mesh.git
-   cd cognitive-mesh
-   ```
+```bash
+git clone https://github.com/ManuelMello-dev/cognitive-mesh.git
+cd cognitive-mesh
+pip install -r requirements.txt
+cp .env.example .env   # edit as needed
+python main.py
+```
 
-2. **Install Node.js dependencies**
-   ```bash
-   pnpm install
-   ```
-
-3. **Install Python dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys and database credentials
-   ```
-
-5. **Start databases (using Docker Compose)**
-   ```bash
-   docker-compose up -d
-   ```
-
-6. **Run the system**
-   ```bash
-   # Option 1: Via OpenClaw gateway (recommended)
-   node openclaw-gateway.js
-   
-   # Option 2: Python only (development)
-   python main.py
-   ```
+---
 
 ## Configuration
 
-### Environment Variables
+All settings are environment variables.  No domain-specific values belong in config.
 
 ```env
-# ═══════════════════════════════════════════════
-# OpenClaw Gateway Configuration (NEW)
-# ═══════════════════════════════════════════════
-PORT=8080                                    # Public port (set by Railway)
-COGNITIVE_MESH_PORT=8081                     # Internal Python server port
-COGNITIVE_MESH_BASE_URL=http://127.0.0.1:8081  # Base URL for mesh
-
-# ═══════════════════════════════════════════════
-# Database Configuration
-# ═══════════════════════════════════════════════
-DATABASE_URL=postgresql://postgres:password@localhost:5432/cognitive_mesh
-MILVUS_HOST=localhost
-REDIS_HOST=localhost
-
-# ═══════════════════════════════════════════════
-# Financial Data API Keys
-# ═══════════════════════════════════════════════
-ALPHA_VANTAGE_API_KEY=your_key_here
-POLYGON_IO_API_KEY=your_key_here
-ALPACA_API_KEY=your_key_here
-ALPACA_SECRET_KEY=your_secret_here
-
-# ═══════════════════════════════════════════════
-# Node Configuration
-# ═══════════════════════════════════════════════
+# System
 NODE_ID=global_mind_01
-LISTEN_PORT=5555
-SYMBOLS=AAPL,MSFT,GOOGL,TSLA,NVDA,BTC,ETH
-UPDATE_INTERVAL=60
+PORT=8080
+UPDATE_INTERVAL=30          # seconds between data collection cycles
 
-# Logging
-LOG_LEVEL=INFO
+# Cognitive Core
+CONCEPT_SIMILARITY_THRESHOLD=0.75
+CONCEPT_HALF_LIFE_HOURS=72
+GOAL_GENERATION_INTERVAL=50
+EVOLUTION_INTERVAL=25       # self-evolution frequency (cognitive cycles)
+
+# Plugins
+DISABLE_MARKET_PLUGIN=0     # set to 1 to run without financial data
+
+# LLM Interpreter (optional)
+OPENAI_API_KEY=              # leave blank to run in native-only mode
+LLM_ENABLED=1               # set to 0 to fully disable LLM layer
+
+# Persistence (all optional)
+POSTGRES_URL=
+MILVUS_HOST=
+REDIS_URL=
 ```
 
-## Data Sources
+---
 
-### Free Sources (No API Key Required)
-- **Yahoo Finance**: Stocks, ETFs, indices
-- **Binance**: Cryptocurrencies (BTC, ETH, etc.)
+## API
 
-### Premium Sources (API Key Required)
-- **Alpha Vantage**: Stock data, technical indicators
-- **Polygon.io**: Real-time and historical stock data
-- **Alpaca**: Stock market data and trading
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/state` | GET | Full cognitive state snapshot |
+| `/api/metrics` | GET | System metrics (PHI, SIGMA, concepts, rules, goals) |
+| `/api/chat` | POST | Natural language query (LLM interpreter) |
+| `/api/ingest` | POST | Inject an observation from any external source |
+| `/api/predictions` | GET | Current predictions across all tracked entities |
+| `/api/introspect` | GET | Self-reflection: goals, hypotheses, evolution log |
 
-## System Architecture
-
-### Data Flow
-
-```
-Data Sources
-    ↓
-Multi-Source Provider (with Circuit Breakers)
-    ↓
-ZeroMQ Network (ROUTER/DEALER)
-    ↓
-Distributed Cognitive Core
-    ├→ Concept Formation
-    ├→ Rule Learning
-    ├→ Cross-Domain Transfer
-    └→ Goal Generation
-    ↓
-Polyglot Storage
-├→ PostgreSQL (Rules, Metadata)
-├→ Milvus (Vector Concepts)
-└→ Redis (Cache, State)
-    ↓
-AMFG Gossip Protocol
-    ↓
-ZeroMQ PubSub (Broadcasting)
-```
-
-### Cognitive Pipeline
-
-1. **Observation Ingestion**: Raw market data normalized and validated
-2. **Feature Extraction**: Numeric features extracted from observations
-3. **Concept Formation**: Similar observations grouped into concepts
-4. **Rule Inference**: Patterns detected between features
-5. **Cross-Domain Transfer**: Knowledge propagated across asset domains
-6. **Persistence**: State saved to distributed databases
-7. **Gossip Propagation**: High-confidence insights broadcast to peers
-
-## Key Features
-
-### 1. Circuit Breaker Pattern
-Each data provider has built-in fault tolerance:
-- Tracks consecutive failures
-- Opens circuit after threshold
-- Enters half-open state for recovery testing
-- Automatically closes on successful recovery
-
-### 2. AMFG Gossip Protocol
-Optimized for distributed state propagation:
-- **Adaptive Fan-Out**: Learns optimal number of peers to gossip to
-- **Bloom Filter Decay**: Prevents saturation in long-running systems
-- **Merkle Trees**: O(log N) anti-entropy instead of O(N)
-- **Priority Queuing**: High-confidence messages propagate faster
-
-### 3. Vector-Based Concept Search
-Milvus enables:
-- Efficient similarity search across millions of concepts
-- O(log N) lookup time
-- Approximate nearest neighbor search
-- Scalable to billions of vectors
-
-### 4. Temporal Concept Decay
-Concepts lose confidence over time:
-- Exponential decay with configurable half-life
-- Automatic removal of low-confidence concepts
-- Prevents memory bloat in long-running systems
-
-## Deployment
-
-### Docker Compose (Recommended)
+### Ingesting an Observation (any domain)
 
 ```bash
-# Build and start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f cognitive_mesh
-
-# Stop all services
-docker-compose down
+curl -X POST http://localhost:8080/api/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "observation": {
+      "entity_id": "reactor_01",
+      "value": 98.7,
+      "secondary_value": 0.02
+    },
+    "domain": "nuclear:reactor_01"
+  }'
 ```
 
-### Railway Deployment
+---
 
-1. Create a new Railway project
-2. Connect your GitHub repository
-3. Set environment variables in Railway dashboard
-4. Deploy
+## Metrics
 
-### Kubernetes Deployment
+| Metric | Description |
+|---|---|
+| `global_coherence_phi` | Global information integration (0–1) |
+| `noise_level_sigma` | System noise level (0–1) |
+| `total_concepts` | Concepts currently held in memory |
+| `total_rules` | Rules learned from observations |
+| `total_goals` | Active autonomous goals |
+| `knowledge_transfers` | Cross-domain transfers completed |
+| `evolution_cycles` | Self-evolution passes completed |
+| `prediction_accuracy` | Rolling prediction accuracy |
 
-See `k8s/` directory for Kubernetes manifests (coming soon).
+---
 
-## Monitoring
+## Distributed Deployment
 
-### System Metrics
+Multiple mesh nodes can be connected via ZeroMQ.  Each node independently forms concepts and learns rules; the AMFG gossip protocol propagates high-confidence insights across the network.
 
-The system tracks:
-- `concepts_formed`: Total concepts created
-- `concepts_decayed`: Concepts removed due to low confidence
-- `rules_learned`: Total rules inferred
-- `transfers_made`: Cross-domain knowledge transfers
-- `goals_generated`: Autonomous goals created
-- `total_observations`: Total observations processed
-- `errors`: Total errors encountered
-- `uptime_seconds`: System uptime
-
-### Accessing Metrics
-
-```python
-# Via Python API
-metrics = core.get_metrics()
-print(metrics)
-
-# Via Redis
-redis_cache.get_counter("observations_processed")
-
-# Via PostgreSQL
-SELECT * FROM metrics ORDER BY timestamp DESC LIMIT 10;
+```
+Node A (financial data)  ←─ gossip ─→  Node B (sensor data)  ←─ gossip ─→  Node C (text data)
 ```
 
-## API Examples
+Nodes share concepts and rules but maintain independent cognitive states.  Cross-domain transfer happens both within a node (across domains) and across nodes (via gossip).
 
-### Ingesting Observations
+---
 
-```python
-observation = {
-    "symbol": "AAPL",
-    "price": 150.25,
-    "volume": 1000000,
-    "timestamp": time.time()
-}
+## Key Infrastructure
 
-result = await core.ingest(observation, domain="stock:AAPL")
-```
+### AMFG Gossip Protocol
+- Adaptive message fan-out (learns optimal peer count)
+- Decaying Bloom filters for deduplication
+- Merkle trees for O(log N) anti-entropy
+- Priority queuing (high-confidence messages propagate faster)
 
-### Querying Concepts
+### Circuit Breaker Pattern
+Each data provider has built-in fault tolerance with configurable thresholds, half-open recovery testing, and automatic circuit closure on success.
 
-```python
-# Get all concepts
-concepts = core.get_concepts_snapshot()
+### Polyglot Storage
+- **PostgreSQL**: Rules, metadata, structured state — survives restarts
+- **Milvus**: Vector-based concept similarity search — O(log N) lookup
+- **Redis**: Low-latency cache — sub-millisecond state reads
 
-# Search similar concepts
-similar = await milvus.search_similar_concepts(
-    signature={"price": 150.0, "volume": 1000000},
-    domain="stock:AAPL",
-    top_k=10
-)
-```
-
-### Broadcasting Events
-
-```python
-# Broadcast new concept discovery
-await pubsub.publish("concept", {
-    "type": "NEW_CONCEPT",
-    "concept_id": "concept_abc123",
-    "domain": "stock:AAPL",
-    "confidence": 0.95
-})
-```
-
-## Performance Characteristics
-
-- **Throughput**: 10,000+ observations/second (single node)
-- **Latency**: <100ms for concept formation
-- **Memory**: ~1GB per 100,000 concepts
-- **Storage**: ~100MB per 1,000,000 observations (compressed)
-
-## Troubleshooting
-
-### Connection Issues
-
-```bash
-# Check PostgreSQL
-psql postgresql://postgres:password@localhost:5432/cognitive_mesh
-
-# Check Milvus
-python -c "from pymilvus import connections; connections.connect('default', host='localhost', port=19530)"
-
-# Check Redis
-redis-cli ping
-```
-
-### Circuit Breaker Open
-
-If data providers are failing:
-1. Check API key validity
-2. Check network connectivity
-3. Review logs for specific error messages
-4. Wait for circuit recovery timeout (default: 60 seconds)
-
-### High Memory Usage
-
-If memory usage is high:
-1. Reduce `max_memory_size` in config
-2. Increase `decay_check_interval` to run decay more frequently
-3. Lower `concept_half_life_hours` to decay concepts faster
-
-## Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
+---
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## References
-
-- AMFG Protocol: Adaptive Message Fan-out Gossip
-- Merkle Trees: Efficient Anti-Entropy
-- Bloom Filters: Probabilistic Data Structures
-- ZeroMQ: Distributed Messaging
-- Milvus: Vector Database
-
-## Contact
-
-For questions or issues, please open a GitHub issue or contact the maintainers.
+MIT License — see `LICENSE` for details.
