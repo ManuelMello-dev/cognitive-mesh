@@ -72,10 +72,10 @@ class DistributedCognitiveCore:
         # Self-evolution engine (reactivated)
         from self_writing_engine import SelfEvolvingSystem
         self.code_evolver = SelfEvolvingSystem(
-            max_generations=5,
-            population_size=10,
+            max_gen=5,
+            pop_size=10,
             mutation_rate=0.3,
-            crossover_rate=0.5
+            crossover_rate=0.6
         )
         self._evolution_counter = 0
 

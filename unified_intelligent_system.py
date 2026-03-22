@@ -160,8 +160,8 @@ class SelfEvolvingIntelligentSystem:
         self.code_evolver = None
         if enable_code_evolution:
             self.code_evolver = SelfEvolvingSystem(
-                max_generations=10,
-                population_size=20
+                max_gen=10,
+                pop_size=20
             )
         
         # Always-on orchestration
