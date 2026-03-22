@@ -223,59 +223,79 @@ class CognitiveIntelligentSystem:
         return results
     
     def _enrich_observation(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
-        """Enrich observation with derived features for rule learning."""
+        """
+        Enrich observation with derived features for rule learning.
+        Works with any domain: uses 'entity_id' (or legacy 'symbol') and 'value'
+        (or legacy 'price') as the primary identifiers.
+        """
         enriched = dict(observation)
-        symbol = observation.get('symbol', '')
-        price = observation.get('price', 0)
-        
-        # Track price history
-        if symbol and price:
-            self._price_history[symbol].append(price)
-            if len(self._price_history[symbol]) > self._max_price_history:
-                self._price_history[symbol] = self._price_history[symbol][-self._max_price_history:]
-            
-            history = self._price_history[symbol]
-            if len(history) >= 2:
-                pct_change = (history[-1] - history[-2]) / history[-2] * 100 if history[-2] != 0 else 0
+
+        # Support both generic and legacy field names
+        entity_id = observation.get('entity_id') or observation.get('symbol') or ''
+        value = observation.get('value') or observation.get('price') or 0
+
+        # Track value history per entity
+        if entity_id and value:
+            history_key = f"{domain}:{entity_id}"
+            self._price_history[history_key].append(float(value))
+            if len(self._price_history[history_key]) > self._max_price_history:
+                self._price_history[history_key] = self._price_history[history_key][-self._max_price_history:]
+
+            history = self._price_history[history_key]
+            if len(history) >= 2 and history[-2] != 0:
+                pct_change = (history[-1] - history[-2]) / history[-2] * 100
                 enriched['pct_change'] = round(pct_change, 4)
-                enriched['direction'] = 'up' if pct_change > 0.01 else ('down' if pct_change < -0.01 else 'critical')
-            
+                enriched['direction'] = 'up' if pct_change > 0.1 else ('down' if pct_change < -0.1 else 'stable')
+
             if len(history) >= 5:
                 avg_5 = sum(history[-5:]) / 5
-                enriched['above_ma5'] = price > avg_5
+                enriched['above_ma5'] = value > avg_5
                 enriched['volatility_5'] = round(
                     (max(history[-5:]) - min(history[-5:])) / avg_5 * 100, 4
                 ) if avg_5 > 0 else 0
-        
-        enriched['asset_type'] = 'crypto' if domain.startswith('crypto:') else 'stock'
+
+        # Normalise domain label for rule mining
+        enriched['entity_id'] = entity_id
+        enriched['domain_prefix'] = domain.split(':')[0] if ':' in domain else domain
         enriched['domain'] = domain
-        
+
         return enriched
     
     def _extract_facts(self, observation: Dict[str, Any], domain: str) -> List[str]:
-        """Extract rich logical facts from observation for reasoning."""
+        """
+        Extract logical facts from an observation for reasoning.
+        Domain-agnostic: uses entity_id/value rather than symbol/price.
+        """
         facts = []
-        symbol = observation.get('symbol', 'unknown')
-        price = observation.get('price', 0)
-        
-        # Asset type facts
-        asset_type = 'crypto' if domain.startswith('crypto:') else 'stock'
-        facts.append(f"is_{asset_type}({symbol})")
-        
-        # Price history-based facts
-        history = self._price_history.get(symbol, [])
+        entity_id = observation.get('entity_id') or observation.get('symbol') or 'unknown'
+        value = observation.get('value') or observation.get('price') or 0
+        domain_prefix = domain.split(':')[0] if ':' in domain else domain
+
+        # Domain membership fact
+        facts.append(f"in_domain({entity_id},{domain_prefix})")
+
+        # Value trend facts from history
+        history_key = f"{domain}:{entity_id}"
+        history = self._price_history.get(history_key, [])
         if len(history) >= 2 and history[-2] != 0:
             pct_change = (history[-1] - history[-2]) / history[-2] * 100
             if pct_change > 1.0:
-                facts.append(f"rising({symbol})")
-                facts.append(f"bullish_signal({symbol})")
+                facts.append(f"rising({entity_id})")
+                facts.append(f"positive_signal({entity_id})")
             elif pct_change < -1.0:
-                facts.append(f"falling({symbol})")
-                facts.append(f"bearish_signal({symbol})")
+                facts.append(f"falling({entity_id})")
+                facts.append(f"negative_signal({entity_id})")
             else:
-                facts.append(f"stable({symbol})")
-        
-        # Ensure facts are always returned as a list of strings, not raised as exceptions
+                facts.append(f"stable({entity_id})")
+
+        # Boolean/categorical fields become direct facts
+        for k, v in observation.items():
+            if isinstance(v, bool):
+                if v:
+                    facts.append(f"{k}({entity_id})")
+            elif isinstance(v, str) and k not in ('entity_id', 'symbol', 'domain', 'timestamp'):
+                facts.append(f"{k}={v}({entity_id})")
+
         return [str(f) for f in facts if isinstance(f, str)]
 
     def _check_cross_domain_opportunities(self, current_domain: str):

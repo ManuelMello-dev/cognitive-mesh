@@ -48,10 +48,3 @@ class Config:
     MILVUS_HOST = os.getenv("MILVUS_HOST")
     REDIS_URL = os.getenv("REDIS_URL")
 
-    # ── LLM Interpreter (optional) ────────────────────────────────────────────
-    # The LLM is NOT a reasoning engine — it is an optional prose interpreter.
-    # The mesh reasons natively; the LLM translates output into human language.
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4.1-mini")
-    # Set LLM_ENABLED=0 to fully disable the LLM interpreter layer
-    LLM_ENABLED = os.getenv("LLM_ENABLED", "1").lower() not in ("0", "false", "no")

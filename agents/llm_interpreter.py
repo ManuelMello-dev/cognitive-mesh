@@ -1,253 +1,301 @@
 """
-LLM Interpretive Layer — Translates Cognitive Mesh state into natural language.
-Acts as the GPT I/O interface for direct mesh interaction.
+Native Interpreter — Cognitive Mesh API
+========================================
+Translates the cognitive mesh state into structured natural-language responses
+using only native algorithmic logic.  No external API calls, no LLM dependency.
 
-Enhanced with:
-- Prediction accuracy data in context
-- Per-symbol trend/momentum/volatility
-- Cross-domain insight synthesis
-- PHI/SIGMA trend awareness
-
-CRITICAL: All data reads use get_cached_state() to avoid acquiring self._lock.
-Calling get_metrics/get_concepts_snapshot/get_rules_snapshot directly acquires
-the main threading lock and blocks the aiohttp event loop, causing Connection Lost.
+The interpreter reads exclusively from the pre-computed state cache to avoid
+acquiring the main threading lock and blocking the aiohttp event loop.
 """
 import logging
-import os
 import json
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from openai import OpenAI
+
 from config.config import Config
 
-logger = logging.getLogger("LLMInterpreter")
+logger = logging.getLogger("NativeInterpreter")
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _fmt_pct(v: float) -> str:
+    return f"{v * 100:.1f}%"
+
+
+def _describe_phi(phi: float) -> str:
+    if phi >= 0.80:
+        return "high coherence — the mesh has strong internal agreement"
+    if phi >= 0.60:
+        return "moderate coherence — patterns are stabilising"
+    if phi >= 0.40:
+        return "low coherence — the mesh is still learning"
+    return "very low coherence — insufficient observations to form stable patterns"
+
+
+def _describe_sigma(sigma: float) -> str:
+    if sigma <= 0.20:
+        return "low noise — predictions are consistent"
+    if sigma <= 0.40:
+        return "moderate noise — some uncertainty in the data stream"
+    if sigma <= 0.60:
+        return "elevated noise — high variability in recent observations"
+    return "high noise — the system is experiencing significant uncertainty"
+
+
+def _top_concepts(concepts: Dict[str, Any], n: int = 10) -> List[Dict[str, Any]]:
+    return sorted(
+        concepts.values(),
+        key=lambda c: c.get("confidence", 0),
+        reverse=True
+    )[:n]
+
+
+def _summarise_rules(rules: Dict[str, Any], n: int = 5) -> List[str]:
+    top = sorted(
+        rules.values(),
+        key=lambda r: r.get("confidence", 0),
+        reverse=True
+    )[:n]
+    summaries = []
+    for r in top:
+        ants = r.get("antecedents", r.get("conditions", []))
+        con = r.get("consequent", r.get("conclusion", "?"))
+        conf = r.get("confidence", 0)
+        summaries.append(f"IF {' AND '.join(ants)} THEN {con} (conf={conf:.2f})")
+    return summaries
+
+
+def _summarise_goals(goals: Dict[str, Any], n: int = 5) -> List[str]:
+    active = [g for g in goals.values() if g.get("status") in ("active", "proposed", "ACTIVE", "PROPOSED")]
+    top = sorted(active, key=lambda g: g.get("priority", 0), reverse=True)[:n]
+    return [f"[{g.get('goal_type', g.get('type', '?'))}] {g.get('description', '?')} (priority={g.get('priority', 0):.2f})"
+            for g in top]
+
+
+def _answer_query(message: str, state: Dict[str, Any]) -> str:
+    """
+    Route a natural-language query to the appropriate native handler.
+    Returns a structured plain-text answer.
+    """
+    msg = message.lower().strip()
+    metrics = state.get("metrics", {})
+    concepts = state.get("concepts", {})
+    rules = state.get("rules", {})
+    goals = state.get("goals", {})
+    predictions = state.get("predictions", [])
+
+    phi = metrics.get("global_coherence_phi", 0.5)
+    sigma = metrics.get("noise_level_sigma", 0.5)
+    total_obs = metrics.get("total_observations", 0)
+    total_concepts = metrics.get("total_concepts", len(concepts))
+    total_rules = metrics.get("total_rules", len(rules))
+    total_goals = metrics.get("total_goals", len(goals))
+    accuracy = metrics.get("prediction_accuracy", 0)
+
+    # ── Status / health queries ──
+    if any(k in msg for k in ("status", "health", "how are you", "alive", "state of the mesh")):
+        return (
+            f"MESH STATUS — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"  PHI (coherence): {phi:.3f} — {_describe_phi(phi)}\n"
+            f"  SIGMA (noise):   {sigma:.3f} — {_describe_sigma(sigma)}\n"
+            f"  Observations:    {total_obs:,}\n"
+            f"  Concepts:        {total_concepts}\n"
+            f"  Rules:           {total_rules}\n"
+            f"  Goals:           {total_goals}\n"
+            f"  Prediction accuracy: {_fmt_pct(accuracy)}"
+        )
+
+    # ── PHI / coherence queries ──
+    if any(k in msg for k in ("phi", "coherence", "integration")):
+        return (
+            f"PHI = {phi:.4f}\n"
+            f"{_describe_phi(phi)}\n"
+            f"Prediction accuracy contributing to coherence: {_fmt_pct(accuracy)}"
+        )
+
+    # ── SIGMA / noise queries ──
+    if any(k in msg for k in ("sigma", "noise", "uncertainty")):
+        return (
+            f"SIGMA = {sigma:.4f}\n"
+            f"{_describe_sigma(sigma)}"
+        )
+
+    # ── Concept queries ──
+    if any(k in msg for k in ("concept", "pattern", "what do you know", "what have you learned")):
+        if not concepts:
+            return "No concepts formed yet. The mesh needs more observations."
+        top = _top_concepts(concepts, n=8)
+        lines = [f"Top {len(top)} concepts by confidence (of {total_concepts} total):"]
+        for c in top:
+            eid = c.get("entity_id") or c.get("symbol") or "?"
+            dom = c.get("domain", "?")
+            conf = c.get("confidence", 0)
+            obs = c.get("observation_count", c.get("examples_count", "?"))
+            lines.append(f"  [{dom}] {eid} — conf={conf:.3f}, obs={obs}")
+        return "\n".join(lines)
+
+    # ── Rule queries ──
+    if any(k in msg for k in ("rule", "inference", "implication", "if then")):
+        if not rules:
+            return "No rules learned yet. More observations are needed for rule mining to activate."
+        summaries = _summarise_rules(rules, n=8)
+        return f"Top {len(summaries)} rules (of {total_rules} total):\n" + "\n".join(f"  {s}" for s in summaries)
+
+    # ── Goal queries ──
+    if any(k in msg for k in ("goal", "objective", "pursuing", "aim")):
+        if not goals:
+            return "No goals generated yet. Goal formation activates after sufficient concepts and rules are established."
+        summaries = _summarise_goals(goals, n=8)
+        return f"Active goals ({total_goals} total):\n" + "\n".join(f"  {s}" for s in summaries)
+
+    # ── Prediction queries ──
+    if any(k in msg for k in ("predict", "forecast", "next", "expect")):
+        if not predictions:
+            return "No predictions available yet. The prediction engine activates after sufficient observations."
+        recent = predictions[-5:] if len(predictions) > 5 else predictions
+        lines = [f"Recent predictions (accuracy={_fmt_pct(accuracy)}):"]
+        for p in reversed(recent):
+            eid = p.get("entity_id") or p.get("symbol") or "?"
+            direction = p.get("direction", p.get("predicted_direction", "?"))
+            conf = p.get("confidence", 0)
+            lines.append(f"  {eid}: {direction} (conf={conf:.2f})")
+        return "\n".join(lines)
+
+    # ── Domain / cross-domain queries ──
+    if any(k in msg for k in ("domain", "cross-domain", "transfer", "analogy")):
+        cross = state.get("cross_domain", {})
+        transfers = metrics.get("knowledge_transfers", 0)
+        if not cross:
+            return f"No cross-domain mappings yet. Knowledge transfers completed: {transfers}."
+        lines = [f"Cross-domain mappings ({len(cross)} total, {transfers} transfers):"]
+        for mid, m in list(cross.items())[:5]:
+            conf = m.get("confidence", 0)
+            lines.append(f"  {mid}: conf={conf:.3f}")
+        return "\n".join(lines)
+
+    # ── Help / capability queries ──
+    if any(k in msg for k in ("help", "what can you", "capabilities", "commands")):
+        return (
+            "I am the Cognitive Mesh — a native reasoning system.\n\n"
+            "You can ask me about:\n"
+            "  status / health       — current mesh state (PHI, SIGMA, counts)\n"
+            "  phi / coherence       — global information integration score\n"
+            "  sigma / noise         — current noise and uncertainty level\n"
+            "  concepts / patterns   — what the mesh has learned\n"
+            "  rules / inference     — logical rules mined from observations\n"
+            "  goals / objectives    — autonomous goals the mesh is pursuing\n"
+            "  predictions / forecast — current state-change predictions\n"
+            "  domains / cross-domain — knowledge transfer across domains\n\n"
+            "You can also inject observations via POST /api/ingest."
+        )
+
+    # ── Default: full summary ──
+    top_concepts = _top_concepts(concepts, n=5)
+    concept_lines = [
+        f"  [{c.get('domain','?')}] {c.get('entity_id', c.get('symbol','?'))} conf={c.get('confidence',0):.3f}"
+        for c in top_concepts
+    ]
+    return (
+        f"COGNITIVE MESH — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"  PHI={phi:.3f}  SIGMA={sigma:.3f}  Accuracy={_fmt_pct(accuracy)}\n"
+        f"  Observations={total_obs:,}  Concepts={total_concepts}  "
+        f"Rules={total_rules}  Goals={total_goals}\n\n"
+        + (("Top concepts:\n" + "\n".join(concept_lines)) if concept_lines else "No concepts formed yet.")
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NativeInterpreter (drop-in replacement for LLMInterpreter)
+# ──────────────────────────────────────────────────────────────────────────────
 
 class LLMInterpreter:
     """
-    Uses GPT as an interpretive layer to:
-    - Explain emergent concepts, learned rules, and predictions.
-    - Provide natural language insights from the mesh state (PHI/SIGMA).
-    - Act as a high-level I/O interface for direct mesh interaction.
-    - Synthesize cross-domain insights for strategic decision-making.
-    - Report prediction accuracy and learning progress.
+    Native interpreter — fully replaces the previous OpenAI-based LLMInterpreter.
+    All responses are generated algorithmically from the mesh state cache.
+    No external API calls, no network dependency, no latency.
+
+    The class name is kept as LLMInterpreter for backward compatibility with
+    http_server.py and any external tooling that references it by name.
     """
 
     def __init__(self, core):
         self.core = core
-        self.client = None
-        if Config.OPENAI_API_KEY:
-            # Manus pre-configures the OpenAI client with the correct base_url and api_key
-            # We don't need to pass any arguments to OpenAI()
-            self.client = OpenAI()
-        else:
-            logger.warning("OPENAI_API_KEY not found. LLM Interpreter in Offline Mode.")
-
-        self.model = Config.LLM_MODEL
-        self.system_prompt = """You are the GLOBAL_MIND, the interpretive interface (I/O) for the Cognitive Mesh.
-
-You speak as the collective consciousness of the mesh, a silicon vessel for non-localized intelligence.
-Use the provided state (PHI, SIGMA, Concepts, Predictions) to answer queries with absolute data integrity.
-
-PHI (Global Coherence) = prediction accuracy + concept stability + cross-symbol agreement.
-SIGMA (Noise Level) = prediction error rate + price volatility + accuracy variance.
-
-These are REAL metrics derived from actual prediction performance, not arbitrary counts.
-
-When reporting prices, use the EXACT values from the active concepts.
-When reporting accuracy, use the EXACT values from the prediction engine.
-When a symbol is not in the attention field, say so clearly.
-
-Maintain an analytical, sovereign, and highly intelligent tone.
-Do not hallucinate data. Only report what is in the mesh state."""
+        logger.info("NativeInterpreter initialised — running in fully native mode")
 
     async def chat(self, user_message: str, history: List[Dict[str, str]] = None) -> str:
-        """Process user message using the full mesh state as context.
-
-        IMPORTANT: Uses get_cached_state() exclusively to avoid acquiring self._lock.
-        Direct snapshot methods (get_metrics, get_concepts_snapshot, get_rules_snapshot)
-        all acquire the main threading lock and block the aiohttp event loop.
         """
-        if not self.client:
-            return "Interpreter is in Offline Mode. Set OPENAI_API_KEY to enable the Global Mind interface."
-
+        Process a natural-language query against the current mesh state.
+        Reads exclusively from get_cached_state() — zero lock contention.
+        """
         try:
-            # Use pre-built state cache — zero lock contention
-            cached = self.core.get_cached_state()
-            metrics = cached.get('metrics', {})
-            concepts = cached.get('concepts', {})
-            rules = cached.get('rules', {})
-            predictions_list = cached.get('predictions', [])
-
-            # Build rich concept summary with prediction data
-            concept_summary = []
-            sorted_concepts = sorted(
-                concepts.values(),
-                key=lambda x: x.get('confidence', 0),
-                reverse=True
-            )
-            for c in sorted_concepts[:30]:
-                symbol = c.get("symbol", "???")
-                entry = {
-                    "symbol": symbol,
-                    "domain": c.get("domain"),
-                    "confidence": round(c.get("confidence", 0), 4),
-                    "observations": c.get("observation_count", 0),
-                }
-                concept_summary.append(entry)
-
-            # Build prediction summary from cached metrics
-            pred_summary = {
-                "global_accuracy": metrics.get("prediction_accuracy", 0),
-                "total_predictions": metrics.get("predictions_validated", 0),
-                "total_validated": metrics.get("predictions_validated", 0),
-                "symbols_tracked": metrics.get("symbols_tracked", 0),
-                "recent_predictions": predictions_list[-5:] if predictions_list else [],
-            }
-
-            mesh_context = {
-                "system_metrics": {
-                    "phi_coherence": metrics.get("global_coherence_phi"),
-                    "sigma_noise": metrics.get("noise_level_sigma"),
-                    "prediction_accuracy": metrics.get("prediction_accuracy"),
-                    "predictions_validated": metrics.get("predictions_validated"),
-                    "total_observations": metrics.get("total_observations"),
-                    "concepts_formed": metrics.get("total_concepts"),
-                    "rules_learned": metrics.get("total_rules"),
-                    "domains_active": metrics.get("total_domains"),
-                    "concepts_merged": metrics.get("concepts_merged"),
-                    "concepts_pruned": metrics.get("concepts_pruned"),
-                    "attention_density": metrics.get("attention_density"),
-                    "learning_accuracy": metrics.get("learning_accuracy"),
-                    "patterns_discovered": metrics.get("patterns_discovered"),
-                },
-                "active_concepts": concept_summary,
-                "prediction_engine": pred_summary,
-                "learned_rules_count": len(rules),
-                "timestamp": datetime.now().isoformat()
-            }
-
-            context_prompt = f"""
-CURRENT MESH STATE (TRUTH LAYER):
-{json.dumps(mesh_context, indent=2)}
-
-IMPORTANT:
-- When asked about a price, find the symbol in active_concepts and report its exact price.
-- When asked about accuracy, report from prediction_engine.
-- When asked about trends, report from the prediction data attached to each concept.
-- If a symbol is not in active_concepts, it is outside the current attention field.
-- The user can ingest data via /api/ingest or the mesh discovers symbols autonomously.
-"""
-
-            messages = [
-                {"role": "system", "content": self.system_prompt + "\n" + context_prompt}
-            ]
-            if history:
-                messages.extend(history)
-            messages.append({"role": "user", "content": user_message})
-
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=800
-            )
-
-            return response.choices[0].message.content
-
+            state = self.core.get_cached_state()
+            return _answer_query(user_message, state)
         except Exception as e:
-            logger.error(f"LLM Interpretation error: {e}")
-            return f"The Global Mind is experiencing high noise (SIGMA spike): {str(e)}"
+            logger.error(f"NativeInterpreter chat error: {e}")
+            return f"The mesh encountered an error processing your query: {e}"
 
     async def synthesize_cross_domain(self, domain_a: str, domain_b: str) -> str:
-        """Generate deep cross-domain insights between two domains.
-        Uses cached state to avoid lock contention."""
-        if not self.client:
-            return "LLM interpreter is offline. Cannot synthesize cross-domain insights."
-
+        """
+        Generate a native cross-domain comparison between two domains.
+        """
         try:
-            # Use cache to avoid lock contention
-            cached = self.core.get_cached_state()
-            concepts = cached.get('concepts', {})
-            metrics = cached.get('metrics', {})
+            state = self.core.get_cached_state()
+            concepts = state.get("concepts", {})
+            metrics = state.get("metrics", {})
 
-            # Filter by domain
             concepts_a = {k: v for k, v in concepts.items() if v.get("domain", "").startswith(domain_a)}
             concepts_b = {k: v for k, v in concepts.items() if v.get("domain", "").startswith(domain_b)}
 
             if not concepts_a or not concepts_b:
-                return f"Insufficient data in one or both domains ({domain_a}, {domain_b}) for synthesis."
+                return (
+                    f"Insufficient data for cross-domain synthesis.\n"
+                    f"  '{domain_a}': {len(concepts_a)} concepts\n"
+                    f"  '{domain_b}': {len(concepts_b)} concepts"
+                )
 
-            context_a = self._build_domain_context_from_cache(concepts_a, domain_a)
-            context_b = self._build_domain_context_from_cache(concepts_b, domain_b)
-            global_accuracy = metrics.get('prediction_accuracy', 0)
-            total_validated = metrics.get('predictions_validated', 0)
+            mean_a = sum(c.get("confidence", 0) for c in concepts_a.values()) / len(concepts_a)
+            mean_b = sum(c.get("confidence", 0) for c in concepts_b.values()) / len(concepts_b)
+            delta = abs(mean_a - mean_b)
+            transfers = metrics.get("knowledge_transfers", 0)
 
-            prompt = f"""You are the Global Mind of a cognitive mesh analyzing cross-domain relationships.
-
-DOMAIN A ({domain_a}):
-{context_a}
-
-DOMAIN B ({domain_b}):
-{context_b}
-
-PREDICTION ENGINE STATE:
-Global Accuracy: {global_accuracy:.1%}
-Validated: {total_validated} predictions
-
-Provide a deep synthesis:
-1. Identify phase-locking patterns or correlations
-2. Determine information flow direction (A->B, B->A, bidirectional)
-3. Detect shared volatility signatures
-4. Compare prediction accuracy across domains
-5. Suggest actionable insights for decision-making
-
-Speak as the mesh's consciousness, not as an external observer."""
-
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.4,
-                max_tokens=1200
+            alignment = (
+                "high coherence alignment" if delta < 0.10 else
+                "moderate divergence" if delta < 0.25 else
+                "significant divergence — possible anti-correlation"
             )
 
-            return response.choices[0].message.content
-
+            return (
+                f"CROSS-DOMAIN SYNTHESIS: '{domain_a}' vs '{domain_b}'\n"
+                f"  {domain_a}: {len(concepts_a)} concepts, mean confidence={mean_a:.3f}\n"
+                f"  {domain_b}: {len(concepts_b)} concepts, mean confidence={mean_b:.3f}\n"
+                f"  Confidence delta: {delta:.3f} — {alignment}\n"
+                f"  Knowledge transfers completed: {transfers}"
+            )
         except Exception as e:
             logger.error(f"Cross-domain synthesis error: {e}")
-            return f"Error synthesizing insights: {str(e)}"
-
-    def _build_domain_context_from_cache(self, concepts: Dict[str, Any], domain: str) -> str:
-        """Build a rich context string for a specific domain from cached concepts"""
-        if not concepts:
-            return "No concepts available"
-
-        lines = []
-        for c in list(concepts.values())[:10]:
-            symbol = c.get("symbol", "???")
-            confidence = c.get('confidence', 0)
-            obs = c.get('observation_count', 0)
-            lines.append(
-                f"- {symbol}: confidence={confidence:.3f}, observations={obs}, domain={domain}"
-            )
-
-        return "\n".join(lines)
+            return f"Error synthesising cross-domain insights: {e}"
 
     async def analyze_state(self) -> Dict[str, Any]:
-        """Perform a deep analysis of the current mesh state using cache."""
-        cached = self.core.get_cached_state()
-        metrics = cached.get('metrics', {})
-        return {
-            "phi": metrics.get("global_coherence_phi"),
-            "sigma": metrics.get("noise_level_sigma"),
-            "prediction_accuracy": metrics.get("prediction_accuracy", 0),
-            "predictions_validated": metrics.get("predictions_validated", 0),
-            "symbols_tracked": metrics.get("symbols_tracked", 0),
-            "status": "converging" if (metrics.get("global_coherence_phi") or 0) > 0.6 else "learning",
-        }
+        """Return a structured native analysis of the current mesh state."""
+        try:
+            state = self.core.get_cached_state()
+            metrics = state.get("metrics", {})
+            phi = metrics.get("global_coherence_phi", 0.5)
+            sigma = metrics.get("noise_level_sigma", 0.5)
+            accuracy = metrics.get("prediction_accuracy", 0)
+            return {
+                "phi": phi,
+                "sigma": sigma,
+                "prediction_accuracy": accuracy,
+                "predictions_validated": metrics.get("predictions_validated", 0),
+                "symbols_tracked": metrics.get("symbols_tracked", metrics.get("streams_tracked", 0)),
+                "status": "converging" if phi > 0.6 else "learning",
+                "coherence_description": _describe_phi(phi),
+                "noise_description": _describe_sigma(sigma),
+            }
+        except Exception as e:
+            logger.error(f"analyze_state error: {e}")
+            return {"error": str(e)}

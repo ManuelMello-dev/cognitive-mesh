@@ -713,7 +713,22 @@ class DistributedCognitiveCore:
                         with self._lock:
                             # Feed prediction accuracy back to rules
                             self._feed_rule_confidence_back()
-                            
+
+                            # Mine association rules from accumulated observations
+                            obs_history = list(self.cognitive_system._observation_history)
+                            if len(obs_history) >= 3:
+                                try:
+                                    before = len(self.cognitive_system.reasoning.rules)
+                                    self.cognitive_system.reasoning.learn_rules_from_observations(
+                                        obs_history, min_support=3
+                                    )
+                                    after = len(self.cognitive_system.reasoning.rules)
+                                    if after > before:
+                                        self.cognitive_system.cognitive_metrics['rules_learned'] = after
+                                        logger.info(f"Rule mining: {after - before} new rules (total={after})")
+                                except Exception as e:
+                                    logger.error(f"Rule learning error: {e}")
+
                             # Converge concepts (merge/prune)
                             self._run_concept_convergence()
 
@@ -721,9 +736,11 @@ class DistributedCognitiveCore:
                     if iteration % 300 == 0:
                         with self._lock:
                             try:
-                                # Trigger goal formation
+                                # Trigger goal formation with real observations
                                 ctx = self._build_goal_context()
-                                self.cognitive_system.goals.generate_goals(ctx)
+                                new_goals = self.cognitive_system.goals.generate_goals(ctx)
+                                if new_goals:
+                                    logger.info(f"Goal formation: {len(new_goals)} new goals generated")
                             except Exception as e:
                                 logger.error(f"Error in introspection: {e}")
 
@@ -1238,15 +1255,35 @@ class DistributedCognitiveCore:
             logger.debug(f"Self-evolution skipped this cycle: {e}")
 
     def _build_goal_context(self):
-        """Build context for goal generation"""
+        """Build context for goal generation with real observations and patterns."""
         from goal_formation_system import GoalGenerationContext
+
+        # Pass the last 50 real observations so curiosity/exploration goals can fire
+        obs_history = list(self.cognitive_system._observation_history)[-50:]
+
+        # Collect patterns from all active concepts (domain-agnostic)
+        patterns = []
+        for cid, concept in self.cognitive_system.abstraction.concepts.items():
+            patterns.append({
+                "pattern_id": cid,
+                "domain": getattr(concept, 'domain', 'unknown'),
+                "confidence": getattr(concept, 'confidence', 0.5),
+                "examples_count": len(getattr(concept, 'examples', [])),
+            })
+
+        pred_insights = {}
+        try:
+            pred_insights = self.prediction_engine.get_insights() or {}
+        except Exception:
+            pass
+
         return GoalGenerationContext(
-            observations=[],
-            patterns=list(self.cognitive_system.abstraction.patterns) if self.cognitive_system.abstraction.patterns is not None else [],
-            capabilities=set(['reasoning', 'abstraction', 'prediction']),
+            observations=obs_history,
+            patterns=patterns,
+            capabilities=set(['reasoning', 'abstraction', 'prediction', 'self_evolution']),
             constraints={},
-            current_state=self.get_metrics(), # Use get_metrics instead of get_introspection
-            performance_metrics=self.prediction_engine.get_insights() if self.prediction_engine.get_insights() is not None else {}
+            current_state=self.get_metrics(),
+            performance_metrics=pred_insights,
         )
 
     async def save_state(self):

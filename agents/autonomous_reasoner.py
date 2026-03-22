@@ -2,20 +2,16 @@
 Autonomous Reasoning Agent
 ===========================
 Performs pattern analysis, hypothesis generation, and goal formulation
-using the mesh's own native cognitive engines as the PRIMARY reasoning
-layer.  An optional LLM interpreter can be enabled to translate the
-mesh's internal state into human-readable language, but it is NEVER
-the source of truth or the decision-maker.
+using the mesh's own native cognitive engines as the sole reasoning
+layer.  All outputs are generated algorithmically — no external API calls.
 
 Architecture (original vision):
   1. Native algorithmic reasoning  ← always runs, no external dependency
-  2. LLM interpreter (optional)    ← translates output into prose if available
+  2. Human-readable output          ← generated from native analysis only
 
-This preserves the original design intent: the silicon vessel reasons
-for itself; the LLM is a tongue, not a brain.
+The silicon vessel reasons for itself. No external API calls.
 """
 
-import os
 import logging
 import asyncio
 import math
@@ -205,29 +201,14 @@ class AutonomousReasoner:
     """
     Autonomous reasoning agent.
 
-    Primary path: native algorithmic reasoning (always available).
-    Secondary path: optional LLM interpreter that translates native
-    insights into human-readable prose (requires OPENAI_API_KEY).
-
-    The LLM is NEVER called for core reasoning decisions.  It is only
-    invoked to enrich the textual representation of results that the
-    native engine has already produced.
+    All reasoning, pattern analysis, hypothesis generation, and goal
+    formulation is performed natively by the mesh's own cognitive engines.
+    No external API calls.  No LLM dependency.
     """
 
     def __init__(self, core=None):
         self.core = core
-        self._llm_client = None
-
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI
-                self._llm_client = OpenAI(api_key=api_key)
-                logger.info("AutonomousReasoner: LLM interpreter available (optional layer)")
-            except ImportError:
-                logger.warning("openai package not installed — LLM interpreter disabled")
-        else:
-            logger.info("AutonomousReasoner: running in native-only mode (no OPENAI_API_KEY)")
+        logger.info("AutonomousReasoner initialised — native reasoning only")
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -238,8 +219,7 @@ class AutonomousReasoner:
     ) -> Dict[str, Any]:
         """
         Analyse patterns across all concepts and rules.
-        Returns structured insights derived natively; LLM prose is appended
-        only if the interpreter is available.
+        Returns structured insights derived natively.
         """
         if not concepts:
             return {"status": "no_data", "insights": []}
@@ -268,44 +248,19 @@ class AutonomousReasoner:
             "total_rules": len(rules),
         }
 
-        result = {
+        return {
             "status": "success",
             "native_analysis": native_insights,
-            "llm_prose": None,
         }
-
-        # ── Optional LLM prose enrichment ──
-        if self._llm_client:
-            try:
-                prose = await self._llm_interpret_patterns(native_insights)
-                result["llm_prose"] = prose
-            except Exception as e:
-                logger.debug(f"LLM prose enrichment skipped: {e}")
-
-        return result
 
     async def generate_hypotheses(
         self,
         recent_observations: List[Dict[str, Any]]
     ) -> List[str]:
         """
-        Generate testable hypotheses from recent observations.
-        Native hypotheses are always returned; LLM may append additional ones.
+        Generate testable hypotheses from recent observations using native analysis.
         """
-        hypotheses = _native_hypotheses(recent_observations)
-
-        if self._llm_client and recent_observations:
-            try:
-                llm_hypotheses = await self._llm_generate_hypotheses(recent_observations)
-                # Append LLM hypotheses that are not duplicates
-                existing_text = " ".join(hypotheses).lower()
-                for h in llm_hypotheses:
-                    if h[:20].lower() not in existing_text:
-                        hypotheses.append(f"[LLM] {h}")
-            except Exception as e:
-                logger.debug(f"LLM hypothesis enrichment skipped: {e}")
-
-        return hypotheses
+        return _native_hypotheses(recent_observations)
 
     async def formulate_goals(
         self,
@@ -313,18 +268,9 @@ class AutonomousReasoner:
         concepts: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Formulate goals from current mesh state.
-        Native rule-based goals are always returned; LLM may refine descriptions.
+        Formulate goals from current mesh state using native rule-based analysis.
         """
-        goals = _native_goal_formulation(metrics)
-
-        if self._llm_client and goals:
-            try:
-                goals = await self._llm_enrich_goals(goals, metrics)
-            except Exception as e:
-                logger.debug(f"LLM goal enrichment skipped: {e}")
-
-        return goals
+        return _native_goal_formulation(metrics)
 
     async def synthesize_insights(
         self,
@@ -332,8 +278,7 @@ class AutonomousReasoner:
         domain_b: str
     ) -> Optional[str]:
         """
-        Generate cross-domain insights by comparing two domains natively,
-        then optionally enriching with LLM prose.
+        Generate cross-domain insights by comparing two domains natively.
         """
         if not self.core:
             return None
@@ -361,122 +306,4 @@ class AutonomousReasoner:
                "significant divergence — possible anti-correlation.")
         )
 
-        if self._llm_client:
-            try:
-                prose = await self._llm_synthesize_domains(domain_a, domain_b, native_summary)
-                return f"{native_summary}\n\n[LLM Interpretation]\n{prose}"
-            except Exception as e:
-                logger.debug(f"LLM domain synthesis skipped: {e}")
-
         return native_summary
-
-    # ── LLM interpreter helpers (private, optional) ─────────────────────────
-
-    async def _llm_interpret_patterns(self, native_insights: Dict[str, Any]) -> str:
-        """Translate native pattern analysis into human-readable prose."""
-        import json
-        prompt = (
-            "You are a prose interpreter for a cognitive mesh system. "
-            "Translate the following machine-generated analysis into a concise "
-            "paragraph for a human operator. Do NOT invent new facts.\n\n"
-            f"ANALYSIS:\n{json.dumps(native_insights, indent=2)}"
-        )
-        response = await asyncio.to_thread(
-            self._llm_client.chat.completions.create,
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": "You are a translator, not a reasoner. Summarise only what is given."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.2,
-            max_tokens=400,
-        )
-        return response.choices[0].message.content.strip()
-
-    async def _llm_generate_hypotheses(self, observations: List[Dict[str, Any]]) -> List[str]:
-        """Ask LLM to suggest additional hypotheses beyond the native ones."""
-        obs_summary = "\n".join([
-            f"- domain={obs.get('domain','?')} entity={obs.get('entity_id', obs.get('symbol','?'))} "
-            f"value={obs.get('value', obs.get('price','N/A'))}"
-            for obs in observations[:20]
-        ])
-        prompt = (
-            f"Given these observations:\n{obs_summary}\n\n"
-            "Suggest 1-2 additional testable hypotheses not already covered by "
-            "momentum, trend, or domain-frequency analysis. "
-            "Format as a numbered list."
-        )
-        response = await asyncio.to_thread(
-            self._llm_client.chat.completions.create,
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": "You are a hypothesis generator. Be concise and falsifiable."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=300,
-        )
-        text = response.choices[0].message.content
-        return [
-            line.strip()
-            for line in text.split('\n')
-            if line.strip() and any(line.strip().startswith(str(i)) for i in range(1, 10))
-        ]
-
-    async def _llm_enrich_goals(
-        self,
-        goals: List[Dict[str, Any]],
-        metrics: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Ask LLM to refine goal descriptions (does not change priority or metric)."""
-        import json
-        prompt = (
-            "Refine the 'rationale' field of each goal below to be more actionable. "
-            "Do NOT change 'title', 'metric', 'priority', or 'generated_by'. "
-            "Return valid JSON array.\n\n"
-            f"GOALS:\n{json.dumps(goals, indent=2)}\n\n"
-            f"METRICS:\n{json.dumps({k: metrics[k] for k in list(metrics)[:8]}, indent=2)}"
-        )
-        response = await asyncio.to_thread(
-            self._llm_client.chat.completions.create,
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": "You are a goal refiner. Return only the JSON array."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=600,
-        )
-        import json as _json
-        try:
-            enriched = _json.loads(response.choices[0].message.content)
-            if isinstance(enriched, list) and len(enriched) == len(goals):
-                # Preserve all native fields; only overwrite rationale
-                for i, g in enumerate(goals):
-                    g["rationale"] = enriched[i].get("rationale", g["rationale"])
-        except Exception:
-            pass
-        return goals
-
-    async def _llm_synthesize_domains(
-        self,
-        domain_a: str,
-        domain_b: str,
-        native_summary: str
-    ) -> str:
-        """Ask LLM to interpret a native cross-domain comparison."""
-        prompt = (
-            f"Interpret the following cross-domain comparison for a human operator. "
-            f"Do not invent new data.\n\n{native_summary}"
-        )
-        response = await asyncio.to_thread(
-            self._llm_client.chat.completions.create,
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": "You are a domain-analysis interpreter."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=400,
-        )
-        return response.choices[0].message.content.strip()
