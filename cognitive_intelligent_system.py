@@ -58,8 +58,8 @@ class CognitiveIntelligentSystem:
         )
         
         self.code_evolver = SelfEvolvingSystem(
-            max_generations=10,
-            population_size=20
+            max_gen=10,
+            pop_size=20
         )
         
         self.orchestrator = AlwaysOnOrchestrator(

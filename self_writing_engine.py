@@ -180,6 +180,11 @@ class ProductionEvolvingSystem:
         self.hall_of_fame.sort(key=lambda v: v.performance_score, reverse=True)
         self.hall_of_fame = self.hall_of_fame[:5]
 
+# --- Backward-compatible alias ---
+# cognitive_intelligent_system.py imports SelfEvolvingSystem; this maps it to
+# the canonical ProductionEvolvingSystem class.
+SelfEvolvingSystem = ProductionEvolvingSystem
+
 # --- Deployment Note ---
-# This code uses multiprocessing. Ensure you wrap the execution in 
+# This code uses multiprocessing. Ensure you wrap the execution in
 # if __name__ == "__main__": when running locally or in CI/CD.

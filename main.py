@@ -48,24 +48,66 @@ logging.basicConfig(
 logger = logging.getLogger("CognitiveMesh")
 
 # Per-module log level overrides (noisy internal modules)
+# All internal engines are set to WARNING — only errors surface.
+# The CognitiveMesh and HttpServer loggers remain at INFO for operational visibility.
 _QUIET_MODULES = [
+    # Cognitive engines
     "abstraction_engine",
     "reasoning_engine",
     "continuous_learning_engine",
     "cognitive_intelligent_system",
     "cross_domain_engine",
     "always_on_orchestrator",
+    "goal_formation_system",
+    "prediction_validation_engine",
+    "self_writing_engine",
+    "EvoEngine",
+    # Networking / gossip
     "ZeroMQNetwork",
+    "NetworkLayer",
     "gossip",
     "gossip_amfg",
-    "MarketDataProviders",
+    "AMFGGossip",
+    "CognitiveGossip",
+    # Storage
     "DistributedCore",
-    "self_writing_engine",
-    "prediction_validation_engine",
-    "goal_formation_system",
+    "PostgresStore",
+    "RedisCache",
+    "MilvusStore",
+    "StorageConnectors",
+    # Market / data providers
+    "MarketDataProviders",
+    "MarketScanner",
+    "DataProvider",
+    # Agents
+    "AutonomousReasoner",
+    "NativeInterpreter",
+    "PursuitAgent",
 ]
 for _mod in _QUIET_MODULES:
     logging.getLogger(_mod).setLevel(logging.WARNING)
+
+# Rate-limit the top-level CognitiveMesh logger to avoid Railway 500 log/s cap.
+# We use a simple dedup filter: identical consecutive messages are suppressed.
+class _DedupeFilter(logging.Filter):
+    """Suppress consecutive identical log messages to prevent log floods."""
+    def __init__(self):
+        super().__init__()
+        self._last_msg: str = ""
+        self._repeat_count: int = 0
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if msg == self._last_msg:
+            self._repeat_count += 1
+            # Allow through every 100th repeat so we know it's still happening
+            return self._repeat_count % 100 == 0
+        self._last_msg = msg
+        self._repeat_count = 0
+        return True
+
+logging.getLogger("CognitiveMesh").addFilter(_DedupeFilter())
+logging.getLogger("HttpServer").addFilter(_DedupeFilter())
 
 # ──────────────────────────────────────────────────────────────────────────────
 
