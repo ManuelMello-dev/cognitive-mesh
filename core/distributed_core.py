@@ -227,6 +227,17 @@ class DistributedCognitiveCore:
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
 
+            # Save short-term memory (the learning engine's rolling observation window).
+            # Without this, the mesh cannot detect patterns or mine rules until it
+            # re-accumulates enough data after every restart.
+            # Also save _observation_count so the dashboard counter is continuous.
+            short_term_to_save = {
+                "short_term_memory": list(self.cognitive_system.learning_engine.short_term_memory),
+                "observation_count": self._observation_count,
+            }
+            await self.postgres.save_short_term_memory(short_term_to_save)
+            logger.debug(f"Saved {len(short_term_to_save['short_term_memory'])} short-term memory entries and observation_count={self._observation_count} to Postgres.")
+
         if self.milvus:
             # Milvus stores concept vectors. The concepts themselves are saved in Postgres.
             # We need to ensure that the Milvus store is populated with the vectors from the concepts.
@@ -354,6 +365,20 @@ class DistributedCognitiveCore:
             self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
             logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
+
+            # Load short-term memory and restore observation_count
+            short_term_data = await self.postgres.load_short_term_memory()
+            if short_term_data:
+                stm_entries = short_term_data.get("short_term_memory", [])
+                self.cognitive_system.learning_engine.short_term_memory = deque(
+                    stm_entries,
+                    maxlen=self.cognitive_system.learning_engine.short_term_memory.maxlen
+                )
+                # Restore the cumulative observation counter so the dashboard is continuous
+                saved_count = short_term_data.get("observation_count", 0)
+                if saved_count > 0:
+                    self._observation_count = saved_count
+                logger.debug(f"Loaded {len(stm_entries)} short-term memory entries; observation_count restored to {self._observation_count}.")
 
         if self.milvus:
             # Milvus stores concept vectors. The concepts themselves are loaded from Postgres.

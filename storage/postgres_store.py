@@ -199,6 +199,12 @@ class PostgresStore:
             data JSONB
         );
 
+        -- Short-term memory table (learning engine rolling window + observation count)
+        CREATE TABLE IF NOT EXISTS short_term_memory (
+            id TEXT PRIMARY KEY,
+            data JSONB NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         -- Add indexes for new tables
         CREATE INDEX IF NOT EXISTS idx_facts_created_at ON facts(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cross_domain_mappings_source_target ON cross_domain_mappings(source_domain, target_domain);
@@ -614,6 +620,36 @@ class PostgresStore:
         except Exception as e:
             logger.error(f"Error loading caches: {e}")
             return {}
+
+    async def save_short_term_memory(self, data: Dict[str, Any]):
+        """Save the learning engine's short-term memory and observation count."""
+        if not self.pool:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO short_term_memory (id, data, updated_at)
+                    VALUES ('singleton', $1, CURRENT_TIMESTAMP)
+                    ON CONFLICT (id) DO UPDATE SET
+                        data = $1,
+                        updated_at = CURRENT_TIMESTAMP
+                """, json.dumps(data))
+        except Exception as e:
+            logger.error(f"Error saving short-term memory: {e}")
+
+    async def load_short_term_memory(self) -> Optional[Dict[str, Any]]:
+        """Load the learning engine's short-term memory and observation count."""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT data FROM short_term_memory WHERE id = 'singleton'")
+                if row:
+                    return json.loads(row["data"])
+                return None
+        except Exception as e:
+            logger.error(f"Error loading short-term memory: {e}")
+            return None
 
     async def save_gossip_event(self, event_id: str, node_id: str, event_type: str, data: Dict[str, Any]):
         """Save a gossip event for audit trail"""

@@ -550,6 +550,7 @@ class CognitiveMeshOrchestrator:
                 self._data_collection_loop(),
                 self._discovery_loop(),
                 self._metrics_reporter_loop(),
+                self._checkpoint_loop(),
             ]
             if self.network:
                 loops.append(self._gossip_loop())
@@ -693,6 +694,25 @@ class CognitiveMeshOrchestrator:
             except Exception as e:
                 logger.error(f"Error in metrics reporter: {e}")
                 await asyncio.sleep(10)
+
+    async def _checkpoint_loop(self):
+        """Periodically save all cognitive state to Postgres.
+
+        This is the safety net that ensures the mesh never loses more than
+        CHECKPOINT_INTERVAL seconds of learned state, even if Railway sends
+        SIGKILL without a SIGTERM grace period (e.g. OOM kill, hard redeploy).
+        Default: every 5 minutes.
+        """
+        checkpoint_interval = int(os.environ.get("CHECKPOINT_INTERVAL", 300))
+        logger.info(f"Checkpoint loop started — saving state every {checkpoint_interval}s")
+        await asyncio.sleep(checkpoint_interval)  # Skip first cycle (startup)
+        while self.running:
+            try:
+                await self.core.save_state()
+                logger.info("Periodic checkpoint saved.")
+            except Exception as e:
+                logger.error(f"Checkpoint save failed: {e}")
+            await asyncio.sleep(checkpoint_interval)
 
     async def _network_listener_loop(self):
         """Listen for incoming network messages"""

@@ -45,6 +45,27 @@ function startBackend() {
         console.error('[OpenClaw] Failed to start Python backend:', err);
     });
 
+    // ── CRITICAL: Forward SIGTERM/SIGINT to Python so save_state runs on Railway redeploy ──
+    // Railway sends SIGTERM to the Node process. Without forwarding, Python never receives it,
+    // save_state never runs, and the mesh loses ALL memory (concepts, rules, patterns, goals,
+    // observation history, short-term memory) on every redeploy or crash.
+    // We give Python 25 seconds to flush state to Postgres before Node exits.
+    let shuttingDown = false;
+    const forwardSignal = (sig) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        console.log(`[OpenClaw] Forwarding ${sig} to Python backend (PID ${pythonProcess.pid}) — waiting up to 25s for state save...`);
+        try { pythonProcess.kill(sig); } catch (e) { /* process already gone */ }
+        // Hard exit after 25s in case Python hangs during shutdown
+        setTimeout(() => {
+            console.log('[OpenClaw] Shutdown timeout reached — forcing exit.');
+            process.exit(0);
+        }, 25000).unref();
+    };
+
+    process.on('SIGTERM', () => forwardSignal('SIGTERM'));
+    process.on('SIGINT',  () => forwardSignal('SIGINT'));
+
     return pythonProcess;
 }
 
