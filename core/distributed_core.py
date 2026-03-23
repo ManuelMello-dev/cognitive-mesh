@@ -112,6 +112,9 @@ class DistributedCognitiveCore:
         self._introspection_baseline: Dict[str, Any] = {}
         self._introspection_history: deque = deque(maxlen=50)
 
+        # Activity log — rolling window of cognitive events shown in dashboard
+        self._activity_log: deque = deque(maxlen=200)
+
         # Toggles — runtime feature flags
         self._toggles: Dict[str, Any] = {
             "cognitive_loop": True,
@@ -611,6 +614,89 @@ class DistributedCognitiveCore:
                 except Exception as e:
                     logger.debug(f"Provider status error in cache: {e}")
 
+            # Build all missing fields that endpoints and dashboard expect
+            try:
+                concept_hierarchy = self.cognitive_system.get_concept_hierarchy_snapshot()
+            except Exception:
+                concept_hierarchy = {"nodes": [], "edges": [], "total_levels": 0}
+
+            try:
+                drift_events = self.cognitive_system.get_drift_events()
+            except Exception:
+                drift_events = []
+
+            try:
+                explanations = self.cognitive_system.get_explanations_snapshot()
+            except Exception:
+                explanations = []
+
+            try:
+                feature_importances = self.cognitive_system.get_feature_importances()
+            except Exception:
+                feature_importances = {}
+
+            try:
+                plans = self.cognitive_system.get_plans_snapshot()
+            except Exception:
+                plans = []
+
+            try:
+                pursuits = self.cognitive_system.get_pursuit_log()
+            except Exception:
+                pursuits = []
+
+            try:
+                transfer_suggestions = self.cognitive_system.get_transfer_suggestions_snapshot()
+            except Exception:
+                transfer_suggestions = []
+
+            try:
+                strategy_performance = self.cognitive_system.get_strategy_performance()
+            except Exception:
+                strategy_performance = {}
+
+            # Activity log for dashboard live feed
+            activity_log = list(self._activity_log)
+
+            # Prediction snapshot (structured for the predictions tab)
+            prediction_snapshot = {
+                "predictions": predictions,
+                "metrics": {
+                    "accuracy": prediction_insights.get('global_accuracy', 0),
+                    "total_validated": prediction_insights.get('total_validated', 0),
+                    "total_correct": prediction_insights.get('total_correct', 0),
+                    "phi": round(phi, 4),
+                    "sigma": round(sigma, 4),
+                },
+            }
+
+            # Learning snapshot
+            learning = {
+                "metrics": metrics,
+                "feature_importances": feature_importances,
+                "drift_events": drift_events,
+                "strategy_performance": strategy_performance,
+            }
+
+            # Orchestrator status
+            orchestrator_status = {
+                "status": "running" if self._running else "stopped",
+                "node_id": _node_id,
+                "uptime_seconds": round(time.time() - _start_time, 1),
+                "iteration": _observation_count,
+                "errors": _errors,
+                "toggles": _toggles,
+            }
+
+            # Introspection snapshot (cached from last self-reflection run)
+            introspection = self.get_introspection()
+
+            # Add examples to concepts (last 3 per concept for hypothesis generation)
+            for cid, concept in _raw_concept_items[:100]:
+                if cid in concepts:
+                    examples = getattr(concept, 'examples', [])
+                    concepts[cid]["examples"] = examples[-3:] if examples else []
+
             state = {
                 "metrics": metrics,
                 "concepts": concepts,
@@ -624,6 +710,21 @@ class DistributedCognitiveCore:
                 "providers": providers,
                 "toggles": _toggles,
                 "node_id": _node_id,
+                # Previously missing fields — now fully wired
+                "concept_hierarchy": concept_hierarchy,
+                "drift_events": drift_events,
+                "explanations": explanations,
+                "feature_importances": feature_importances,
+                "plans": plans,
+                "pursuits": pursuits,
+                "transfer_suggestions": transfer_suggestions,
+                "strategy_performance": strategy_performance,
+                "log": activity_log,
+                "prediction_snapshot": prediction_snapshot,
+                "learning": learning,
+                "orchestrator_status": orchestrator_status,
+                "introspection": introspection,
+                "_cache_warming": False,
             }
             with self._state_cache_lock:
                 self._state_cache = state
@@ -724,8 +825,10 @@ class DistributedCognitiveCore:
                                 if not isinstance(res, dict):
                                     logger.warning(f"process_observation returned unexpected type: {type(res)}. Expected dict.")
                                     res = {}
-                                
-                                                # Feed into prediction engine (domain-agnostic)
+                                # Log new concepts to activity log
+                                if res.get('new_concept'):
+                                    self._activity_log.append({"ts": time.time() * 1000, "msg": f"New concept formed: {res.get('concept_name', 'unknown')} (domain={domain})"})
+                                # Feed into prediction engine (domain-agnostic)
                                 self.prediction_engine.record_observation(obs, domain)
                             except Exception as e:
                                 self._errors += 1
@@ -756,6 +859,7 @@ class DistributedCognitiveCore:
                                     if after > before:
                                         self.cognitive_system.cognitive_metrics['rules_learned'] = after
                                         logger.info(f"Rule mining: {after - before} new rules (total={after})")
+                                        self._activity_log.append({"ts": time.time() * 1000, "msg": f"Rule mining: {after - before} new rules learned (total={after})"})
                                 except Exception as e:
                                     logger.error(f"Rule learning error: {e}")
 
@@ -771,6 +875,8 @@ class DistributedCognitiveCore:
                                 new_goals = self.cognitive_system.goals.generate_goals(ctx)
                                 if new_goals:
                                     logger.info(f"Goal formation: {len(new_goals)} new goals generated")
+                                    for g in new_goals[:3]:
+                                        self._activity_log.append({"ts": time.time() * 1000, "msg": f"Goal formed: {getattr(g, 'description', str(g))[:80]}"})
 
                                 # ── B. Genuine self-reflection: observe, compare, act ──
                                 self._run_self_reflection()
@@ -781,6 +887,7 @@ class DistributedCognitiveCore:
                     if iteration % 3000 == 0 and self._toggles.get('self_evolution', True):
                         try:
                             self._run_self_evolution()
+                            self._activity_log.append({"ts": time.time() * 1000, "msg": "Self-evolution cycle complete"})
                         except Exception as e:
                             logger.error(f"Error in self-evolution: {e}")
 

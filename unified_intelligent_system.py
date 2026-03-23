@@ -56,7 +56,7 @@ class DataStreamAdapter:
 class KnowledgeBase:
     """Persistent knowledge storage and retrieval"""
     
-    def __init__(self, persistence_path: str = "/home/claude/knowledge_base.json"):
+    def __init__(self, persistence_path: str = "/tmp/cognitive_mesh/knowledge_base.json"):
         self.persistence_path = persistence_path
         self.knowledge: Dict[str, Any] = {}
         self.insights: List[Dict[str, Any]] = []
@@ -297,10 +297,9 @@ class SelfEvolvingIntelligentSystem:
         
         logger.info("Starting code evolution...")
         
-        best_variant = self.code_evolver.evolve_code(
+        best_variant = self.code_evolver.evolve(
             component_code,
-            test_cases,
-            fitness_fn
+            test_cases
         )
         
         # Store evolved code
@@ -384,7 +383,8 @@ class SelfEvolvingIntelligentSystem:
         logger.info("Saving system state...")
         
         # Save learning engine
-        self.learning_engine.save_state('/home/claude/learning_state.pkl')
+        os.makedirs('/tmp/cognitive_mesh', exist_ok=True)
+        self.learning_engine.save_state('/tmp/cognitive_mesh/learning_state.pkl')
         
         # Save knowledge base
         self.knowledge_base.save()
@@ -401,7 +401,7 @@ class SelfEvolvingIntelligentSystem:
         
         try:
             # Load learning engine
-            self.learning_engine.load_state('/home/claude/learning_state.pkl')
+            self.learning_engine.load_state('/tmp/cognitive_mesh/learning_state.pkl')
             
             # Load knowledge base
             self.knowledge_base.load()

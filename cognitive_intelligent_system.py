@@ -190,14 +190,18 @@ class CognitiveIntelligentSystem:
         concept_id = self.abstraction.observe(observation)
         if concept_id:
             results['concept'] = concept_id
+            # Signal new concept for activity log
+            results['new_concept'] = concept_id not in self.active_concepts
+            concept_obj = self.abstraction.concepts.get(concept_id)
+            results['concept_name'] = getattr(concept_obj, 'name', concept_id) if concept_obj else concept_id
             self.cognitive_metrics['concepts_formed'] += 1
-            
-            # Add to per-ticker domain
+
+            # Add to per-entity domain
             self.cross_domain.add_concept_to_domain(domain, concept_id)
             self.active_concepts.add(concept_id)
-            
-            # Also add to meta-domain (crypto or stock)
-            meta = "crypto" if domain.startswith("crypto:") else "stock"
+
+            # Also add to meta-domain
+            meta = "crypto" if domain.startswith("crypto:") else ("stock" if domain.startswith("stock:") else "general")
             self.cross_domain.add_concept_to_domain(meta, concept_id)
         
         # 3. Extract RICH facts for reasoning

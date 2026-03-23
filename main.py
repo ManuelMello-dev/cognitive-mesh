@@ -551,6 +551,7 @@ class CognitiveMeshOrchestrator:
                 self._discovery_loop(),
                 self._metrics_reporter_loop(),
                 self._checkpoint_loop(),
+                self._pursuit_loop(),
             ]
             if self.network:
                 loops.append(self._gossip_loop())
@@ -694,6 +695,27 @@ class CognitiveMeshOrchestrator:
             except Exception as e:
                 logger.error(f"Error in metrics reporter: {e}")
                 await asyncio.sleep(10)
+
+    async def _pursuit_loop(self):
+        """Run the PursuitAgent cycle every 60 seconds to refine rules and execute goals."""
+        from agents.pursuit_agent import PursuitAgent
+        from agents.autonomous_reasoner import AutonomousReasoner
+        reasoner = AutonomousReasoner()
+        agent = PursuitAgent(core=self.core, pubsub=self.pubsub, reasoner=reasoner)
+        logger.info("PursuitAgent loop started")
+        await asyncio.sleep(60)  # Let the system warm up first
+        while self.running:
+            try:
+                await agent.run_pursuit_cycle()
+                # Flush pursuit log back to core activity log
+                for entry in agent.goal_history[-5:]:
+                    self.core._activity_log.append({
+                        "ts": entry.get("started", 0) * 1000,
+                        "msg": f"Pursuit: {entry.get('goal', '?')} [{entry.get('source', 'agent')}]"
+                    })
+            except Exception as e:
+                logger.error(f"Error in pursuit loop: {e}")
+            await asyncio.sleep(60)
 
     async def _checkpoint_loop(self):
         """Periodically save all cognitive state to Postgres.

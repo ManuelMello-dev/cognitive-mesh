@@ -239,6 +239,27 @@ class AbstractionEngine:
         key_attrs = sorted(list(attributes.keys()))[:2]
         return f"Pattern_{'_'.join(key_attrs)}"
 
+    def get_concept_hierarchy(self) -> Dict[str, Any]:
+        """Return a hierarchical view of all formed concepts for the dashboard."""
+        nodes = []
+        edges = []
+        for cid, concept in self.concepts.items():
+            nodes.append({
+                "id": cid,
+                "name": concept.name,
+                "level": concept.level,
+                "confidence": round(concept.confidence, 4),
+                "example_count": len(concept.examples),
+                "created_at": concept.created_at.isoformat(),
+            })
+            for parent_id in concept.parent_concepts:
+                edges.append({"from": parent_id, "to": cid})
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "total_levels": max((c.level for c in self.concepts.values()), default=0) + 1,
+        }
+
     def get_insights(self) -> Dict[str, Any]:
         """Return summary insights about the abstraction engine state."""
         total = len(self.concepts)
