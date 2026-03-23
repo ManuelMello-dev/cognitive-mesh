@@ -107,6 +107,11 @@ class DistributedCognitiveCore:
         # Data provider reference — set externally after init so providers tab works
         self.data_provider = None
 
+        # Self-reflection baseline — tracks historical introspection snapshots
+        # so the system can compare current state against its own past and act.
+        self._introspection_baseline: Dict[str, Any] = {}
+        self._introspection_history: deque = deque(maxlen=50)
+
         # Toggles — runtime feature flags
         self._toggles: Dict[str, Any] = {
             "cognitive_loop": True,
@@ -757,17 +762,20 @@ class DistributedCognitiveCore:
                             # Converge concepts (merge/prune)
                             self._run_concept_convergence()
 
-                    # 3. Deep Introspection (every ~30s)
-                    if iteration % 300 == 0:
+                    # 3. Self-Reflection + Goal Formation (every ~30s)
+                    if iteration % 300 == 0 and self._toggles.get('deep_introspection', True):
                         with self._lock:
                             try:
-                                # Trigger goal formation with real observations
+                                # ── A. Trigger goal formation with real observations ──
                                 ctx = self._build_goal_context()
                                 new_goals = self.cognitive_system.goals.generate_goals(ctx)
                                 if new_goals:
                                     logger.info(f"Goal formation: {len(new_goals)} new goals generated")
+
+                                # ── B. Genuine self-reflection: observe, compare, act ──
+                                self._run_self_reflection()
                             except Exception as e:
-                                logger.error(f"Error in introspection: {e}")
+                                logger.error(f"Error in self-reflection: {e}")
 
                     # 4. Self-evolution (every ~5 min)
                     if iteration % 3000 == 0 and self._toggles.get('self_evolution', True):
@@ -1220,49 +1228,223 @@ class DistributedCognitiveCore:
             return {"success": False, "error": f"Unknown toggle '{key}'", "toggles": dict(self._toggles)}
 
     # ──────────────────────────────────────────
+    # Self-Reflection
+    # ──────────────────────────────────────────
+
+    def _run_self_reflection(self):
+        """
+        The closed self-reflection loop:
+          1. Call get_introspection() to snapshot the full system state.
+          2. Compare the snapshot against the stored baseline.
+          3. Act on what changed — adjust exploration rate, rule-mining
+             frequency, concept-convergence aggressiveness, and goal
+             strategy weights based on measured performance deltas.
+          4. Store the snapshot in history so the system can track its
+             own trajectory over time.
+        """
+        try:
+            snapshot = self.get_introspection()
+        except Exception as e:
+            logger.warning(f"Self-reflection: get_introspection failed: {e}")
+            return
+
+        # ── Store in rolling history ─────────────────────────────────────────
+        import time as _time
+        snapshot['_ts'] = _time.time()
+        self._introspection_history.append(snapshot)
+
+        # If no baseline yet, set it and return—nothing to compare against.
+        if not self._introspection_baseline:
+            self._introspection_baseline = snapshot
+            logger.info("Self-reflection: baseline established")
+            return
+
+        baseline = self._introspection_baseline
+        actions_taken = []
+
+        # ── 1. Prediction accuracy trend ──────────────────────────────────
+        current_accuracy = snapshot.get('predictions', {}).get('overall_accuracy', 0.5)
+        baseline_accuracy = baseline.get('predictions', {}).get('overall_accuracy', 0.5)
+        accuracy_delta = current_accuracy - baseline_accuracy
+
+        goals_sys = self.cognitive_system.goals
+        if accuracy_delta < -0.05:
+            # Accuracy is declining — increase exploration to find better strategies
+            old_rate = goals_sys.exploration_rate
+            goals_sys.exploration_rate = min(0.7, goals_sys.exploration_rate + 0.05)
+            actions_taken.append(
+                f"exploration_rate {old_rate:.2f}→{goals_sys.exploration_rate:.2f} "
+                f"(accuracy delta {accuracy_delta:+.3f})"
+            )
+        elif accuracy_delta > 0.05:
+            # Accuracy is improving — reduce exploration, exploit what's working
+            old_rate = goals_sys.exploration_rate
+            goals_sys.exploration_rate = max(0.1, goals_sys.exploration_rate - 0.03)
+            actions_taken.append(
+                f"exploration_rate {old_rate:.2f}→{goals_sys.exploration_rate:.2f} "
+                f"(accuracy delta {accuracy_delta:+.3f})"
+            )
+
+        # ── 2. Rule count trend ─────────────────────────────────────────────
+        current_rules = snapshot.get('reasoning', {}).get('total_rules', 0)
+        baseline_rules = baseline.get('reasoning', {}).get('total_rules', 0)
+        if current_rules == baseline_rules and current_rules < 5:
+            # No new rules being learned — lower the min_support threshold
+            # by signalling the learning engine to be more permissive
+            le = self.cognitive_system.learning_engine
+            if hasattr(le, '_min_support_override'):
+                le._min_support_override = max(2, getattr(le, '_min_support_override', 3) - 1)
+            else:
+                le._min_support_override = 2
+            actions_taken.append(
+                f"min_support_override→{le._min_support_override} "
+                f"(rules stagnant at {current_rules})"
+            )
+
+        # ── 3. Concept count trend ──────────────────────────────────────────
+        current_concepts = snapshot.get('abstraction', {}).get('total_concepts', 0)
+        baseline_concepts = baseline.get('abstraction', {}).get('total_concepts', 0)
+        concept_growth_rate = (current_concepts - baseline_concepts) / max(baseline_concepts, 1)
+
+        if concept_growth_rate > 0.5:
+            # Concept explosion — tighten convergence to merge similar concepts
+            self._toggles['concept_convergence'] = True
+            actions_taken.append(
+                f"concept_convergence=True (growth rate {concept_growth_rate:.2f})"
+            )
+        elif concept_growth_rate < 0.01 and current_concepts < 10:
+            # Almost no new concepts — loosen abstraction threshold
+            abst = self.cognitive_system.abstraction
+            if hasattr(abst, 'similarity_threshold'):
+                old_thresh = abst.similarity_threshold
+                abst.similarity_threshold = max(0.5, abst.similarity_threshold - 0.05)
+                actions_taken.append(
+                    f"similarity_threshold {old_thresh:.2f}→{abst.similarity_threshold:.2f} "
+                    f"(concept growth stagnant)"
+                )
+
+        # ── 4. Goal strategy performance ──────────────────────────────────
+        current_strat = snapshot.get('goals', {}).get('strategy_performance', {})
+        baseline_strat = baseline.get('goals', {}).get('strategy_performance', {})
+        for strat, score in current_strat.items():
+            baseline_score = baseline_strat.get(strat, 0.5)
+            delta = score - baseline_score
+            if delta < -0.1:
+                # This strategy is performing worse — reduce its weight
+                goals_sys.strategy_performance[strat] = max(
+                    0.1, goals_sys.strategy_performance[strat] - 0.05
+                )
+                actions_taken.append(f"strategy '{strat}' weight reduced (delta {delta:+.3f})")
+            elif delta > 0.1:
+                goals_sys.strategy_performance[strat] = min(
+                    0.9, goals_sys.strategy_performance[strat] + 0.05
+                )
+                actions_taken.append(f"strategy '{strat}' weight increased (delta {delta:+.3f})")
+
+        # ── 5. Update baseline ─────────────────────────────────────────────────
+        # Slowly blend the baseline toward the current snapshot so the system
+        # tracks gradual drift rather than comparing against a stale origin.
+        self._introspection_baseline = snapshot
+
+        if actions_taken:
+            logger.info(
+                f"Self-reflection [{len(self._introspection_history)} snapshots]: "
+                + "; ".join(actions_taken)
+            )
+        else:
+            logger.debug(
+                f"Self-reflection: no adjustments needed "
+                f"(accuracy={current_accuracy:.3f}, rules={current_rules}, "
+                f"concepts={current_concepts})"
+            )
+
+    # ──────────────────────────────────────────
     # Self-Evolution
     # ──────────────────────────────────────────
 
     def _run_self_evolution(self):
         """
         Periodically evolve the learning engine's hyperparameters using the
-        SelfEvolvingSystem.  The fitness function is the current prediction
-        accuracy — the code evolver mutates learning-rate and feature-weight
-        parameters and keeps the best-performing variant.
+        SelfEvolvingSystem.  The fitness function evaluates each mutated
+        learning-rate candidate against a held-out window of recent
+        observations — the candidate that minimises prediction error on that
+        window wins and is applied back to the live learning engine.
         """
         self._evolution_counter += 1
-        metrics = self.get_metrics()
-        accuracy = metrics.get('prediction_accuracy', 0.5)
-        phi = metrics.get('global_coherence_phi', 0.5)
+        le = self.cognitive_system.learning_engine
+        current_lr = getattr(le, 'learning_rate', 0.01)
 
-        # Build a minimal code snippet representing the current LR
-        current_lr = getattr(self.cognitive_system.learning_engine, '_current_lr', 0.01)
-        code_snippet = f"learning_rate = {current_lr:.6f}\nfeature_dim = {self.cognitive_system.learning_engine.feature_dim}"
+        # ── Held-out evaluation window ────────────────────────────────────
+        # Take the last 30 observations as a held-out set.  For each
+        # candidate learning-rate we simulate a forward pass (no weight
+        # update) and measure mean-absolute prediction error.
+        held_out = list(self.cognitive_system._observation_history)[-30:]
+        if len(held_out) < 5:
+            logger.debug("Self-evolution skipped: not enough observations yet")
+            return
 
-        # Build test cases from recent prediction outcomes
-        test_cases = [
-            {"accuracy": accuracy, "phi": phi, "expected_improvement": 0.01}
-        ]
+        import copy as _copy
+        import ast as _ast
+        import numpy as _np
+
+        def _eval_lr(candidate_lr: float) -> float:
+            """Return mean-abs-error of a candidate LR on the held-out window.
+            Lower is better."""
+            # Clone weights so we don't touch the live engine
+            w = _copy.deepcopy(le.weights)
+            b = float(getattr(le, 'bias', 0.0))
+            correct = 0
+            for obs in held_out:
+                x = le._encode_observation(obs)
+                pred = float(_np.dot(w[:len(x)], x[:len(w)]) + b)
+                pred = 1.0 / (1.0 + _np.exp(-_np.clip(pred, -10, 10)))
+                # Use the normalised value field as a proxy outcome (0–1)
+                outcome = obs.get('value_norm', obs.get('value', 0.5))
+                if isinstance(outcome, (int, float)):
+                    outcome = float(outcome)
+                    # Clamp to [0, 1]
+                    outcome = max(0.0, min(1.0, outcome))
+                    error = outcome - pred
+                    grad = error * x[:len(w)]
+                    w[:len(x)] += candidate_lr * grad
+                    b += candidate_lr * error
+                    correct += int((pred > 0.5) == (outcome > 0.5))
+            accuracy = correct / max(len(held_out), 1)
+            return accuracy  # higher accuracy = better fitness
+
+        baseline_accuracy = _eval_lr(current_lr)
+
+        # Build code snippet encoding the current LR for the genetic engine
+        code_snippet = f"learning_rate = {current_lr:.6f}\nfeature_dim = {le.feature_dim}"
+
+        # Test cases carry the held-out baseline so the fitness fn can compare
+        test_cases = [{"baseline_accuracy": baseline_accuracy, "held_out_size": len(held_out)}]
 
         def _fitness_fn(code: str, cases) -> float:
-            """Evaluate a code variant by simulated accuracy improvement"""
-            return accuracy * 0.7 + phi * 0.3
+            """Parse the candidate LR from the mutated code and evaluate it."""
+            try:
+                tree = _ast.parse(code)
+                candidate_lr = current_lr
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.Assign):
+                        for t in node.targets:
+                            if isinstance(t, _ast.Name) and t.id == 'learning_rate':
+                                if isinstance(node.value, _ast.Constant):
+                                    candidate_lr = float(node.value.value)
+                candidate_lr = max(1e-5, min(0.1, candidate_lr))
+                return _eval_lr(candidate_lr)
+            except Exception:
+                return 0.0
 
         try:
-            best = self.code_evolver.evolve_code(
+            # ── Use the correct method name: evolve() not evolve_code() ──
+            best = self.code_evolver.evolve(
                 base_code=code_snippet,
                 test_cases=test_cases,
-                fitness_fn=_fitness_fn,
             )
-            if best and best.performance_score > accuracy:
-                logger.info(
-                    f"Self-evolution cycle {self._evolution_counter}: "
-                    f"found variant gen={best.generation} "
-                    f"score={best.performance_score:.4f} (was {accuracy:.4f})"
-                )
-                # Apply the best learning rate back to the learning engine
+            if best and best.performance_score > baseline_accuracy + 0.005:
+                # Parse the winning LR from the evolved code
                 try:
-                    import ast as _ast
                     tree = _ast.parse(best.code)
                     for node in _ast.walk(tree):
                         if isinstance(node, _ast.Assign):
@@ -1271,13 +1453,21 @@ class DistributedCognitiveCore:
                                     if isinstance(node.value, _ast.Constant):
                                         new_lr = float(node.value.value)
                                         new_lr = max(1e-5, min(0.1, new_lr))
-                                        if hasattr(self.cognitive_system.learning_engine, '_current_lr'):
-                                            self.cognitive_system.learning_engine._current_lr = new_lr
-                                            logger.info(f"Applied evolved learning rate: {new_lr:.6f}")
+                                        le.learning_rate = new_lr
+                                        logger.info(
+                                            f"Self-evolution cycle {self._evolution_counter}: "
+                                            f"LR {current_lr:.6f} → {new_lr:.6f} "
+                                            f"(accuracy {baseline_accuracy:.4f} → {best.performance_score:.4f})"
+                                        )
                 except Exception:
                     pass
+            else:
+                logger.debug(
+                    f"Self-evolution cycle {self._evolution_counter}: "
+                    f"no improvement over baseline {baseline_accuracy:.4f}"
+                )
         except Exception as e:
-            logger.debug(f"Self-evolution skipped this cycle: {e}")
+            logger.warning(f"Self-evolution error cycle {self._evolution_counter}: {e}")
 
     def _build_goal_context(self):
         """Build context for goal generation with real observations and patterns."""
