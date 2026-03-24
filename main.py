@@ -405,6 +405,15 @@ class CognitiveMeshOrchestrator:
         # Load cognitive state from persistence
         await self.core.load_state()
 
+        # Immediately hydrate the state cache from restored memory so the dashboard
+        # shows recalled concepts/rules/goals on the very first poll (not zeros).
+        # Without this, the first cache update is delayed ~5s into the cognitive loop.
+        try:
+            self.core._update_state_cache()
+            logger.info("State cache pre-hydrated from restored memory.")
+        except Exception as e:
+            logger.warning(f"State cache pre-hydration failed (non-critical): {e}")
+
         # Start the cognitive loop (background thread)
         self.core.start_cognitive_loop()
 

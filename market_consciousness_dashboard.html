@@ -258,7 +258,8 @@
 <!-- Loading overlay shown until first successful state fetch -->
 <div id="loadingOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0e27;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
     <div style="color:#00ff41;font-family:'Courier New',monospace;font-size:1.1rem;letter-spacing:2px;text-transform:uppercase;">Cognitive Mesh</div>
-    <div style="color:rgba(0,255,65,0.5);font-family:'Courier New',monospace;font-size:0.75rem;margin-top:12px;letter-spacing:1px;">Connecting to mesh...</div>
+    <div id="loadingSubtext" style="color:rgba(0,255,65,0.5);font-family:'Courier New',monospace;font-size:0.75rem;margin-top:12px;letter-spacing:1px;">Recalling memory...</div>
+    <div id="loadingMemStats" style="color:rgba(0,255,65,0.35);font-family:'Courier New',monospace;font-size:0.65rem;margin-top:8px;letter-spacing:1px;"></div>
     <div style="margin-top:20px;width:120px;height:2px;background:rgba(0,255,65,0.15);border-radius:2px;overflow:hidden;">
         <div style="height:100%;background:#00ff41;animation:loadbar 1.5s ease-in-out infinite;"></div>
     </div>
@@ -541,11 +542,30 @@
                 _consecutiveStateErrors = 0;
                 // Hide loading overlay once we have a successful response
                 const overlay = document.getElementById('loadingOverlay');
-                if (overlay) overlay.style.display = 'none';
+                const loadingSubtext = document.getElementById('loadingSubtext');
+                // If cache is still warming, keep the overlay up with a status message
+                if (state._cache_warming) {
+                    if (loadingSubtext) loadingSubtext.textContent = 'Recalling memory from Postgres...';
+                    // Show recalled memory stats so the user can see it's not starting fresh
+                    const loadingMemStats = document.getElementById('loadingMemStats');
+                    if (loadingMemStats) {
+                        const m = state.metrics || {};
+                        const nConcepts = Object.keys(state.concepts || {}).length;
+                        const nRules = Object.keys(state.rules || {}).length;
+                        const nGoals = Object.keys(state.goals || {}).length;
+                        const nObs = m.total_observations || 0;
+                        if (nConcepts + nRules + nGoals + nObs > 0) {
+                            loadingMemStats.textContent = `${nConcepts} concepts  ·  ${nRules} rules  ·  ${nGoals} goals  ·  ${nObs} observations`;
+                        }
+                    }
+                } else {
+                    // Cache is ready — hide the overlay and render the full state
+                    if (overlay) overlay.style.display = 'none';
+                }
                 globalState = state;
                 updateAllTabs(state);
                 // After a successful fetch, clear any error state so updateAllTabs can set the real state
-                if (consciousnessState && (consciousnessState.textContent === 'Connection Lost...' || consciousnessState.textContent === 'Connecting...')) {
+                if (!state._cache_warming && consciousnessState && (consciousnessState.textContent === 'Connection Lost...' || consciousnessState.textContent === 'Connecting...')) {
                     consciousnessState.textContent = 'Awaiting Mesh Activation...';
                     consciousnessState.className = 'consciousness-state';
                 }
@@ -567,6 +587,8 @@
 
         function updateAllTabs(state) {
             if (!state) return;
+            // During cache warm-up, skip clearing containers — don't show false zeros
+            const isWarming = !!state._cache_warming;
 
             // Overview Tab
             const mPhi = document.getElementById('mPhi');
@@ -632,7 +654,7 @@
             }
 
             const logContainer = document.getElementById('logContainer');
-            if (logContainer && state.log) {
+            if (logContainer && state.log && !isWarming) {
                 logContainer.innerHTML = '';
                 state.log.forEach(entry => {
                     const log = document.createElement('div');
@@ -655,7 +677,7 @@
 
             // Learning Tab — Concept Hierarchy
             const conceptContainer = document.getElementById('conceptContainer');
-            if (conceptContainer && state.concepts) {
+            if (conceptContainer && state.concepts && !isWarming) {
                 conceptContainer.innerHTML = '';
                 const conceptList = Object.values(state.concepts);
                 conceptList.forEach(c => {
@@ -688,7 +710,7 @@
 
             // Reasoning Tab
             const factContainer = document.getElementById('factContainer');
-            if (factContainer && state.facts) {
+            if (factContainer && state.facts && !isWarming) {
                 factContainer.innerHTML = '';
                 state.facts.forEach(f => {
                     const item = document.createElement('div');
@@ -698,7 +720,7 @@
                 });
             }
             const ruleContainer = document.getElementById('ruleContainer');
-            if (ruleContainer && state.rules) {
+            if (ruleContainer && state.rules && !isWarming) {
                 ruleContainer.innerHTML = '';
                 const ruleList = Object.values(state.rules);
                 ruleList.forEach(r => {
@@ -717,7 +739,7 @@
 
             // Cross-Domain Tab
             const analogyContainer = document.getElementById('analogyContainer');
-            if (analogyContainer && state.analogies) {
+            if (analogyContainer && state.analogies && !isWarming) {
                 analogyContainer.innerHTML = '';
                 state.analogies.forEach(a => {
                     const item = document.createElement('div');
@@ -729,7 +751,7 @@
 
             // Causal Tab
             const causalContainer = document.getElementById('causalContainer');
-            if (causalContainer && state.causal_graph) {
+            if (causalContainer && state.causal_graph && !isWarming) {
                 causalContainer.innerHTML = '';
                 const cg = state.causal_graph;
                 // causal_graph = { causal_links: [...], discovered_count: N }
@@ -759,7 +781,7 @@
 
             // Goals Tab
             const goalContainer = document.getElementById('goalContainer');
-            if (goalContainer && state.goals) {
+            if (goalContainer && state.goals && !isWarming) {
                 goalContainer.innerHTML = '';
                 const goalList = Object.values(state.goals);
                 goalList.forEach(g => {
