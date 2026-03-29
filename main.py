@@ -339,6 +339,30 @@ class CognitiveMeshOrchestrator:
             self.market_plugin = None
             logger.info("MarketPlugin disabled via DISABLE_MARKET_PLUGIN env var")
 
+        # ── Extended market-context plugins ───────────────────────────────
+        # Each plugin is optional — a failure to import or init never blocks startup.
+        # Disable any plugin via env var: DISABLE_<PLUGIN_NAME>_PLUGIN=1
+        _plugin_specs = [
+            ("SENTIMENT",      "agents.plugins.sentiment_plugin",      "SentimentPlugin"),
+            ("MACRO",          "agents.plugins.macro_plugin",          "MacroPlugin"),
+            ("ONCHAIN",        "agents.plugins.onchain_plugin",        "OnChainPlugin"),
+            ("NEWS",           "agents.plugins.news_plugin",           "NewsPlugin"),
+            ("DERIVATIVES",    "agents.plugins.derivatives_plugin",    "DerivativesPlugin"),
+            ("SOCIAL",         "agents.plugins.social_plugin",         "SocialPlugin"),
+            ("MICROSTRUCTURE", "agents.plugins.microstructure_plugin", "MicrostructurePlugin"),
+        ]
+        for _env_name, _module, _cls in _plugin_specs:
+            if os.getenv(f"DISABLE_{_env_name}_PLUGIN", "").lower() in ("1", "true", "yes"):
+                logger.info(f"{_cls} disabled via DISABLE_{_env_name}_PLUGIN env var")
+                continue
+            try:
+                import importlib
+                _mod = importlib.import_module(_module)
+                _plugin_cls = getattr(_mod, _cls)
+                self.plugins.append(_plugin_cls())
+            except Exception as _e:
+                logger.warning(f"{_cls} could not be loaded ({_e}) — skipping")
+
         # ── Core cognitive system ─────────────────────────────────────────
         self.core = DistributedCognitiveCore(node_id=self.node_id)
 
