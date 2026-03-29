@@ -56,12 +56,14 @@ class DistributedCognitiveCore:
         node_id: str = "core-0",
         postgres=None,
         milvus=None,
+        redis=None,
         network=None,
         pubsub=None
     ):
         self.node_id = node_id
         self.postgres = postgres
         self.milvus = milvus
+        self.redis = redis
         self.network = network
         self.pubsub = pubsub
 
@@ -247,11 +249,44 @@ class DistributedCognitiveCore:
             logger.debug(f"Saved {len(short_term_to_save['short_term_memory'])} short-term memory entries and observation_count={self._observation_count} to Postgres.")
 
         if self.milvus:
-            # Milvus stores concept vectors. The concepts themselves are saved in Postgres.
-            # We need to ensure that the Milvus store is populated with the vectors from the concepts.
-            # This might require iterating through the concepts and inserting them into Milvus if they are not already there.
-            # For now, I will assume that Milvus is kept in sync by the abstraction engine.
-            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+            # Sync concept vectors to Milvus so vector-similarity search stays current.
+            # Concepts are already saved to Postgres above; here we push their signatures
+            # as 128-dim vectors so the abstraction engine can do cross-domain recall.
+            try:
+                concepts_for_milvus = [
+                    {
+                        'concept_id': c.concept_id,
+                        'domain': list(c.parent_concepts)[0] if c.parent_concepts else 'general',
+                        'signature': {
+                            k: v.get('mean', 0.5) if isinstance(v, dict) else float(v)
+                            for k, v in c.attributes.items()
+                            if isinstance(v, (int, float, dict))
+                        },
+                        'confidence': c.confidence,
+                    }
+                    for c in self.cognitive_system.abstraction.concepts.values()
+                ]
+                stored = await self.milvus.bulk_store_concepts(concepts_for_milvus)
+                logger.debug(f"Synced {stored}/{len(concepts_for_milvus)} concept vectors to Milvus.")
+            except Exception as e:
+                logger.warning(f"Milvus concept sync skipped: {e}")
+
+        if self.redis:
+            # Push a lightweight state snapshot to Redis for fast cross-process reads.
+            # TTL = 10 minutes — refreshed on every checkpoint so it never goes stale.
+            try:
+                snapshot = {
+                    'node_id': self.node_id,
+                    'observation_count': self._observation_count,
+                    'total_concepts': len(self.cognitive_system.abstraction.concepts),
+                    'total_rules': len(self.cognitive_system.reasoning.rules),
+                    'total_goals': len(self.cognitive_system.goals.goals),
+                    'saved_at': time.time(),
+                }
+                await self.redis.set_gossip_state(snapshot, ttl=600)
+                logger.debug("State snapshot pushed to Redis.")
+            except Exception as e:
+                logger.warning(f"Redis state snapshot skipped: {e}")
 
         logger.info("Cognitive state saved.")
 
@@ -389,11 +424,37 @@ class DistributedCognitiveCore:
                 logger.debug(f"Loaded {len(stm_entries)} short-term memory entries; observation_count restored to {self._observation_count}.")
 
         if self.milvus:
-            # Milvus stores concept vectors. The concepts themselves are loaded from Postgres.
-            # We need to ensure that the Milvus store is populated with the vectors from the concepts.
-            # This might require iterating through the concepts and inserting them into Milvus if they are not already there.
-            # For now, I will assume that Milvus is kept in sync by the abstraction engine.
-            logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
+            # Re-populate Milvus with concept vectors loaded from Postgres.
+            # This ensures vector-similarity search works immediately after restart
+            # without waiting for the abstraction engine to re-encounter every concept.
+            try:
+                concepts_for_milvus = [
+                    {
+                        'concept_id': c.concept_id,
+                        'domain': list(c.parent_concepts)[0] if c.parent_concepts else 'general',
+                        'signature': {
+                            k: v.get('mean', 0.5) if isinstance(v, dict) else float(v)
+                            for k, v in c.attributes.items()
+                            if isinstance(v, (int, float, dict))
+                        },
+                        'confidence': c.confidence,
+                    }
+                    for c in self.cognitive_system.abstraction.concepts.values()
+                ]
+                if concepts_for_milvus:
+                    restored = await self.milvus.bulk_store_concepts(concepts_for_milvus)
+                    logger.info(f"Restored {restored}/{len(concepts_for_milvus)} concept vectors to Milvus from Postgres.")
+                    # Wire Milvus into the abstraction engine so future concepts are stored automatically
+                    self.cognitive_system.abstraction.milvus = self.milvus
+                    logger.debug("Milvus wired into AbstractionEngine for live concept storage.")
+            except Exception as e:
+                logger.warning(f"Milvus concept restore skipped: {e}")
+
+        # Always wire Milvus into the abstraction engine when available so that
+        # concepts formed after startup are automatically stored as vectors.
+        if self.milvus:
+            self.cognitive_system.abstraction.milvus = self.milvus
+            logger.debug("Milvus wired into AbstractionEngine.")
 
         logger.info("Cognitive state loaded.")
 

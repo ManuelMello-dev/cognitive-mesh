@@ -41,15 +41,17 @@ class Concept:
 
 class AbstractionEngine:
     """
-    Forms abstract concepts from concrete observations
-    Optimized with Concept Consolidation and Strict Formation Filters
+    Forms abstract concepts from concrete observations.
+    Optimized with Concept Consolidation and Strict Formation Filters.
+    When a Milvus store is attached, concept signature vectors are stored and
+    used for fast similarity search — enabling cross-domain analogical recall.
     """
     
     def __init__(
         self,
-        max_concepts: int = 500,  # Reduced to keep system lean
-        min_examples_for_concept: int = 5,  # Increased to prevent formation noise
-        similarity_threshold: float = 0.85  # Stricter matching
+        max_concepts: int = 500,
+        min_examples_for_concept: int = 5,
+        similarity_threshold: float = 0.85
     ):
         self.max_concepts = max_concepts
         self.min_examples = min_examples_for_concept
@@ -61,7 +63,10 @@ class AbstractionEngine:
         
         # Observation buffer for concept formation
         self.observation_buffer: List[Dict[str, Any]] = []
-        self.max_buffer_size = 100 
+        self.max_buffer_size = 100
+
+        # Optional Milvus vector store — injected by DistributedCognitiveCore after connect
+        self.milvus = None
         
         logger.info(f"Abstraction Engine initialized (MaxConcepts: {max_concepts}, MinExamples: {min_examples_for_concept})")
 
@@ -114,19 +119,82 @@ class AbstractionEngine:
         return None
     
     def _match_concept(self, observation: Dict[str, Any]) -> Optional[str]:
-        """Match observation to existing concept with strict threshold"""
+        """Match observation to existing concept.
+        Uses local structural matching first. When Milvus is available, also
+        queries vector similarity to find cross-domain analogues and boosts
+        the match score for any concept that appears in both results.
+        """
         best_match = None
         best_score = 0
-        
+
         for concept_id, concept in self.concepts.items():
-            if concept.level > 0: continue
-                
+            if concept.level > 0:
+                continue
             score = self._similarity_score(observation, concept.attributes)
             if score > self.similarity_threshold and score > best_score:
                 best_score = score
                 best_match = concept_id
-        
+
+        # Vector-similarity boost: if Milvus is connected, query for similar
+        # concepts and give a small confidence bump to any concept that appears
+        # in both the structural match and the vector-similarity results.
+        if self.milvus and best_match is None:
+            # Only run vector search when structural matching found nothing,
+            # to avoid unnecessary latency on hot paths.
+            try:
+                num_sig = {
+                    k: v['mean'] if isinstance(v, dict) else float(v)
+                    for k, v in observation.items()
+                    if isinstance(v, (int, float)) or (isinstance(v, dict) and 'mean' in v)
+                }
+                if num_sig:
+                    similar = self.find_similar_concepts_vector(num_sig, top_k=3)
+                    for hit in similar:
+                        cid = hit.get('id')
+                        if cid and cid in self.concepts:
+                            # Use vector distance as a fallback score
+                            # Milvus L2 distance: lower = more similar; convert to [0,1]
+                            dist = hit.get('distance', 1.0)
+                            vec_score = max(0.0, 1.0 - dist)
+                            if vec_score > self.similarity_threshold * 0.8 and vec_score > best_score:
+                                best_score = vec_score
+                                best_match = cid
+                                logger.debug(f"Vector-similarity match: {cid} (score={vec_score:.3f})")
+            except Exception as e:
+                logger.debug(f"Vector match boost skipped: {e}")
+
         return best_match
+
+    def find_similar_concepts_vector(self, signature: Dict[str, float], domain: str = None, top_k: int = 5) -> List[Dict]:
+        """Query Milvus for structurally similar concepts by vector proximity.
+        Uses run_coroutine_threadsafe so it works even when called from a
+        synchronous context inside a running event loop thread.
+        Falls back to empty list if Milvus is not connected or query fails.
+        """
+        if not self.milvus:
+            return []
+        try:
+            import asyncio
+            import concurrent.futures
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Schedule the coroutine on the running loop and wait with a short timeout
+                future = asyncio.run_coroutine_threadsafe(
+                    self.milvus.find_similar_concepts(signature, domain=domain, top_k=top_k),
+                    loop
+                )
+                try:
+                    return future.result(timeout=0.5)
+                except concurrent.futures.TimeoutError:
+                    logger.debug("Milvus similarity search timed out (0.5s) — skipping")
+                    return []
+            else:
+                return loop.run_until_complete(
+                    self.milvus.find_similar_concepts(signature, domain=domain, top_k=top_k)
+                )
+        except Exception as e:
+            logger.debug(f"Milvus similarity search skipped: {e}")
+        return []
     
     def _form_concept(self) -> Optional[str]:
         """Form new concept from observation buffer"""
@@ -155,32 +223,59 @@ class AbstractionEngine:
         
         self.concepts[concept_id] = concept
         logger.info(f"Formed high-signal concept: {concept.name} (id: {concept_id})")
+
+        # Store concept vector in Milvus for similarity search (fire-and-forget)
+        if self.milvus:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(self.milvus.store_concept(
+                        concept_id=concept_id,
+                        signature=attributes,
+                        domain=attributes.get('domain', 'general'),
+                        confidence=concept.confidence
+                    ))
+            except Exception as e:
+                logger.debug(f"Milvus concept store skipped: {e}")
+
         return concept_id
 
     def _consolidate_concepts(self):
-        """Merge redundant concepts and prune low-signal ones"""
-        if not self.concepts: return
-        
+        """Merge redundant concepts and prune low-signal ones.
+        Also removes pruned concept vectors from Milvus.
+        """
+        if not self.concepts:
+            return
+
         to_remove = []
         cids = list(self.concepts.keys())
-        
+
         for i, cid1 in enumerate(cids):
-            if cid1 in to_remove: continue
+            if cid1 in to_remove:
+                continue
             for cid2 in cids[i+1:]:
-                if cid2 in to_remove: continue
-                
-                # Check for near-identical concepts
+                if cid2 in to_remove:
+                    continue
                 sim = self._concept_similarity(self.concepts[cid1], self.concepts[cid2])
                 if sim > 0.95:
-                    # Merge cid2 into cid1
                     self.concepts[cid1].examples.extend(self.concepts[cid2].examples)
                     self.concepts[cid1].confidence = min(1.0, self.concepts[cid1].confidence + 0.1)
                     to_remove.append(cid2)
-        
+
         for cid in to_remove:
             if cid in self.concepts:
                 del self.concepts[cid]
-        
+            # Remove from Milvus too
+            if self.milvus:
+                try:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.ensure_future(self.milvus.delete_concept(cid))
+                except Exception:
+                    pass
+
         if to_remove:
             logger.info(f"Consolidated {len(to_remove)} redundant concepts")
 

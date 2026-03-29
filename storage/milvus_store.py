@@ -218,6 +218,58 @@ class MilvusStore:
             logger.error(f"Error loading mappings from Milvus: {e}")
             return []
 
+    async def store_concept(self, concept_id: str, signature: Dict[str, float],
+                             domain: str = 'general', confidence: float = 0.5) -> bool:
+        """Alias for insert_concept used by AbstractionEngine."""
+        import time
+        return await self.insert_concept(
+            concept_id=concept_id,
+            domain=domain,
+            signature=signature,
+            confidence=confidence,
+            timestamp=time.time()
+        )
+
+    async def find_similar_concepts(self, signature: Dict[str, float],
+                                    domain: str = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Alias for search_similar_concepts used by AbstractionEngine."""
+        return await self.search_similar_concepts(signature, domain=domain, top_k=top_k)
+
+    async def delete_concept(self, concept_id: str) -> bool:
+        """Delete a concept vector from Milvus by ID."""
+        if not self.connected:
+            return False
+        try:
+            collection = self.Collection(self.collection_name)
+            collection.delete(f'id == "{concept_id}"')
+            logger.debug(f"Deleted concept {concept_id} from Milvus")
+            return True
+        except Exception as e:
+            logger.debug(f"Milvus delete_concept error: {e}")
+            return False
+
+    async def bulk_store_concepts(self, concepts: List[Dict]) -> int:
+        """Bulk insert concepts into Milvus on startup (called from load_state).
+        Each dict must have: concept_id, signature, domain, confidence.
+        Returns number of successfully inserted concepts.
+        """
+        if not self.connected:
+            return 0
+        import time
+        count = 0
+        for c in concepts:
+            ok = await self.insert_concept(
+                concept_id=c.get('concept_id', c.get('id', '')),
+                domain=c.get('domain', 'general'),
+                signature=c.get('signature', c.get('attributes', {})),
+                confidence=c.get('confidence', 0.5),
+                timestamp=time.time()
+            )
+            if ok:
+                count += 1
+        logger.info(f"Bulk-stored {count}/{len(concepts)} concepts in Milvus")
+        return count
+
     async def disconnect(self):
         """Close Milvus connection"""
         if self.connected:
