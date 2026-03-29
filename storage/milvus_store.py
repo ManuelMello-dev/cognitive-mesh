@@ -18,7 +18,8 @@ class MilvusStore:
     """
     
     def __init__(self, host: str = None, port: int = 19530):
-        self.host = host or os.getenv("MILVUS_HOST", "localhost")
+        # Only connect when explicitly configured — never fall back to localhost
+        self.host = host or os.getenv("MILVUS_HOST")  # None = not configured, skip connection
         self.port = port
         self.collection_name = "concepts"
         self.client = None

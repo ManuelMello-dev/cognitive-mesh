@@ -675,7 +675,8 @@ class MultiSourceDataProvider:
         logger.info(f"  Stock cascade:  {', '.join(active_stock)} ({len(active_stock)} active)")
         logger.info(f"  Crypto cascade: {', '.join(active_crypto)} ({len(active_crypto)} active)")
         if disabled_stock:
-            logger.warning(f"  Disabled (no key): {', '.join(disabled_stock)}")
+            # These are optional paid-API providers — expected to be absent on Railway
+            logger.debug(f"  Optional providers not configured (no key): {', '.join(disabled_stock)}")
 
     def _get_provider_sema(self, name: str) -> asyncio.Semaphore:
         """Get or create per-provider semaphore."""

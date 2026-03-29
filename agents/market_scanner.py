@@ -223,9 +223,10 @@ class MarketScanner:
                             symbols.add(symbol)
                     logger.info(f"Binance top: discovered {len(symbols)} symbols")
                 else:
-                    logger.warning(f"Binance top returned {resp.status}")
+                    # 451 = geo-restriction on Railway US region; other sources cover this
+                    logger.debug(f"Binance top returned {resp.status} — skipping")
         except Exception as e:
-            logger.warning(f"Binance top scan failed: {e}")
+            logger.debug(f"Binance top scan skipped: {e}")
         return symbols
 
     # ──────────────────────────────────────────
