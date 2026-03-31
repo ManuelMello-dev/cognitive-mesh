@@ -808,6 +808,9 @@ class DistributedCognitiveCore:
             coord_state = self.coordinator.get_state_dict()
 
             # Merge runtime scalars the coordinator doesn't own
+            # coordinator.get_state_dict() does not include a 'metrics' key — initialise it here
+            if "metrics" not in coord_state:
+                coord_state["metrics"] = {}
             coord_state["metrics"]["total_observations"] = self._observation_count
             coord_state["metrics"]["pending_observations"] = len(self._pending_observations)
             coord_state["metrics"]["errors"] = self._errors

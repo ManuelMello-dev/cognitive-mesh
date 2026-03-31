@@ -226,6 +226,11 @@ class MarketPlugin(DataPlugin):
             new_stocks = discovered.get("stocks", set())
             if new_crypto:
                 self._crypto_symbols.update(new_crypto)
+                # Register with the provider so newly-discovered crypto symbols
+                # (HYPE, PENGU, BASED, etc.) are never routed through the stock
+                # cascade and don't trip ORTEX's circuit breaker.
+                if self._provider and hasattr(self._provider, 'register_crypto_symbols'):
+                    self._provider.register_crypto_symbols(new_crypto)
                 logger.info(f"MarketPlugin: discovered {len(new_crypto)} crypto symbols")
             if new_stocks:
                 self._stock_symbols.update(new_stocks)

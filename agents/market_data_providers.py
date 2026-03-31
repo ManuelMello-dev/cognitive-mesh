@@ -326,6 +326,9 @@ class OrtexProvider(BaseProvider):
 
     def __init__(self):
         super().__init__()
+        # Paid provider — raise circuit breaker threshold so transient startup
+        # failures (e.g. first 3 symbols not on NASDAQ) don't lock it out.
+        self.breaker.failure_threshold = 6
         # Try all known variable names if the primary one is empty
         if not self.api_key:
             for var in self._KEY_FALLBACKS:
@@ -628,6 +631,12 @@ class MultiSourceDataProvider:
     }
 
     def __init__(self):
+        # Dynamic set of symbols confirmed to be crypto by the scanner.
+        # Populated via register_crypto_symbols() when scanner returns results.
+        # Prevents newly-discovered crypto (HYPE, PENGU, BASED, etc.) from
+        # being routed through the stock cascade and tripping ORTEX's circuit.
+        self._dynamic_crypto: set = set()
+
         # Stock providers — order = priority
         # ORTEX is positioned 3rd: after free providers (Yahoo, CNBC) but
         # before other paid providers, so it acts as the primary paid fallback.
@@ -691,8 +700,16 @@ class MultiSourceDataProvider:
             self._batch_sema = asyncio.Semaphore(self.BATCH_CONCURRENCY)
         return self._batch_sema
 
+    def register_crypto_symbols(self, symbols) -> None:
+        """Register symbols confirmed as crypto by the scanner.
+        Call this whenever the scanner returns new crypto symbols so they are
+        never accidentally routed through the stock (ORTEX) cascade.
+        """
+        self._dynamic_crypto.update(s.upper() for s in symbols)
+
     def is_crypto(self, symbol: str) -> bool:
-        return symbol.upper() in _KNOWN_CRYPTO
+        s = symbol.upper()
+        return s in _KNOWN_CRYPTO or s in self._dynamic_crypto
 
     async def fetch(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch a single symbol through the circuit breaker cascade."""
