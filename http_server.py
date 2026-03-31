@@ -30,6 +30,8 @@ from agents.llm_interpreter import LLMInterpreter
 from agents.market_eeg import MarketEEG
 from agents.autonomous_reasoner import AutonomousReasoner
 from config.config import Config
+# Mesh architecture — Output Layer is the ONLY node that produces natural language
+from output_layer import OutputLayer
 
 logger = logging.getLogger("HttpServer")
 
@@ -72,18 +74,27 @@ async def handle_dashboard(request):
 # ──────────────────────────────────────────────
 
 async def handle_chat(request):
-    """Interpretive chat endpoint for direct GPT interaction"""
+    """Output Layer endpoint — the ONLY node that produces natural language (Mesh Principle 7)"""
     try:
         data = await request.json()
         message = data.get("message", "")
         history = data.get("history", [])
+        render_mode = data.get("mode", "chat")  # chat | summary | status | analysis
 
-        interpreter = request.app.get('interpreter')
-        if not interpreter:
-            return web.json_response({"error": "Interpreter not initialized"}, status=503)
+        output_layer = request.app.get('output_layer')
+        if not output_layer:
+            return web.json_response({"error": "Output layer not initialized"}, status=503)
 
-        response = await interpreter.chat(message, history)
-        return web.json_response({"response": response})
+        if render_mode == "summary":
+            response = await output_layer.render_summary()
+        elif render_mode == "status":
+            response = await output_layer.render_status()
+        elif render_mode == "analysis":
+            response = await output_layer.render_analysis(message)
+        else:
+            response = await output_layer.render_chat(message, history)
+
+        return web.json_response({"response": response, "mode": render_mode})
     except Exception as e:
         logger.error(f"Chat error: {e}")
         return web.json_response({"error": str(e)}, status=500)
@@ -549,7 +560,8 @@ async def start_http_server(core=None, data_provider=None):
 
     if core:
         app['core'] = core
-        app['interpreter'] = LLMInterpreter(core)
+        app['interpreter'] = LLMInterpreter(core)  # kept for legacy /api/ingest
+        app['output_layer'] = OutputLayer(core.coordinator)  # Mesh Principle 7: single output node
         app["reasoner"] = AutonomousReasoner(core)
         app["eeg"] = MarketEEG(core)
     if data_provider:

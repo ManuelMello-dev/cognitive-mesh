@@ -32,6 +32,9 @@ from continuous_learning_engine import Pattern, LearningMetrics
 from cognitive_intelligent_system import CognitiveIntelligentSystem
 from prediction_validation_engine import PredictionValidationEngine
 from config.config import Config
+# Mesh architecture — Coordinator and contracts
+from coordinator import MeshCoordinator
+from contracts import EEGOutput
 
 logger = logging.getLogger("DistributedCore")
 
@@ -70,6 +73,8 @@ class DistributedCognitiveCore:
         # Core Engines
         self.cognitive_system = CognitiveIntelligentSystem(system_id=node_id)
         self.prediction_engine = PredictionValidationEngine()
+        # Mesh Coordinator — the Z³ anchor (Principle 3 & 4)
+        self.coordinator = MeshCoordinator()
 
         # Self-evolution engine (reactivated)
         from self_writing_engine import SelfEvolvingSystem
@@ -793,6 +798,53 @@ class DistributedCognitiveCore:
         except Exception as e:
             logger.error(f"Error updating state cache: {e}", exc_info=True)
 
+    def _update_coordinator_cache(self):
+        """Rebuild the state cache from the Coordinator's Z³ state dict.
+        Merges coordinator state with runtime scalars and provider status.
+        Called by the cognitive loop every 5s — never called from HTTP handlers.
+        """
+        try:
+            # Get the coordinator's structured state dict
+            coord_state = self.coordinator.get_state_dict()
+
+            # Merge runtime scalars the coordinator doesn't own
+            coord_state["metrics"]["total_observations"] = self._observation_count
+            coord_state["metrics"]["pending_observations"] = len(self._pending_observations)
+            coord_state["metrics"]["errors"] = self._errors
+            coord_state["metrics"]["uptime_seconds"] = round(time.time() - self._start_time, 1)
+            coord_state["metrics"]["last_observation_time"] = self._last_observation_time
+            coord_state["metrics"]["cognitive_loop_running"] = self._running
+            coord_state["metrics"]["concepts_merged"] = self._concepts_merged
+            coord_state["metrics"]["concepts_pruned"] = self._concepts_pruned
+
+            # Provider status (data plane, not cognitive plane)
+            providers = {}
+            if self.data_provider:
+                try:
+                    raw_status = self.data_provider.get_provider_status()
+                    all_providers = raw_status.get('stock', []) + raw_status.get('crypto', [])
+                    for p in all_providers:
+                        name = p.get('name', '?')
+                        providers[name] = {
+                            "name": name,
+                            "status": p.get('state', 'unknown'),
+                            "assets_tracked": p.get('failures', 0),
+                            "latency_ms": 0,
+                        }
+                except Exception as e:
+                    logger.debug(f"Provider status error in cache: {e}")
+            coord_state["providers"] = providers
+            coord_state["toggles"] = dict(self._toggles)
+            coord_state["node_id"] = self.node_id
+
+            with self._state_cache_lock:
+                self._state_cache = coord_state
+                self._state_cache_ready = True
+        except Exception as e:
+            logger.error(f"Error updating coordinator cache: {e}", exc_info=True)
+            # Fall back to old _update_state_cache if coordinator fails
+            self._update_state_cache()
+
     def get_cached_state(self) -> Dict[str, Any]:
         """Return the pre-computed state cache.
         NEVER acquires self._lock — always returns immediately.
@@ -881,25 +933,92 @@ class DistributedCognitiveCore:
                     if batch:
                         for obs, domain in batch:
                             try:
-                                # Process through cognitive engines
-                                res = self.cognitive_system.process_observation(obs, domain)
-                                if not isinstance(res, dict):
-                                    logger.warning(f"process_observation returned unexpected type: {type(res)}. Expected dict.")
-                                    res = {}
-                                # Log new concepts to activity log
-                                if res.get('new_concept'):
-                                    self._activity_log.append({"ts": time.time() * 1000, "msg": f"New concept formed: {res.get('concept_name', 'unknown')} (domain={domain})"})
-                                # Feed into prediction engine (domain-agnostic)
-                                self.prediction_engine.record_observation(obs, domain)
+                                # ── Mesh Pipeline: each module processes independently ──
+                                cs = self.cognitive_system
+
+                                # Module 1: Abstraction
+                                abstractions = []
+                                try:
+                                    ab_out = cs.abstraction.observe(obs, domain)
+                                    if ab_out:
+                                        abstractions = [ab_out]
+                                except Exception as e:
+                                    logger.debug(f"Abstraction error: {e}")
+
+                                # Module 2: Reasoning
+                                rules_out = []
+                                try:
+                                    rules_out = cs.reasoning.get_rules_as_outputs() if hasattr(cs.reasoning, 'get_rules_as_outputs') else []
+                                except Exception as e:
+                                    logger.debug(f"Reasoning error: {e}")
+
+                                # Module 3: Prediction
+                                predictions_out = []
+                                try:
+                                    self.prediction_engine.record_observation(obs, domain)
+                                    predictions_out = self.prediction_engine.get_active_predictions_as_outputs()
+                                except Exception as e:
+                                    logger.debug(f"Prediction error: {e}")
+
+                                # Module 4: EEG (sampled every 10 obs to avoid overhead)
+                                eeg_out = None
+                                if self._observation_count % 10 == 0:
+                                    try:
+                                        raw_eeg = cs.eeg_analyzer.get_eeg_data() if hasattr(cs, 'eeg_analyzer') else {}
+                                        if raw_eeg:
+                                            eeg_out = EEGOutput(
+                                                phi=raw_eeg.get('phi', 0.5),
+                                                sigma=raw_eeg.get('sigma', 0.5),
+                                                dominant_frequency=raw_eeg.get('dominant_frequency', 'gamma'),
+                                                band_power=raw_eeg.get('band_power', {}),
+                                                phase_lock_pairs=raw_eeg.get('phase_lock_pairs', []),
+                                                attention_score=raw_eeg.get('attention_score', 0.5),
+                                                coherence_map=raw_eeg.get('coherence_map', {}),
+                                            )
+                                    except Exception as e:
+                                        logger.debug(f"EEG error: {e}")
+
+                                # Module 5: Cross-domain
+                                transfers_out = []
+                                try:
+                                    transfers_out = cs.cross_domain.get_transfers_as_outputs() if hasattr(cs.cross_domain, 'get_transfers_as_outputs') else []
+                                except Exception as e:
+                                    logger.debug(f"Cross-domain error: {e}")
+
+                                # Module 6: Goals
+                                goals_out = []
+                                try:
+                                    goals_out = cs.goals.get_active_goals_as_outputs() if hasattr(cs.goals, 'get_active_goals_as_outputs') else []
+                                except Exception as e:
+                                    logger.debug(f"Goals error: {e}")
+
+                                # Module 7: Learning
+                                learning_out = []
+                                try:
+                                    cs.learning_engine.process_observation(obs)
+                                    learning_out = cs.learning_engine.get_patterns_as_outputs() if hasattr(cs.learning_engine, 'get_patterns_as_outputs') else []
+                                except Exception as e:
+                                    logger.debug(f"Learning error: {e}")
+
+                                # ── Coordinator: collect all outputs, update Z³ state ──
+                                self.coordinator.coordinate(
+                                    abstractions=abstractions,
+                                    rules=rules_out,
+                                    predictions=predictions_out,
+                                    eeg=eeg_out,
+                                    cross_domain_transfers=transfers_out,
+                                    active_goals=goals_out,
+                                    learning_patterns=learning_out,
+                                )
+
                             except Exception as e:
                                 self._errors += 1
                                 logger.error(f"Error processing observation: {e}")
 
                     # 1b. Update state cache every 5s OR if queue is large
-                    # Only update if we've actually processed something new
                     now = time.time()
                     if (now - last_cache_update > 5.0) or (queue_size > 100 and iteration % 20 == 0):
-                        self._update_state_cache()
+                        self._update_coordinator_cache()
                         last_cache_update = now
 
                     # 2. Perform periodic maintenance (every ~10s)

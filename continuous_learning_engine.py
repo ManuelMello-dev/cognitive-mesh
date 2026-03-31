@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from collections import deque, defaultdict
 import json
 import pickle
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from contracts import LearningOutput
 
 logger = logging.getLogger(__name__)
 
@@ -348,6 +351,22 @@ class ContinuousLearningEngine:
             'drift_events': list(self.drift_events)[-20:],
             'lr_history': list(self._current_lr_history)[-20:],
         }
+
+    def get_patterns_as_outputs(self) -> List[LearningOutput]:
+        """Return top patterns as structured LearningOutput contracts."""
+        outputs = []
+        last_drift = self.drift_events[-1].get('action', 'lr_increase') if self.drift_events else ''
+        drift_detected = len(self.drift_events) > 0
+        for p in sorted(self.long_term_patterns.values(), key=lambda x: x.hit_count, reverse=True)[:20]:
+            outputs.append(LearningOutput(
+                pattern_id=p.pattern_id,
+                features=list(self.feature_names[:len(p.centroid)]) if self.feature_names else [],
+                strength=p.confidence,
+                hit_count=p.hit_count,
+                drift_detected=drift_detected,
+                adaptation_applied=last_drift,
+            ))
+        return outputs
 
     def save_state(self, filepath: str):
         """Save engine state to disk"""

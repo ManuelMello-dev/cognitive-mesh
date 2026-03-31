@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from collections import defaultdict, deque
 from enum import Enum
 import json
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from contracts import ReasoningOutput
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +186,7 @@ class ReasoningEngine:
         
         self.rules[rule_id] = rule
         self._rule_signatures.add(sig)
-        logger.info(f"Added rule: {rule}")
+        logger.debug(f"Added rule: {rule}")
         
         return rule_id
     
@@ -625,7 +628,7 @@ class ReasoningEngine:
             logger.info(f"Pruned {len(to_remove)} weak rules")
     
     def get_insights(self) -> Dict[str, Any]:
-        """Get reasoning engine insights"""
+        """Structured snapshot for the coordinator."""
         return {
             'total_facts': len(self.facts),
             'total_rules': len(self.rules),
@@ -634,6 +637,19 @@ class ReasoningEngine:
             'avg_rule_confidence': float(np.mean([r.confidence for r in self.rules.values()]))
             if self.rules else 0
         }
+
+    def get_rules_as_outputs(self) -> List[ReasoningOutput]:
+        """Return all rules as structured ReasoningOutput contracts."""
+        return [
+            ReasoningOutput(
+                rule_id=r.rule_id,
+                antecedents=list(r.antecedents),
+                consequent=r.consequent,
+                confidence=r.confidence,
+                support_count=r.support_count,
+            )
+            for r in self.rules.values()
+        ]
     
     def save_state(self, filepath: str):
         """Save reasoning state"""

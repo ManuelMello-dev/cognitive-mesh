@@ -10,6 +10,10 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict, Counter
 import json
+try:
+    from core.contracts import AbstractionOutput
+except ImportError:
+    AbstractionOutput = None
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +89,11 @@ class AbstractionEngine:
             }
         return result
 
-    def observe(self, observation: Dict[str, Any]) -> Optional[str]:
-        """Process observation and potentially form concepts"""
+    def observe(self, observation: Dict[str, Any], domain: str = "general") -> Optional[Any]:
+        """Process observation and potentially form concepts.
+        Returns AbstractionOutput contract if a concept was matched or formed,
+        otherwise returns None. Falls back to str if contracts not available.
+        """
         self.observation_buffer.append(observation)
         if len(self.observation_buffer) > self.max_buffer_size:
             self.observation_buffer = self.observation_buffer[-self.max_buffer_size:]
@@ -94,28 +101,43 @@ class AbstractionEngine:
         # 1. Match existing concept
         matched_concept = self._match_concept(observation)
         
+        def _wrap(cid: str, is_new: bool):
+            """Wrap a concept id in an AbstractionOutput contract if available."""
+            if AbstractionOutput is None:
+                return cid
+            concept = self.concepts.get(cid)
+            if concept is None:
+                return cid
+            return AbstractionOutput(
+                concept_id=cid,
+                concept_name=concept.name,
+                domain=domain,
+                confidence=concept.confidence,
+                attributes=dict(concept.attributes) if concept.attributes else {},
+                is_new=is_new,
+                abstraction_level=concept.level,
+            )
+
         if matched_concept:
             # Add to concept's examples
             self.concepts[matched_concept].examples.append(observation)
             if len(self.concepts[matched_concept].examples) > 20:
                 self.concepts[matched_concept].examples = self.concepts[matched_concept].examples[-20:]
-            
             self.concepts[matched_concept].confidence = min(
                 1.0,
                 self.concepts[matched_concept].confidence + 0.02
             )
-            return matched_concept
-        
+            return _wrap(matched_concept, is_new=False)
+
         # 2. Form new concept (only if buffer is full and we have high signal)
         if len(self.observation_buffer) >= self.min_examples:
             # Periodic consolidation check
             if self.concept_counter % 50 == 0:
                 self._consolidate_concepts()
-                
             new_concept = self._form_concept()
             if new_concept:
-                return new_concept
-        
+                return _wrap(new_concept, is_new=True)
+
         return None
     
     def _match_concept(self, observation: Dict[str, Any]) -> Optional[str]:

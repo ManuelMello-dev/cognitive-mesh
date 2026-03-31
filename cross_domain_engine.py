@@ -9,7 +9,9 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 import json
-
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from contracts import CrossDomainOutput
 logger = logging.getLogger(__name__)
 
 
@@ -585,6 +587,21 @@ class CrossDomainEngine:
             ]) if successful_transfers else 0
         }
     
+    def get_transfers_as_outputs(self) -> List[CrossDomainOutput]:
+        """Return validated transfers as structured CrossDomainOutput contracts."""
+        outputs = []
+        for t in self.transfers.values():
+            if t.validated:
+                outputs.append(CrossDomainOutput(
+                    transfer_id=t.transfer_id,
+                    source_domain=t.source_domain,
+                    target_domain=t.target_domain,
+                    confidence=t.confidence,
+                    performance_gain=t.performance_gain,
+                    knowledge_type=t.knowledge_type,
+                ))
+        return outputs
+
     def save_state(self, filepath: str):
         """Save cross-domain state"""
         state = {

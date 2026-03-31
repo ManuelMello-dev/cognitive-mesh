@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from collections import defaultdict, deque
 from enum import Enum
 import json
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from contracts import GoalOutput
 
 logger = logging.getLogger(__name__)
 
@@ -553,6 +556,24 @@ class OpenEndedGoalSystem:
             'strategy_performance': dict(self.strategy_performance)
         }
     
+    def get_active_goals_as_outputs(self) -> List[GoalOutput]:
+        """Return all active goals as structured GoalOutput contracts."""
+        outputs = []
+        for gid in self.active_goals:
+            g = self.goals.get(gid)
+            if g is None:
+                continue
+            outputs.append(GoalOutput(
+                goal_id=g.goal_id,
+                type=g.goal_type.value,
+                description=g.description,
+                priority=g.priority,
+                success_criteria=g.success_criteria,
+                status=g.status.value,
+                progress=g.progress,
+            ))
+        return outputs
+
     def save_state(self, filepath: str):
         """Save goal system state"""
         state = {

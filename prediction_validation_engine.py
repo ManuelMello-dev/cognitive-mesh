@@ -31,6 +31,9 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from collections import deque, defaultdict
 from enum import Enum
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'core'))
+from contracts import PredictionOutput
 
 logger = logging.getLogger(__name__)
 
@@ -662,3 +665,23 @@ class PredictionValidationEngine:
             "phi": round(self.calculate_real_phi(), 4),
             "sigma": round(self.calculate_real_sigma(), 4),
         }
+
+    def get_active_predictions_as_outputs(self) -> List[PredictionOutput]:
+        """Return all pending (unvalidated) predictions as structured PredictionOutput contracts."""
+        outputs = []
+        for history in self.symbols.values():
+            pred = history.pending_prediction
+            if pred and not pred.validated:
+                outputs.append(PredictionOutput(
+                    prediction_id=pred.prediction_id,
+                    symbol=pred.symbol,
+                    domain=pred.domain,
+                    direction=pred.direction.value,
+                    confidence=pred.confidence,
+                    basis=pred.basis,
+                    horizon=pred.horizon,
+                    ticks_remaining=pred.ticks_remaining,
+                    predicted_price=pred.predicted_price,
+                    dead_zone_pct=pred.dead_zone_pct,
+                ))
+        return outputs
