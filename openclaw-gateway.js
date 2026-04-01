@@ -6,18 +6,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 
-// Configuration
-const PORT = process.env.PORT || 8080;
+// ── Configuration ─────────────────────────────────────────────────────────────
+const PORT        = process.env.PORT || 8080;
 const PYTHON_PORT = process.env.COGNITIVE_MESH_PORT || 3000;
-const TARGET = process.env.COGNITIVE_MESH_BASE_URL || `http://localhost:${PYTHON_PORT}`;
+const TARGET      = process.env.COGNITIVE_MESH_BASE_URL || `http://localhost:${PYTHON_PORT}`;
 
 console.log(`[OpenClaw] Starting gateway on port ${PORT}...`);
 console.log(`[OpenClaw] Proxying to backend at ${TARGET}`);
 
-// Pre-load the dashboard HTML at startup so it is always served instantly.
-// This eliminates 502s on GET / during Python startup and under cognitive loop load.
+// ── Pre-load dashboard HTML ───────────────────────────────────────────────────
+// Served directly from Node so the dashboard always loads instantly even when
+// Python is starting up, busy, or restarting after a crash.
 const DASHBOARD_PATH = path.join(__dirname, 'market_consciousness_dashboard.html');
 let dashboardHtml = null;
 try {
@@ -27,113 +28,152 @@ try {
     console.warn('[OpenClaw] Could not pre-load dashboard HTML:', e.message);
 }
 
-// 1. Start the Python Backend
-function startBackend() {
-    console.log('[OpenClaw] Spawning Python cognitive-mesh backend...');
-    
-    const pythonProcess = spawn('python3', ['main.py'], {
-        env: { ...process.env, PORT: PYTHON_PORT },
-        stdio: 'inherit'
-    });
+// ── Python backend supervisor ─────────────────────────────────────────────────
+// The Node gateway NEVER exits due to a Python crash.
+// Python is restarted automatically with exponential back-off.
+// Only a Railway SIGTERM (intentional shutdown) will stop the gateway.
 
-    pythonProcess.on('close', (code) => {
-        console.log(`[OpenClaw] Python backend exited with code ${code}`);
-        process.exit(code);
-    });
+const MAX_RESTARTS   = 20;        // hard ceiling before giving up
+const BASE_DELAY_MS  = 2_000;     // 2 s minimum between restarts
+const MAX_DELAY_MS   = 120_000;   // 2 min maximum back-off
+const RESET_AFTER_MS = 300_000;   // reset restart counter after 5 min of stability
 
-    pythonProcess.on('error', (err) => {
-        console.error('[OpenClaw] Failed to start Python backend:', err);
-    });
+let pythonProcess  = null;
+let restartCount   = 0;
+let lastStartTime  = 0;
+let shuttingDown   = false;       // true only when Node itself is shutting down
 
-    // ── CRITICAL: Forward SIGTERM/SIGINT to Python so save_state runs on Railway redeploy ──
-    // Railway sends SIGTERM to the Node process. Without forwarding, Python never receives it,
-    // save_state never runs, and the mesh loses ALL memory (concepts, rules, patterns, goals,
-    // observation history, short-term memory) on every redeploy or crash.
-    // We give Python 25 seconds to flush state to Postgres before Node exits.
-    let shuttingDown = false;
-    const forwardSignal = (sig) => {
+function startPython() {
+    if (shuttingDown) return;
+    if (restartCount >= MAX_RESTARTS) {
+        console.error(`[OpenClaw] Python backend exceeded ${MAX_RESTARTS} restarts — giving up.`);
+        return;
+    }
+
+    // Reset counter if Python ran stably for RESET_AFTER_MS
+    const now = Date.now();
+    if (lastStartTime > 0 && (now - lastStartTime) > RESET_AFTER_MS) {
+        restartCount = 0;
+    }
+
+    const delay = restartCount === 0
+        ? 0
+        : Math.min(BASE_DELAY_MS * Math.pow(2, restartCount - 1), MAX_DELAY_MS);
+
+    if (delay > 0) {
+        console.log(`[OpenClaw] Restarting Python in ${delay / 1000}s (attempt ${restartCount + 1}/${MAX_RESTARTS})...`);
+    }
+
+    setTimeout(() => {
         if (shuttingDown) return;
-        shuttingDown = true;
-        console.log(`[OpenClaw] Forwarding ${sig} to Python backend (PID ${pythonProcess.pid}) — waiting up to 25s for state save...`);
-        try { pythonProcess.kill(sig); } catch (e) { /* process already gone */ }
-        // Hard exit after 25s in case Python hangs during shutdown
-        setTimeout(() => {
-            console.log('[OpenClaw] Shutdown timeout reached — forcing exit.');
-            process.exit(0);
-        }, 25000).unref();
-    };
 
-    process.on('SIGTERM', () => forwardSignal('SIGTERM'));
-    process.on('SIGINT',  () => forwardSignal('SIGINT'));
+        console.log('[OpenClaw] Spawning Python cognitive-mesh backend...');
+        lastStartTime = Date.now();
+        restartCount++;
 
-    return pythonProcess;
+        pythonProcess = spawn('python3', ['main.py'], {
+            env:   { ...process.env, PORT: PYTHON_PORT },
+            stdio: 'inherit',
+            cwd:   __dirname,
+        });
+
+        pythonProcess.on('error', (err) => {
+            console.error('[OpenClaw] Failed to spawn Python backend:', err.message);
+            // 'close' will fire next and trigger restart
+        });
+
+        pythonProcess.on('close', (code, signal) => {
+            if (shuttingDown) return;   // intentional shutdown — do not restart
+            console.log(`[OpenClaw] Python exited (code=${code}, signal=${signal}) — scheduling restart...`);
+            startPython();              // recursive restart with back-off
+        });
+
+    }, delay);
 }
 
-// 2. Create the Proxy Gateway
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// Forward SIGTERM/SIGINT to Python so save_state() runs before Node exits.
+// Give Python up to 25 s to flush state to Postgres, then hard-exit.
+function handleShutdown(sig) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[OpenClaw] Received ${sig} — forwarding to Python and waiting up to 25s for state save...`);
+
+    if (pythonProcess) {
+        try { pythonProcess.kill(sig); } catch (_) { /* already gone */ }
+    }
+
+    setTimeout(() => {
+        console.log('[OpenClaw] Shutdown timeout reached — forcing exit.');
+        process.exit(0);
+    }, 25_000).unref();
+}
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT',  () => handleShutdown('SIGINT'));
+
+// ── HTTP Gateway ──────────────────────────────────────────────────────────────
 function createGateway() {
     const proxy = createProxyMiddleware({
-        target: TARGET,
+        target:       TARGET,
         changeOrigin: true,
-        ws: true,
-        logLevel: 'warn',       // Reduce proxy log noise
-        proxyTimeout: 30000,    // 30s proxy timeout
-        timeout: 30000,         // 30s socket inactivity timeout
+        ws:           true,
+        logLevel:     'warn',
+        proxyTimeout: 30_000,
+        timeout:      30_000,
         onError: (err, req, res) => {
-            // Only log non-ECONNREFUSED errors (backend still starting is expected)
             if (err.code !== 'ECONNREFUSED') {
                 console.error('[OpenClaw] Proxy Error:', err.message);
             }
             if (!res.headersSent) {
                 res.writeHead(503, { 'Content-Type': 'application/json' });
             }
-            res.end(JSON.stringify({ 
-                error: 'Backend service unavailable', 
+            res.end(JSON.stringify({
+                error:   'Backend service unavailable',
                 details: err.message,
-                hint: 'The Python backend might still be starting up. Please wait a few seconds and refresh.'
+                hint:    'The Python backend is starting up or restarting. Please wait a few seconds and refresh.',
             }));
-        }
+        },
     });
 
     const server = http.createServer((req, res) => {
-        // Health check endpoints for Railway — always fast, no proxy needed
+        // ── Health check — always instant, never proxied ──────────────────
         if (req.url === '/health' || req.url === '/healthz') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                status: 'healthy', 
-                gateway: 'OpenClaw',
-                timestamp: new Date().toISOString()
+            res.end(JSON.stringify({
+                status:    'healthy',
+                gateway:   'OpenClaw',
+                python_up: pythonProcess !== null && !pythonProcess.killed,
+                restarts:  restartCount,
+                timestamp: new Date().toISOString(),
             }));
             return;
         }
 
-        // Serve dashboard HTML directly from the gateway — never proxy to Python for this.
-        // The Python backend's handle_dashboard reads the same file from disk, but doing it
-        // here means the dashboard always loads instantly even if Python is busy or starting.
+        // ── Dashboard — served directly from Node, always instant ─────────
         if (req.url === '/' || req.url === '/index.html') {
             if (dashboardHtml) {
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(dashboardHtml);
             } else {
-                // Fallback: read from disk on demand
                 try {
                     const html = fs.readFileSync(DASHBOARD_PATH, 'utf8');
                     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                     res.end(html);
-                } catch (e) {
+                } catch (_) {
                     res.writeHead(503, { 'Content-Type': 'text/plain' });
-                    res.end('Dashboard not found');
+                    res.end('Dashboard not available');
                 }
             }
             return;
         }
 
-        // Forward all other requests (all /api/* routes) to Python backend
+        // ── All /api/* routes → Python backend ───────────────────────────
         proxy(req, res);
     });
 
-    // Set server-level timeout to match proxy timeout
-    server.timeout = 35000;
-    server.keepAliveTimeout = 65000;  // > Railway's 60s idle timeout
+    server.timeout          = 35_000;
+    server.keepAliveTimeout = 65_000;   // > Railway's 60 s idle timeout
 
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`[OpenClaw] Gateway is listening on 0.0.0.0:${PORT}`);
@@ -142,6 +182,6 @@ function createGateway() {
     return server;
 }
 
-// Execution
-startBackend();
+// ── Boot sequence ─────────────────────────────────────────────────────────────
+startPython();
 createGateway();

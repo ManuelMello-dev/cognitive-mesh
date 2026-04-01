@@ -6,9 +6,9 @@
   },
   "deploy": {
     "startCommand": "node openclaw-gateway.js",
-    "restartPolicyMaxRetries": 5,
-    "restartPolicyWindowMs": 60000,
+    "restartPolicyMaxRetries": 10,
+    "restartPolicyWindowMs": 300000,
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 30
+    "healthcheckTimeout": 120
   }
 }

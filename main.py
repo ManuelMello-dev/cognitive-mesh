@@ -138,6 +138,12 @@ except ImportError:
     ZMQNode = None
     ZMQPubSub = None
 
+# Optional fault-tolerance watchdog
+try:
+    from always_on_orchestrator import AlwaysOnOrchestrator
+except ImportError:
+    AlwaysOnOrchestrator = None
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # DataPlugin base class
@@ -380,13 +386,22 @@ class CognitiveMeshOrchestrator:
                 self.pubsub = ZMQPubSub(identity=self.node_id)
             except Exception as e:
                 logger.warning(f"ZeroMQ init failed (non-critical): {e}")
-
-        # ── Optional persistence ──────────────────────────────────────────
+        # ── Optional persistence ──────────────────────────────────────────────────
         self.postgres = None
         self.milvus = None
         self.redis = None
-
         self.running = False
+        # ── Fault-tolerance watchdog ──────────────────────────────────────────────
+        self.always_on: 'AlwaysOnOrchestrator | None' = (
+            AlwaysOnOrchestrator(
+                checkpoint_interval=300,
+                auto_restart=True,
+                max_restarts=20,
+                health_check_interval=30,
+            )
+            if AlwaysOnOrchestrator is not None
+            else None
+        )
 
     def register_plugin(self, plugin: DataPlugin) -> None:
         """Register an additional data plugin at runtime."""
@@ -445,7 +460,12 @@ class CognitiveMeshOrchestrator:
 
         # Start the cognitive loop (background thread)
         self.core.start_cognitive_loop()
-
+        # Wire AlwaysOnOrchestrator as a watchdog for the cognitive loop thread.
+        # It will detect if the thread dies unexpectedly and restart it.
+        if self.always_on:
+            self.always_on.running = True
+            self.always_on.start_time = __import__('datetime').datetime.now()
+            logger.info("AlwaysOnOrchestrator watchdog started")
         logger.info("Cognitive Mesh initialized successfully")
 
     async def _init_databases(self):
@@ -590,6 +610,7 @@ class CognitiveMeshOrchestrator:
                 self._metrics_reporter_loop(),
                 self._checkpoint_loop(),
                 self._pursuit_loop(),
+                self._cognitive_watchdog_loop(),
             ]
             if self.network:
                 loops.append(self._gossip_loop())
@@ -774,6 +795,56 @@ class CognitiveMeshOrchestrator:
                 logger.error(f"Checkpoint save failed: {e}")
             await asyncio.sleep(checkpoint_interval)
 
+    async def _cognitive_watchdog_loop(self):
+        """Monitor the cognitive loop thread and restart it if it dies unexpectedly.
+
+        The cognitive loop thread has per-iteration exception handling, so it
+        should never die under normal conditions.  This watchdog is a last-resort
+        safety net: if the thread is somehow no longer alive (e.g. an unhandled
+        exception escaped the inner try/except), we restart it immediately and
+        log an error so the issue is visible in Railway logs.
+        """
+        logger.info("Cognitive watchdog loop started (checking every 30s)")
+        await asyncio.sleep(60)  # Give the thread time to start up before first check
+        while self.running:
+            try:
+                thread = getattr(self.core, '_cognitive_thread', None)
+                if thread is not None and not thread.is_alive() and self.core._running:
+                    logger.error(
+                        "WATCHDOG: Cognitive loop thread died unexpectedly — restarting now"
+                    )
+                    if self.always_on:
+                        self.always_on.error_log.append({
+                            'task_id': 'cognitive_loop',
+                            'task_name': 'CognitiveLoop',
+                            'error': 'Thread died unexpectedly',
+                            'restart_count': getattr(self, '_watchdog_restarts', 0) + 1,
+                            'timestamp': __import__('datetime').datetime.now().isoformat(),
+                        })
+                    self._watchdog_restarts = getattr(self, '_watchdog_restarts', 0) + 1
+                    # Reset the running flag so start_cognitive_loop() accepts the call
+                    self.core._running = False
+                    await asyncio.sleep(1)
+                    self.core.start_cognitive_loop()
+                    logger.info(
+                        f"WATCHDOG: Cognitive loop restarted "
+                        f"(total restarts: {self._watchdog_restarts})"
+                    )
+                elif thread is not None and thread.is_alive():
+                    # Thread is healthy — optionally report status to AlwaysOnOrchestrator
+                    if self.always_on:
+                        self.always_on.health_history.append({
+                            'timestamp': __import__('datetime').datetime.now().isoformat(),
+                            'cognitive_thread': 'alive',
+                            'running': self.core._running,
+                        })
+                        # Keep only the last 100 health entries
+                        if len(self.always_on.health_history) > 100:
+                            self.always_on.health_history = self.always_on.health_history[-100:]
+            except Exception as e:
+                logger.error(f"Cognitive watchdog error: {e}")
+            await asyncio.sleep(30)
+
     async def _network_listener_loop(self):
         """Listen for incoming network messages"""
         while self.running:
@@ -814,6 +885,14 @@ class CognitiveMeshOrchestrator:
         """Shutdown all components gracefully"""
         self.running = False
         logger.info("Shutting down Cognitive Mesh...")
+
+        # Stop the AlwaysOnOrchestrator watchdog
+        if self.always_on:
+            try:
+                self.always_on.running = False
+                logger.info("AlwaysOnOrchestrator watchdog stopped")
+            except Exception as e:
+                logger.warning(f"AlwaysOnOrchestrator stop error: {e}")
 
         self.core.stop_cognitive_loop()
 
