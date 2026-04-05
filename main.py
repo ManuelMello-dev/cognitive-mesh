@@ -542,6 +542,11 @@ class CognitiveMeshOrchestrator:
         """
         Run the aiohttp HTTP server in a dedicated thread with its own
         event loop to prevent data-collection I/O from blocking HTTP responses.
+
+        This method is intentionally self-contained so it can be called
+        repeatedly by _http_thread_watchdog() if the thread dies.
+        The cognitive loop is completely independent of this thread —
+        HTTP is a read-only window, not a lifecycle dependency.
         """
         http_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(http_loop)
@@ -564,19 +569,81 @@ class CognitiveMeshOrchestrator:
             except Exception:
                 pass
 
+    def _spawn_http_thread(self) -> threading.Thread:
+        """Spawn a new HTTP server daemon thread and return it."""
+        t = threading.Thread(
+            target=self._start_http_thread,
+            name="http-server",
+            daemon=True,
+        )
+        t.start()
+        return t
+
+    async def _http_thread_watchdog(self, http_thread: threading.Thread):
+        """Monitor the HTTP server thread and restart it if it dies.
+
+        The cognitive loop MUST NOT depend on the HTTP server being alive.
+        This watchdog ensures the monitoring window is always available
+        without ever touching the cognitive loop.
+        """
+        self._http_thread = http_thread
+        await asyncio.sleep(10)  # Give the thread time to start
+        while self.running:
+            try:
+                if not self._http_thread.is_alive():
+                    logger.error(
+                        "HTTP server thread died — restarting it "
+                        "(cognitive loop is unaffected)"
+                    )
+                    self._http_thread = self._spawn_http_thread()
+                    await asyncio.sleep(5)  # Give it time to bind the port
+                    if self._http_thread.is_alive():
+                        logger.info("HTTP server thread restarted successfully")
+                    else:
+                        logger.error("HTTP server thread failed to restart — will retry in 30s")
+            except Exception as e:
+                logger.error(f"HTTP thread watchdog error: {e}")
+            await asyncio.sleep(30)
+
+    async def _keepalive_loop(self):
+        """Emit outbound traffic every 8 minutes to prevent Railway from
+        putting the service to sleep (Railway's Serverless / App-Sleeping
+        feature triggers after 10 minutes of no outbound traffic).
+
+        This is a belt-and-suspenders measure alongside the
+        `sleepApplication: false` setting in railway.json.
+        The request is made to our own /health endpoint so it is
+        completely free — no external dependency, no API cost.
+        """
+        import urllib.request
+        port = int(os.environ.get("PORT", 8080))
+        url  = f"http://localhost:{port}/health"
+        # Wait for HTTP server to be ready before first ping
+        await asyncio.sleep(30)
+        while self.running:
+            try:
+                # Use a synchronous urllib call in a thread to avoid
+                # blocking the event loop
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: urllib.request.urlopen(url, timeout=5).read()
+                )
+                logger.debug("Keepalive ping sent")
+            except Exception:
+                # Non-fatal — HTTP server may be restarting
+                pass
+            # Ping every 8 minutes (Railway sleeps after 10 min of silence)
+            await asyncio.sleep(480)
+
     async def run(self):
         """Run the Cognitive Mesh with phased startup"""
         self.running = True
+        self._http_thread = None
 
         try:
             # PHASE 1: Start HTTP server in dedicated thread
             logger.info("PHASE 1: Starting HTTP server (dedicated thread)...")
-            http_thread = threading.Thread(
-                target=self._start_http_thread,
-                name="http-server",
-                daemon=True,
-            )
-            http_thread.start()
+            http_thread = self._spawn_http_thread()
             await asyncio.sleep(2)
             if http_thread.is_alive():
                 logger.info("HTTP server is running.")
@@ -611,6 +678,8 @@ class CognitiveMeshOrchestrator:
                 self._checkpoint_loop(),
                 self._pursuit_loop(),
                 self._cognitive_watchdog_loop(),
+                self._http_thread_watchdog(http_thread),
+                self._keepalive_loop(),
             ]
             if self.network:
                 loops.append(self._gossip_loop())
