@@ -13,8 +13,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Cache-bust: increment CACHE_BUST to force a full rebuild on Railway
-# Current value: 4 (bumped 2026-03-23 — SelfEvolvingSystem alias + e2e wiring fixes)
-ARG CACHE_BUST=4
+# Current value: 5 (bumped 2026-04-04 — always-on fixes, sleepApplication=false,
+#                    HTTP thread watchdog, keepalive loop, AlwaysOnOrchestrator wiring)
+ARG CACHE_BUST=5
 
 # Copy application files
 COPY . .
