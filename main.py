@@ -206,7 +206,7 @@ class MarketPlugin(DataPlugin):
         self._stock_symbols: Set[str] = set()
         self._crypto_offset = 0
         self._stock_offset = 0
-        self.MAX_BATCH_SIZE = 20
+        self.MAX_BATCH_SIZE = 5  # reduced from 20 — free APIs rate-limit at ~10 req/min
 
     async def initialize(self) -> None:
         try:
@@ -748,15 +748,30 @@ class CognitiveMeshOrchestrator:
         into the cognitive core.
         """
         logger.info("Starting data collection loop (plugin-based)")
+        _last_skip_reset = time.time()
+        _SKIP_RESET_INTERVAL = 600  # reset provider skip-list every 10 minutes
         while self.running:
             try:
                 total_ingested = 0
+
+                # ── Periodic skip-list reset ─────────────────────────────────
+                # After rate-limiting, symbols accumulate in the provider's
+                # skip-list and are never retried. Reset every 10 min.
+                now = time.time()
+                if now - _last_skip_reset >= _SKIP_RESET_INTERVAL:
+                    for plugin in self.plugins:
+                        provider = getattr(plugin, '_provider', None)
+                        if provider is not None and hasattr(provider, 'reset_skip_list'):
+                            provider.reset_skip_list()
+                            logger.info(f"Plugin '{plugin.name}': skip list reset")
+                    _last_skip_reset = now
+
+                # ── Fetch from all plugins ────────────────────────────────────
                 for plugin in self.plugins:
                     try:
                         observations = await plugin.fetch()
                         for observation, domain in observations:
                             await self.core.ingest(observation, domain)
-                            # Cache in Redis if available (generic key)
                             if self.redis:
                                 try:
                                     entity_id = observation.get('entity_id', domain)
@@ -767,8 +782,47 @@ class CognitiveMeshOrchestrator:
                     except Exception as e:
                         logger.error(f"Plugin '{plugin.name}' fetch error: {e}")
 
+                # ── Heartbeat fallback when all providers are dry ──────────────
+                # If no live data arrived, re-ingest a sample of last-known prices
+                # so the cognitive loop keeps processing and learning continuously.
+                if total_ingested == 0:
+                    try:
+                        price_hist = self.core.cognitive_system._price_history
+                        heartbeat_count = 0
+                        for history_key, prices in list(price_hist.items()):
+                            if not prices:
+                                continue
+                            parts = history_key.split(':', 1)
+                            domain = parts[0] if len(parts) == 2 else 'market'
+                            entity_id = parts[1] if len(parts) == 2 else history_key
+                            obs = {
+                                'entity_id': entity_id,
+                                'value': prices[-1],
+                                'secondary_value': 0,
+                                'timestamp': time.time(),
+                                'symbol': entity_id,
+                                'price': prices[-1],
+                                'volume': 0,
+                                '_heartbeat': True,
+                            }
+                            await self.core.ingest(obs, domain)
+                            total_ingested += 1
+                            heartbeat_count += 1
+                            if heartbeat_count >= 10:
+                                break
+                        if heartbeat_count > 0:
+                            logger.debug(
+                                f"Heartbeat: re-ingested {heartbeat_count} cached prices "
+                                f"(all providers dry)"
+                            )
+                    except Exception as hb_err:
+                        logger.debug(f"Heartbeat fallback error: {hb_err}")
+
                 if total_ingested > 0:
-                    logger.info(f"Ingested {total_ingested} observations across {len(self.plugins)} plugin(s)")
+                    logger.info(
+                        f"Ingested {total_ingested} observations across "
+                        f"{len(self.plugins)} plugin(s)"
+                    )
 
                 await asyncio.sleep(self.update_interval)
 
