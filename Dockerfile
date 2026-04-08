@@ -13,8 +13,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Cache-bust: increment CACHE_BUST to force a full rebuild on Railway
-# Current value: 4 (bumped 2026-03-23 — SelfEvolvingSystem alias + e2e wiring fixes)
-ARG CACHE_BUST=4
+# Current value: 6 (bumped 2026-04-08 — removed Dockerfile ambiguity: merged
+#                    Dockerfile.railway into Dockerfile as single source of truth)
+ARG CACHE_BUST=6
 
 # Copy application files
 COPY . .
