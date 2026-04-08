@@ -807,18 +807,85 @@ class DistributedCognitiveCore:
             # Get the coordinator's structured state dict
             coord_state = self.coordinator.get_state_dict()
 
-            # Merge runtime scalars the coordinator doesn't own
-            # coordinator.get_state_dict() does not include a 'metrics' key — initialise it here
+            # coordinator.get_state_dict() returns phi/sigma as top-level keys.
+            # The dashboard reads state.metrics.global_coherence_phi — map everything here.
             if "metrics" not in coord_state:
                 coord_state["metrics"] = {}
-            coord_state["metrics"]["total_observations"] = self._observation_count
-            coord_state["metrics"]["pending_observations"] = len(self._pending_observations)
-            coord_state["metrics"]["errors"] = self._errors
-            coord_state["metrics"]["uptime_seconds"] = round(time.time() - self._start_time, 1)
-            coord_state["metrics"]["last_observation_time"] = self._last_observation_time
-            coord_state["metrics"]["cognitive_loop_running"] = self._running
-            coord_state["metrics"]["concepts_merged"] = self._concepts_merged
-            coord_state["metrics"]["concepts_pruned"] = self._concepts_pruned
+            m = coord_state["metrics"]
+
+            # ── Phi / Sigma from coordinator top-level keys ────────────────────
+            m["global_coherence_phi"] = round(float(coord_state.get("phi", 0.5)), 4)
+            m["noise_level_sigma"]    = round(float(coord_state.get("sigma", 0.5)), 4)
+
+            # ── Cognitive metrics from subsystems ─────────────────────────────
+            cs = self.cognitive_system
+            # Prediction insights come from self.prediction_engine (on DistributedCognitiveCore)
+            try:
+                pred_i = self.prediction_engine.get_insights()
+            except Exception:
+                pred_i = {}
+            try:
+                abstr_i = cs.abstraction.get_insights() if hasattr(cs, 'abstraction') else {}
+            except Exception:
+                abstr_i = {}
+            try:
+                reason_i = cs.reasoning.get_insights() if hasattr(cs, 'reasoning') else {}
+            except Exception:
+                reason_i = {}
+            try:
+                # goals attribute on CognitiveIntelligentSystem is cs.goals (OpenEndedGoalSystem)
+                goal_i = cs.goals.get_insights() if hasattr(cs, 'goals') else {}
+            except Exception:
+                goal_i = {}
+            try:
+                # learning engine is cs.learning_engine (ContinuousLearningEngine)
+                learn_i = cs.learning_engine.get_insights() if hasattr(cs, 'learning_engine') else {}
+            except Exception:
+                learn_i = {}
+            try:
+                xd_i = cs.cross_domain.get_insights() if hasattr(cs, 'cross_domain') else {}
+            except Exception:
+                xd_i = {}
+            try:
+                cog_m = cs.cognitive_metrics if hasattr(cs, 'cognitive_metrics') else {}
+            except Exception:
+                cog_m = {}
+
+            streams = pred_i.get('streams_tracked', pred_i.get('symbols_tracked', 0))
+            total_concepts = max(abstr_i.get('total_concepts', 1), 1)
+
+            m["prediction_accuracy"]     = pred_i.get('global_accuracy', 0)
+            m["predictions_validated"]   = pred_i.get('total_validated', 0)
+            m["predictions_correct"]     = pred_i.get('total_correct', 0)
+            m["streams_tracked"]         = streams
+            m["symbols_tracked"]         = pred_i.get('symbols_tracked', streams)
+            m["attention_density"]       = min(1.0, streams / total_concepts)
+            m["total_concepts"]          = abstr_i.get('total_concepts', 0)
+            m["total_rules"]             = reason_i.get('total_rules', len(getattr(getattr(cs, 'reasoning', None), 'rules', {})))
+            m["total_facts"]             = reason_i.get('total_facts', 0)
+            m["total_goals"]             = goal_i.get('total_goals', 0)
+            m["active_goals"]            = goal_i.get('active_goals', 0)
+            m["achieved_goals"]          = goal_i.get('achieved_goals', 0)
+            m["learning_accuracy"]       = learn_i.get('metrics', {}).get('accuracy', 0)
+            m["patterns_discovered"]     = learn_i.get('total_patterns', 0)
+            m["samples_processed"]       = learn_i.get('metrics', {}).get('samples_processed', 0)
+            m["total_domains"]           = xd_i.get('total_domains', 0)
+            m["total_mappings"]          = xd_i.get('total_mappings', 0)
+            m["rules_learned"]           = cog_m.get('rules_learned', m.get('total_rules', 0))
+            m["analogies_found"]         = cog_m.get('analogies_found', 0)
+            m["goals_achieved"]          = cog_m.get('goals_achieved', 0)
+            m["knowledge_transfers"]     = cog_m.get('knowledge_transfers', 0)
+            m["causal_links_discovered"] = cog_m.get('causal_links_discovered', 0)
+
+            # ── Runtime scalars ───────────────────────────────────────────────
+            m["total_observations"]      = self._observation_count
+            m["pending_observations"]    = len(self._pending_observations)
+            m["errors"]                  = self._errors
+            m["uptime_seconds"]          = round(time.time() - self._start_time, 1)
+            m["last_observation_time"]   = self._last_observation_time
+            m["cognitive_loop_running"]  = self._running
+            m["concepts_merged"]         = self._concepts_merged
+            m["concepts_pruned"]         = self._concepts_pruned
 
             # Provider status (data plane, not cognitive plane)
             providers = {}
