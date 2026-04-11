@@ -194,10 +194,16 @@ DISABLE_MARKET_PLUGIN=0     # set to 1 to run without financial data
 OPENAI_API_KEY=              # leave blank to run in native-only mode
 LLM_ENABLED=1               # set to 0 to fully disable LLM layer
 
-# Persistence (all optional)
+# Persistence
+# PostgreSQL is required if you want learned state to survive restarts.
+# Either POSTGRES_URL or DATABASE_URL may be used.
 POSTGRES_URL=
+DATABASE_URL=
 MILVUS_HOST=
+# Redis is optional and may be configured either as REDIS_URL or REDIS_HOST/REDIS_PORT.
 REDIS_URL=
+REDIS_HOST=
+REDIS_PORT=6379
 ```
 
 ---

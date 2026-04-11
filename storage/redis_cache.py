@@ -5,6 +5,7 @@ Redis Cache Layer for Low-Latency Gossip State and Real-Time Data
 import logging
 import json
 import os
+from urllib.parse import urlparse
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("RedisCache")
@@ -18,7 +19,8 @@ class RedisCache:
     - Node discovery and peer lists
     """
     
-    def __init__(self, host: str = None, port: int = 6379, db: int = 0):
+    def __init__(self, connection_string: str = None, host: str = None, port: int = 6379, db: int = 0):
+        self.connection_string = connection_string or os.getenv("REDIS_URL")
         self.host = host or os.getenv("REDIS_HOST", "localhost")
         self.port = port
         self.db = db
@@ -29,9 +31,23 @@ class RedisCache:
         """Initialize Redis connection"""
         try:
             import aioredis
-            self.redis = await aioredis.create_redis_pool(
-                f"redis://{self.host}:{self.port}/{self.db}"
-            )
+
+            redis_dsn = self.connection_string
+            if redis_dsn:
+                parsed = urlparse(redis_dsn)
+                if parsed.hostname:
+                    self.host = parsed.hostname
+                if parsed.port:
+                    self.port = parsed.port
+                if parsed.path and parsed.path != "/":
+                    try:
+                        self.db = int(parsed.path.lstrip("/"))
+                    except ValueError:
+                        logger.warning(f"Invalid Redis DB in URL: {parsed.path} — defaulting to {self.db}")
+            else:
+                redis_dsn = f"redis://{self.host}:{self.port}/{self.db}"
+
+            self.redis = await aioredis.create_redis_pool(redis_dsn)
             self.connected = True
             logger.info(f"Connected to Redis at {self.host}:{self.port}")
         except ImportError:

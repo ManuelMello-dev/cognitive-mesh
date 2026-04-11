@@ -488,9 +488,13 @@ class CognitiveMeshOrchestrator:
         else:
             logger.info("Milvus not configured — running without vector store")
 
-        if Config.REDIS_URL and RedisCache:
+        if (Config.REDIS_URL or Config.REDIS_HOST) and RedisCache:
             try:
-                self.redis = RedisCache(Config.REDIS_URL)
+                self.redis = RedisCache(
+                    connection_string=Config.REDIS_URL,
+                    host=Config.REDIS_HOST,
+                    port=Config.REDIS_PORT,
+                )
                 await asyncio.wait_for(self.redis.connect(), timeout=5.0)
                 logger.info("Connected to Redis")
             except asyncio.TimeoutError:

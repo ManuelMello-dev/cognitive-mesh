@@ -44,7 +44,11 @@ class Config:
     MAX_SCAN_PRICE = float(os.getenv("MAX_SCAN_PRICE", float("inf")))
 
     # ── Persistence ───────────────────────────────────────────────────────────
-    POSTGRES_URL = os.getenv("POSTGRES_URL")
+    # Accept both the repository's historical variable names and the defaults
+    # commonly injected by managed providers such as Railway.
+    POSTGRES_URL = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
     MILVUS_HOST = os.getenv("MILVUS_HOST")
     REDIS_URL = os.getenv("REDIS_URL")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
