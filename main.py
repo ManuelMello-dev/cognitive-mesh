@@ -610,18 +610,27 @@ class CognitiveMeshOrchestrator:
             await asyncio.sleep(30)
 
     async def _keepalive_loop(self):
-        """Emit outbound traffic every 8 minutes to prevent Railway from
-        putting the service to sleep (Railway's Serverless / App-Sleeping
-        feature triggers after 10 minutes of no outbound traffic).
+        """Emit periodic traffic to reduce the chance of idle sleeping.
 
-        This is a belt-and-suspenders measure alongside the
-        `sleepApplication: false` setting in railway.json.
-        The request is made to our own /health endpoint so it is
-        completely free — no external dependency, no API cost.
+        Railway's serverless sleep detection is based on network activity, so a
+        localhost-only ping is not the most reliable fallback. Prefer an
+        explicit public keepalive URL, or Railway's public domain if present,
+        and only fall back to localhost when no public address is available.
+
+        This remains a belt-and-suspenders measure alongside
+        `sleepApplication: false` in railway.json.
         """
         import urllib.request
         port = int(os.environ.get("PORT", 8080))
-        url  = f"http://localhost:{port}/health"
+        public_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        keepalive_url = os.environ.get("KEEPALIVE_URL", "").strip()
+        if not keepalive_url and public_domain:
+            keepalive_url = f"https://{public_domain}/health"
+        if not keepalive_url:
+            keepalive_url = f"http://localhost:{port}/health"
+
+        logger.info(f"Keepalive loop targeting {keepalive_url}")
+
         # Wait for HTTP server to be ready before first ping
         await asyncio.sleep(30)
         while self.running:
@@ -630,12 +639,13 @@ class CognitiveMeshOrchestrator:
                 # blocking the event loop
                 await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: urllib.request.urlopen(url, timeout=5).read()
+                    lambda: urllib.request.urlopen(keepalive_url, timeout=10).read()
                 )
                 logger.debug("Keepalive ping sent")
-            except Exception:
-                # Non-fatal — HTTP server may be restarting
-                pass
+            except Exception as e:
+                # Non-fatal — HTTP server may be restarting or the public route
+                # may not yet be ready.
+                logger.debug(f"Keepalive ping failed: {e}")
             # Ping every 8 minutes (Railway sleeps after 10 min of silence)
             await asyncio.sleep(480)
 

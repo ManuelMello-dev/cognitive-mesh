@@ -10,7 +10,7 @@ const __dirname  = path.dirname(__filename);
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 const PORT        = process.env.PORT || 8080;
-const PYTHON_PORT = process.env.COGNITIVE_MESH_PORT || 3000;
+const PYTHON_PORT = process.env.COGNITIVE_MESH_PORT || 8081;
 const TARGET      = process.env.COGNITIVE_MESH_BASE_URL || `http://localhost:${PYTHON_PORT}`;
 
 console.log(`[OpenClaw] Starting gateway on port ${PORT}...`);
