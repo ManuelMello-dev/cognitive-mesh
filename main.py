@@ -198,6 +198,7 @@ class MarketPlugin(DataPlugin):
     """
 
     name = "market"
+    STATE_CACHE_KEY = "market_plugin_state"
 
     def __init__(self):
         self._provider = None
@@ -206,6 +207,10 @@ class MarketPlugin(DataPlugin):
         self._stock_symbols: Set[str] = set()
         self._crypto_offset = 0
         self._stock_offset = 0
+        self._last_discovery_ts = 0.0
+        self._last_fetch_ts = 0.0
+        self._last_successful_fetch_ts = 0.0
+        self._total_observations_emitted = 0
         self.MAX_BATCH_SIZE = 5  # reduced from 20 — free APIs rate-limit at ~10 req/min
 
     async def initialize(self) -> None:
@@ -219,6 +224,124 @@ class MarketPlugin(DataPlugin):
             logger.warning(f"MarketPlugin: could not import market modules ({e}) — plugin disabled")
             self._provider = None
 
+    def _normalize_symbols(self, symbols: Any) -> Set[str]:
+        return {
+            str(symbol).strip().upper()
+            for symbol in (symbols or [])
+            if str(symbol).strip()
+        }
+
+    def _register_crypto_symbols(self, symbols: Set[str]) -> None:
+        if symbols and self._provider and hasattr(self._provider, "register_crypto_symbols"):
+            self._provider.register_crypto_symbols(symbols)
+
+    def export_runtime_state(self) -> Dict[str, Any]:
+        return {
+            "crypto_symbols": sorted(self._crypto_symbols),
+            "stock_symbols": sorted(self._stock_symbols),
+            "crypto_offset": self._crypto_offset,
+            "stock_offset": self._stock_offset,
+            "last_discovery_ts": self._last_discovery_ts,
+            "last_fetch_ts": self._last_fetch_ts,
+            "last_successful_fetch_ts": self._last_successful_fetch_ts,
+            "total_observations_emitted": self._total_observations_emitted,
+        }
+
+    async def persist_runtime_state(self, postgres) -> None:
+        if not postgres:
+            return
+        try:
+            await postgres.save_caches({self.STATE_CACHE_KEY: self.export_runtime_state()})
+        except Exception as e:
+            logger.error(f"MarketPlugin state persist error: {e}")
+
+    def _derive_runtime_state_from_core(self, core) -> Dict[str, Any]:
+        derived_crypto: Set[str] = set()
+        derived_stocks: Set[str] = set()
+
+        prediction_symbols = getattr(getattr(core, "prediction_engine", None), "symbols", {}) or {}
+        for key, history in prediction_symbols.items():
+            symbol = str(getattr(history, "symbol", key)).strip().upper()
+            if not symbol:
+                continue
+            domain = str(getattr(history, "domain", "") or "").lower()
+            if domain.startswith("crypto:"):
+                derived_crypto.add(symbol)
+            elif domain.startswith("stock:"):
+                derived_stocks.add(symbol)
+
+        price_history = getattr(getattr(core, "cognitive_system", None), "_price_history", {}) or {}
+        for symbol in price_history.keys():
+            normalized = str(symbol).strip().upper()
+            if not normalized:
+                continue
+            if normalized in derived_crypto or normalized in derived_stocks:
+                continue
+            if self._provider and self._provider.is_crypto(normalized):
+                derived_crypto.add(normalized)
+            else:
+                derived_stocks.add(normalized)
+
+        meta_domains = getattr(getattr(core, "cognitive_system", None), "_meta_domains", {}) or {}
+        for domain_key in meta_domains.keys():
+            if not isinstance(domain_key, str) or ":" not in domain_key:
+                continue
+            prefix, symbol = domain_key.split(":", 1)
+            normalized = symbol.strip().upper()
+            if not normalized:
+                continue
+            if prefix.lower() == "crypto":
+                derived_crypto.add(normalized)
+            elif prefix.lower() == "stock":
+                derived_stocks.add(normalized)
+
+        return {
+            "crypto_symbols": sorted(derived_crypto),
+            "stock_symbols": sorted(derived_stocks),
+            "crypto_offset": 0,
+            "stock_offset": 0,
+            "last_discovery_ts": 0.0,
+            "last_fetch_ts": 0.0,
+            "last_successful_fetch_ts": 0.0,
+            "total_observations_emitted": 0,
+        }
+
+    async def restore_runtime_state(self, core) -> None:
+        restored_state: Dict[str, Any] = {}
+        try:
+            postgres = getattr(core, "postgres", None)
+            if postgres:
+                caches = await postgres.load_caches()
+                restored_state = caches.get(self.STATE_CACHE_KEY, {}) or {}
+        except Exception as e:
+            logger.warning(f"MarketPlugin state restore cache read error: {e}")
+
+        if not restored_state:
+            restored_state = self._derive_runtime_state_from_core(core)
+
+        self._crypto_symbols = self._normalize_symbols(restored_state.get("crypto_symbols", []))
+        self._stock_symbols = self._normalize_symbols(restored_state.get("stock_symbols", []))
+        self._register_crypto_symbols(self._crypto_symbols)
+
+        crypto_len = max(len(self._crypto_symbols), 1)
+        stock_len = max(len(self._stock_symbols), 1)
+        self._crypto_offset = int(restored_state.get("crypto_offset", 0) or 0) % crypto_len if self._crypto_symbols else 0
+        self._stock_offset = int(restored_state.get("stock_offset", 0) or 0) % stock_len if self._stock_symbols else 0
+        self._last_discovery_ts = float(restored_state.get("last_discovery_ts", 0.0) or 0.0)
+        self._last_fetch_ts = float(restored_state.get("last_fetch_ts", 0.0) or 0.0)
+        self._last_successful_fetch_ts = float(restored_state.get("last_successful_fetch_ts", 0.0) or 0.0)
+        self._total_observations_emitted = int(restored_state.get("total_observations_emitted", 0) or 0)
+
+        if self.stream_count > 0:
+            logger.info(
+                "MarketPlugin: restored %s active symbols from persistence (%s crypto, %s stocks)",
+                self.stream_count,
+                len(self._crypto_symbols),
+                len(self._stock_symbols),
+            )
+        else:
+            logger.warning("MarketPlugin: no persisted symbols were available to restore")
+
     async def discover(self) -> None:
         """Discover new tradeable assets."""
         if not self._scanner:
@@ -228,19 +351,20 @@ class MarketPlugin(DataPlugin):
                 min_price=Config.MIN_SCAN_PRICE,
                 max_price=Config.MAX_SCAN_PRICE,
             )
-            new_crypto = discovered.get("crypto", set())
-            new_stocks = discovered.get("stocks", set())
+            new_crypto = self._normalize_symbols(discovered.get("crypto", set()))
+            new_stocks = self._normalize_symbols(discovered.get("stocks", set()))
             if new_crypto:
                 self._crypto_symbols.update(new_crypto)
                 # Register with the provider so newly-discovered crypto symbols
                 # (HYPE, PENGU, BASED, etc.) are never routed through the stock
                 # cascade and don't trip ORTEX's circuit breaker.
-                if self._provider and hasattr(self._provider, 'register_crypto_symbols'):
-                    self._provider.register_crypto_symbols(new_crypto)
+                self._register_crypto_symbols(new_crypto)
                 logger.info(f"MarketPlugin: discovered {len(new_crypto)} crypto symbols")
             if new_stocks:
                 self._stock_symbols.update(new_stocks)
                 logger.info(f"MarketPlugin: discovered {len(new_stocks)} stock symbols")
+            if new_crypto or new_stocks:
+                self._last_discovery_ts = time.time()
         except Exception as e:
             logger.error(f"MarketPlugin discovery error: {e}")
 
@@ -251,7 +375,10 @@ class MarketPlugin(DataPlugin):
         all_crypto = sorted(self._crypto_symbols)
         all_stocks = sorted(self._stock_symbols)
         if not all_crypto and not all_stocks:
+            logger.warning("MarketPlugin: fetch skipped because no active symbols are loaded")
             return []
+
+        self._last_fetch_ts = time.time()
 
         # Sliding window selection
         crypto_count = min(len(all_crypto), self.MAX_BATCH_SIZE // 2)
@@ -283,7 +410,7 @@ class MarketPlugin(DataPlugin):
         for tick in ticks:
             if not tick or isinstance(tick, Exception):
                 continue
-            symbol = tick.get('symbol', '')
+            symbol = str(tick.get('symbol', '')).strip().upper()
             if not symbol:
                 continue
             is_crypto = self._provider.is_crypto(symbol)
@@ -302,6 +429,10 @@ class MarketPlugin(DataPlugin):
             }
             if observation["value"] is not None:
                 results.append((observation, domain))
+
+        if results:
+            self._last_successful_fetch_ts = time.time()
+            self._total_observations_emitted += len(results)
 
         return results
 
@@ -448,6 +579,11 @@ class CognitiveMeshOrchestrator:
 
         # Load cognitive state from persistence
         await self.core.load_state()
+
+        # Rehydrate plugin runtime state after the core has recalled persistent memory.
+        # This restores the active polling universe so the system resumes calling
+        # providers immediately after restart instead of waiting for rediscovery.
+        await self._restore_plugin_runtime_state()
 
         # Immediately hydrate the state cache from restored memory so the dashboard
         # shows recalled concepts/rules/goals on the very first poll (not zeros).
@@ -913,6 +1049,24 @@ class CognitiveMeshOrchestrator:
                 logger.error(f"Error in pursuit loop: {e}")
             await asyncio.sleep(60)
 
+    async def _persist_plugin_runtime_state(self):
+        """Persist plugin-specific runtime state that lives outside the core."""
+        for plugin in self.plugins:
+            if hasattr(plugin, "persist_runtime_state"):
+                try:
+                    await plugin.persist_runtime_state(self.core.postgres)
+                except Exception as e:
+                    logger.error(f"Plugin '{plugin.name}' runtime state persist error: {e}")
+
+    async def _restore_plugin_runtime_state(self):
+        """Restore plugin-specific runtime state from persistent stores and core memory."""
+        for plugin in self.plugins:
+            if hasattr(plugin, "restore_runtime_state"):
+                try:
+                    await plugin.restore_runtime_state(self.core)
+                except Exception as e:
+                    logger.error(f"Plugin '{plugin.name}' runtime state restore error: {e}")
+
     async def _checkpoint_loop(self):
         """Periodically save all cognitive state to Postgres.
 
@@ -926,6 +1080,7 @@ class CognitiveMeshOrchestrator:
         await asyncio.sleep(checkpoint_interval)  # Skip first cycle (startup)
         while self.running:
             try:
+                await self._persist_plugin_runtime_state()
                 await self.core.save_state()
                 logger.info("Periodic checkpoint saved.")
             except Exception as e:
@@ -1035,6 +1190,7 @@ class CognitiveMeshOrchestrator:
 
         logger.info("Saving cognitive state to persistence...")
         try:
+            await self._persist_plugin_runtime_state()
             await self.core.save_state()
         except Exception as e:
             logger.error(f"Failed to save cognitive state: {e}")
