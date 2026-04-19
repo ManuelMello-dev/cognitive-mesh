@@ -45,6 +45,16 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.cooldown = cooldown
         self._opened_at: float = 0.0
+        self._half_open_probe_active = False
+        self.last_error: Optional[str] = None
+        self.last_failure_at: float = 0.0
+        self.last_success_at: float = 0.0
+
+    @property
+    def seconds_until_retry(self) -> float:
+        if self.state != CBState.OPEN:
+            return 0.0
+        return max(0.0, self.cooldown - (time.monotonic() - self._opened_at))
 
     @property
     def allow_request(self) -> bool:
@@ -53,10 +63,14 @@ class CircuitBreaker:
         if self.state == CBState.OPEN:
             if time.monotonic() - self._opened_at >= self.cooldown:
                 self.state = CBState.HALF_OPEN
+                self._half_open_probe_active = True
                 logger.info(f"CircuitBreaker [{self.name}] → HALF_OPEN (testing)")
                 return True
             return False
-        # HALF_OPEN — allow one probe
+        # HALF_OPEN — allow exactly one in-flight probe
+        if self._half_open_probe_active:
+            return False
+        self._half_open_probe_active = True
         return True
 
     def record_success(self):
@@ -64,9 +78,16 @@ class CircuitBreaker:
             logger.info(f"CircuitBreaker [{self.name}] → CLOSED (recovered)")
         self.failures = 0
         self.state = CBState.CLOSED
+        self._half_open_probe_active = False
+        self.last_success_at = time.time()
+        self.last_error = None
 
-    def record_failure(self):
+    def record_failure(self, reason: str = ""):
         self.failures += 1
+        self._half_open_probe_active = False
+        self.last_failure_at = time.time()
+        if reason:
+            self.last_error = reason[:300]
         if self.failures >= self.failure_threshold:
             self.state = CBState.OPEN
             self._opened_at = time.monotonic()
@@ -74,6 +95,13 @@ class CircuitBreaker:
                 f"CircuitBreaker [{self.name}] → OPEN after {self.failures} failures "
                 f"(cooldown {self.cooldown}s)"
             )
+
+    def record_soft_failure(self, reason: str = ""):
+        """Record a symbol-level miss without tripping the provider circuit."""
+        self._half_open_probe_active = False
+        self.last_failure_at = time.time()
+        if reason:
+            self.last_error = reason[:300]
 
 
 # ──────────────────────────────────────────────
@@ -119,6 +147,53 @@ class BaseProvider:
 
     async def fetch(self, symbol: str) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
+
+    def is_provider_error(self, exc: Exception) -> bool:
+        """Classify whether a failure should trip the provider circuit breaker."""
+        text = str(exc).strip().lower()
+        if not text:
+            return True
+
+        provider_markers = [
+            "rate limit",
+            "rate limited",
+            "not authorized",
+            "http 401",
+            "http 403",
+            "http 429",
+            "http 451",
+            "http 500",
+            "http 502",
+            "http 503",
+            "http 504",
+            "timeout",
+            "temporarily unavailable",
+            "connection reset",
+            "cannot connect",
+            "server disconnected",
+            "service unavailable",
+        ]
+        symbol_markers = [
+            "no data",
+            "unknown coingecko mapping",
+            "unknown kraken pair",
+            "no quote data",
+            "no results",
+            "symbol not",
+            "not on this exchange",
+            "invalid symbol",
+            "unknown pair",
+            "delisted",
+            "not found",
+        ]
+
+        if any(marker in text for marker in provider_markers):
+            return True
+        if any(marker in text for marker in symbol_markers):
+            return False
+        if "http 404" in text:
+            return False
+        return True
 
     def _tick(self, symbol: str, price: float, volume: float = 0.0,
               change: float = 0.0, extra: Optional[Dict] = None) -> Dict[str, Any]:
@@ -722,8 +797,11 @@ class MultiSourceDataProvider:
         providers = self.crypto_providers if self.is_crypto(symbol) else self.stock_providers
 
         for provider in providers:
-            if not provider.available:
+            if not provider.enabled:
                 continue
+            if not provider.breaker.allow_request:
+                continue
+
             sema = self._get_provider_sema(provider.NAME)
             try:
                 async with sema:
@@ -732,10 +810,16 @@ class MultiSourceDataProvider:
                     provider.breaker.record_success()
                     self._fail_counts[symbol] = 0  # reset on success
                     return result
-                else:
-                    provider.breaker.record_failure()
+
+                reason = f"Empty or zero-price response for {symbol}"
+                provider.breaker.record_soft_failure(reason)
+                logger.debug(f"  [{provider.NAME}] soft-failed for {symbol}: {reason}")
             except Exception as e:
-                provider.breaker.record_failure()
+                reason = str(e)
+                if provider.is_provider_error(e):
+                    provider.breaker.record_failure(reason)
+                else:
+                    provider.breaker.record_soft_failure(reason)
                 logger.debug(f"  [{provider.NAME}] failed for {symbol}: {e}")
 
         # All providers failed for this symbol
@@ -799,6 +883,12 @@ class MultiSourceDataProvider:
                 "enabled": p.enabled,
                 "state": p.breaker.state.value,
                 "failures": p.breaker.failures,
+                "failure_threshold": p.breaker.failure_threshold,
+                "cooldown_seconds": p.breaker.cooldown,
+                "seconds_until_retry": round(p.breaker.seconds_until_retry, 2),
+                "last_error": p.breaker.last_error,
+                "last_failure_at": p.breaker.last_failure_at,
+                "last_success_at": p.breaker.last_success_at,
                 "requires_key": p.REQUIRES_KEY,
                 "key_env": p.KEY_ENV if p.REQUIRES_KEY else None,
             })
@@ -808,6 +898,12 @@ class MultiSourceDataProvider:
                 "enabled": p.enabled,
                 "state": p.breaker.state.value,
                 "failures": p.breaker.failures,
+                "failure_threshold": p.breaker.failure_threshold,
+                "cooldown_seconds": p.breaker.cooldown,
+                "seconds_until_retry": round(p.breaker.seconds_until_retry, 2),
+                "last_error": p.breaker.last_error,
+                "last_failure_at": p.breaker.last_failure_at,
+                "last_success_at": p.breaker.last_success_at,
             })
         status["skipped_symbols"] = [
             s for s, c in self._fail_counts.items() if c >= self._SKIP_THRESHOLD
