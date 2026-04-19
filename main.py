@@ -211,6 +211,7 @@ class MarketPlugin(DataPlugin):
         self._last_fetch_ts = 0.0
         self._last_successful_fetch_ts = 0.0
         self._total_observations_emitted = 0
+        self._core_ref = None
         self.MAX_BATCH_SIZE = 5  # reduced from 20 — free APIs rate-limit at ~10 req/min
 
     async def initialize(self) -> None:
@@ -307,6 +308,7 @@ class MarketPlugin(DataPlugin):
         }
 
     async def restore_runtime_state(self, core) -> None:
+        self._core_ref = core
         restored_state: Dict[str, Any] = {}
         try:
             postgres = getattr(core, "postgres", None)
@@ -375,8 +377,34 @@ class MarketPlugin(DataPlugin):
         all_crypto = sorted(self._crypto_symbols)
         all_stocks = sorted(self._stock_symbols)
         if not all_crypto and not all_stocks:
-            logger.warning("MarketPlugin: fetch skipped because no active symbols are loaded")
-            return []
+            logger.warning("MarketPlugin: no active symbols loaded — attempting self-recovery before skipping fetch")
+
+            if self._core_ref is not None:
+                recovered_state = self._derive_runtime_state_from_core(self._core_ref)
+                recovered_crypto = self._normalize_symbols(recovered_state.get("crypto_symbols", []))
+                recovered_stocks = self._normalize_symbols(recovered_state.get("stock_symbols", []))
+                if recovered_crypto or recovered_stocks:
+                    self._crypto_symbols.update(recovered_crypto)
+                    self._stock_symbols.update(recovered_stocks)
+                    self._register_crypto_symbols(recovered_crypto)
+                    logger.info(
+                        "MarketPlugin: recovered %s symbols from core memory (%s crypto, %s stocks)",
+                        len(recovered_crypto) + len(recovered_stocks),
+                        len(recovered_crypto),
+                        len(recovered_stocks),
+                    )
+
+            if not self._crypto_symbols and not self._stock_symbols:
+                try:
+                    await self.discover()
+                except Exception as e:
+                    logger.warning(f"MarketPlugin: recovery discovery failed: {e}")
+
+            all_crypto = sorted(self._crypto_symbols)
+            all_stocks = sorted(self._stock_symbols)
+            if not all_crypto and not all_stocks:
+                logger.warning("MarketPlugin: fetch skipped because no active symbols could be recovered")
+                return []
 
         self._last_fetch_ts = time.time()
 

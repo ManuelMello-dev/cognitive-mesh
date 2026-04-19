@@ -31,7 +31,7 @@ from agents.market_eeg import MarketEEG
 from agents.autonomous_reasoner import AutonomousReasoner
 from config.config import Config
 # Mesh architecture — Output Layer is the ONLY node that produces natural language
-from output_layer import OutputLayer
+from core.output_layer import OutputLayer
 
 logger = logging.getLogger("HttpServer")
 
@@ -82,21 +82,29 @@ async def handle_chat(request):
         render_mode = data.get("mode", "chat")  # chat | summary | status | analysis
 
         output_layer = request.app.get('output_layer')
-        if not output_layer:
-            return web.json_response({"error": "Output layer not initialized"}, status=503)
+        core = request.app.get('core')
+        if not output_layer or not core:
+            return web.json_response({"error": "Output layer or core not initialized"}, status=503)
+
+        state = core.get_cached_state()
 
         if render_mode == "summary":
-            response = await output_layer.render_summary()
+            response = output_layer.render(
+                "Provide a concise summary of the current mesh state.",
+                state,
+                history,
+            )
         elif render_mode == "status":
-            response = await output_layer.render_status()
+            response = output_layer.render_status(state)
         elif render_mode == "analysis":
-            response = await output_layer.render_analysis(message)
+            analysis_prompt = message or "Analyze the current mesh state and highlight the most important active signals."
+            response = output_layer.render(analysis_prompt, state, history)
         else:
-            response = await output_layer.render_chat(message, history)
+            response = output_layer.render(message, state, history)
 
         return web.json_response({"response": response, "mode": render_mode})
     except Exception as e:
-        logger.error(f"Chat error: {e}")
+        logger.error(f"Chat error: {e}", exc_info=True)
         return web.json_response({"error": str(e)}, status=500)
 
 
@@ -561,7 +569,7 @@ async def start_http_server(core=None, data_provider=None):
     if core:
         app['core'] = core
         app['interpreter'] = LLMInterpreter(core)  # kept for legacy /api/ingest
-        app['output_layer'] = OutputLayer(core.coordinator)  # Mesh Principle 7: single output node
+        app['output_layer'] = OutputLayer()  # Mesh Principle 7: single output node
         app["reasoner"] = AutonomousReasoner(core)
         app["eeg"] = MarketEEG(core)
     if data_provider:

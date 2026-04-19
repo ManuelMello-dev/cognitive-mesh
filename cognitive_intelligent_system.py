@@ -21,6 +21,7 @@ from abstraction_engine import AbstractionEngine
 from reasoning_engine import ReasoningEngine, RuleType
 from cross_domain_engine import CrossDomainEngine
 from goal_formation_system import OpenEndedGoalSystem, GoalGenerationContext, GoalType
+from resonant_memory import ResonantMemoryGeometry
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,9 @@ class CognitiveIntelligentSystem:
         # --- NEW: Price history per symbol for richer fact extraction ---
         self._price_history: Dict[str, List[float]] = defaultdict(list)
         self._max_price_history = 50
+
+        # Resonant memory geometry — preserves temporal phase relations across rings
+        self.resonant_memory = ResonantMemoryGeometry(max_rings=512, resonance_horizon=96)
         
         # Performance tracking
         self.cognitive_metrics = {
@@ -121,6 +125,8 @@ class CognitiveIntelligentSystem:
             'goals_achieved': 0,
             'knowledge_transfers': 0,
             'causal_links_discovered': 0,
+            'resonance_events': 0,
+            'memory_reconstructions': 0,
         }
 
         # --- NEW: Toggles for optional engines ---
@@ -220,7 +226,20 @@ class CognitiveIntelligentSystem:
         if len(self._observation_history) > self._max_observation_history:
             self._observation_history = self._observation_history[-self._max_observation_history:]
         
-        # 6. Look for cross-domain patterns (using meta-domains)
+        # 6. Resonant memory geometry — treat each enriched observation as a ring in time
+        learning_accuracy = self.learning_engine.metrics.accuracy if hasattr(self.learning_engine, 'metrics') else 0.5
+        resonance = self.resonant_memory.observe(
+            enriched_obs,
+            domain,
+            phi_hint=learning_accuracy,
+            sigma_hint=1.0 - learning_accuracy,
+        )
+        results['resonance'] = resonance
+        self.cognitive_metrics['resonance_events'] += resonance.get('accessible_rings', 0)
+        if resonance.get('reconstruction_confidence', 0) > 0:
+            self.cognitive_metrics['memory_reconstructions'] += 1
+
+        # 7. Look for cross-domain patterns (using meta-domains)
         if len(self.cross_domain.domains) > 2:
             self._check_cross_domain_opportunities(domain)
         
@@ -330,10 +349,15 @@ class CognitiveIntelligentSystem:
     def get_metrics(self) -> Dict[str, Any]:
         """Return combined cognitive metrics."""
         metrics = self.cognitive_metrics.copy()
+        resonance_metrics = self.resonant_memory.get_snapshot().get('metrics', {})
         metrics.update({
             'active_concepts': len(self.active_concepts),
             'iteration': self.iteration,
-            'learning_rate': self.learning_engine.learning_rate
+            'learning_rate': self.learning_engine.learning_rate,
+            'resonant_memory_rings': resonance_metrics.get('rings', 0),
+            'phi_access_window': resonance_metrics.get('phi_access_window', 0),
+            'average_resonance': resonance_metrics.get('average_resonance', 0),
+            'memory_reconstruction_confidence': resonance_metrics.get('last_reconstruction_confidence', 0),
         })
         return metrics
 
@@ -358,19 +382,21 @@ class CognitiveIntelligentSystem:
         return {
             'system_id': self.system_id,
             'metrics': self.get_metrics(),
-            'toggles': self.toggles,
+            'active_concepts': len(self.active_concepts),
+            'domains': list(self.cross_domain.domains.keys()),
             'recent_analogies': list(self._recent_analogies),
-            'causal_log': list(self._causal_discovery_log),
-            'explanations': list(self._recent_explanations),
-            'plans': list(self._recent_plans),
+            'recent_explanations': list(self._recent_explanations),
+            'recent_plans': list(self._recent_plans),
             'pursuits': list(self._pursuit_log),
             'transfer_suggestions': self._transfer_suggestions_cache,
             'causal_graph': self.get_causal_graph_snapshot(),
             'concept_hierarchy': self.get_concept_hierarchy_snapshot(),
             'feature_importances': self.get_feature_importances(),
             'drift_events': self.get_drift_events(),
-            'strategy_performance': self.get_strategy_performance()
+            'strategy_performance': self.get_strategy_performance(),
+            'resonant_memory': self.get_resonant_memory_snapshot(),
         }
+
 
     async def ingest(self, observation: Dict[str, Any], domain: str) -> Dict[str, Any]:
         """Directly ingest an observation (GPT I/O)."""
@@ -419,3 +445,7 @@ class CognitiveIntelligentSystem:
     def get_drift_events(self) -> list:
         """Return distribution drift events."""
         return self.learning_engine.get_insights().get('drift_events', [])
+
+    def get_resonant_memory_snapshot(self) -> Dict[str, Any]:
+        """Return the current resonant memory geometry state."""
+        return self.resonant_memory.get_snapshot()

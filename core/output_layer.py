@@ -86,7 +86,7 @@ Rules you must follow:
         """
         client = _get_client()
         if client is None:
-            return "Output layer unavailable: LLM client not initialized."
+            return self._render_native(user_query, coordinator_state)
 
         # Build the state summary injected as context
         state_summary = self._summarize_state(coordinator_state)
@@ -115,7 +115,7 @@ Rules you must follow:
             return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"OutputLayer.render failed: {e}")
-            return f"Output layer error: {e}"
+            return self._render_native(user_query, coordinator_state)
 
     def render_status(self, coordinator_state: Dict[str, Any]) -> str:
         """
@@ -152,6 +152,38 @@ Rules you must follow:
             f"Predictions={n_predictions} Goals={n_goals} "
             f"Conflicts={len(conflicts)}"
         )
+
+    def _render_native(self, user_query: str, coordinator_state: Dict[str, Any]) -> str:
+        """Deterministic fallback used when the external LLM client is unavailable."""
+        query = (user_query or "").strip().lower()
+        status = self.render_status(coordinator_state)
+        summary = self._summarize_state(coordinator_state)
+
+        if any(term in query for term in ["status", "health", "alive", "state"]):
+            return status
+
+        if any(term in query for term in ["learn", "learning", "memory", "pattern", "rule"]):
+            metrics = coordinator_state.get("metrics", {})
+            return (
+                f"{status}\n"
+                f"Learning snapshot: samples={metrics.get('samples_processed', 0)}, "
+                f"patterns={metrics.get('patterns_discovered', 0)}, "
+                f"rules={metrics.get('total_rules', 0)}, "
+                f"goals={metrics.get('total_goals', 0)}."
+            )
+
+        if any(term in query for term in ["provider", "data", "market", "feed", "symbol"]):
+            providers = coordinator_state.get("providers", {})
+            if providers:
+                provider_bits = []
+                for provider in list(providers.values())[:8]:
+                    provider_bits.append(
+                        f"{provider.get('name', '?')}={provider.get('status', 'unknown')}"
+                    )
+                return f"{status}\nProviders: " + ", ".join(provider_bits)
+            return f"{status}\nProviders: no provider status is currently cached."
+
+        return f"{status}\n\nState summary:\n{summary}"
 
     @staticmethod
     def _summarize_state(state: Dict[str, Any]) -> str:

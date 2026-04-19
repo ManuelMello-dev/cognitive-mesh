@@ -238,6 +238,7 @@ class DistributedCognitiveCore:
                 "_causal_discovery_log": list(self.cognitive_system._causal_discovery_log),
                 "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
+                "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -412,6 +413,7 @@ class DistributedCognitiveCore:
             self.cognitive_system._causal_discovery_log = deque(loaded_caches.get("_causal_discovery_log", []), maxlen=100)
             self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
+            self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
             logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
 
             # Load short-term memory and restore observation_count
@@ -876,6 +878,12 @@ class DistributedCognitiveCore:
             m["goals_achieved"]          = cog_m.get('goals_achieved', 0)
             m["knowledge_transfers"]     = cog_m.get('knowledge_transfers', 0)
             m["causal_links_discovered"] = cog_m.get('causal_links_discovered', 0)
+            resonance_i = cs.get_resonant_memory_snapshot() if hasattr(cs, 'get_resonant_memory_snapshot') else {}
+            resonance_m = resonance_i.get('metrics', {})
+            m["resonant_memory_rings"] = resonance_m.get('rings', 0)
+            m["phi_access_window"] = resonance_m.get('phi_access_window', 0)
+            m["average_resonance"] = resonance_m.get('average_resonance', 0)
+            m["memory_reconstruction_confidence"] = resonance_m.get('last_reconstruction_confidence', 0)
 
             # ── Runtime scalars ───────────────────────────────────────────────
             m["total_observations"]      = self._observation_count
@@ -904,6 +912,7 @@ class DistributedCognitiveCore:
                 except Exception as e:
                     logger.debug(f"Provider status error in cache: {e}")
             coord_state["providers"] = providers
+            coord_state["resonant_memory"] = resonance_i
             coord_state["toggles"] = dict(self._toggles)
             coord_state["node_id"] = self.node_id
 
@@ -957,6 +966,10 @@ class DistributedCognitiveCore:
                 "last_observation_time": self._last_observation_time,
                 "cognitive_loop_running": self._running,
                 "attention_density": 0,
+                "resonant_memory_rings": 0,
+                "phi_access_window": 0,
+                "average_resonance": 0,
+                "memory_reconstruction_confidence": 0,
             },
             "concepts": {},
             "rules": {},
@@ -967,6 +980,7 @@ class DistributedCognitiveCore:
             "causal_graph": {},
             "predictions": [],
             "providers": {},
+            "resonant_memory": {"metrics": {"rings": 0, "phi_access_window": 0, "average_resonance": 0, "last_reconstruction_confidence": 0}, "recent_rings": [], "top_matches": []},
             "toggles": dict(self._toggles),
             "node_id": self.node_id,
             "_cache_warming": True,
@@ -1941,6 +1955,7 @@ class DistributedCognitiveCore:
                 "_causal_discovery_log": list(self.cognitive_system._causal_discovery_log),
                 "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
+                "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -2061,6 +2076,7 @@ class DistributedCognitiveCore:
             self.cognitive_system._causal_discovery_log = deque(loaded_caches.get("_causal_discovery_log", []), maxlen=100)
             self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
+            self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
             logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
 
         if self.milvus:
