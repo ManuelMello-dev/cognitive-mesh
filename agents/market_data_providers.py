@@ -19,7 +19,7 @@ import os
 import time
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import aiohttp
 
@@ -121,6 +121,14 @@ class BaseProvider:
             self.api_key = os.getenv(self.KEY_ENV, "").strip() or None
         self.breaker = CircuitBreaker(self.NAME, failure_threshold=3, cooldown=90.0)
         self._session: Optional[aiohttp.ClientSession] = None
+        self.request_count: int = 0
+        self.success_count: int = 0
+        self.soft_failure_count: int = 0
+        self.provider_failure_count: int = 0
+        self.last_symbol: Optional[str] = None
+        self.last_latency_ms: float = 0.0
+        self.last_result_at: float = 0.0
+        self.symbols_served: Set[str] = set()
 
     @property
     def enabled(self) -> bool:
@@ -804,21 +812,32 @@ class MultiSourceDataProvider:
 
             sema = self._get_provider_sema(provider.NAME)
             try:
+                provider.request_count += 1
+                provider.last_symbol = symbol
+                started = time.monotonic()
                 async with sema:
                     result = await provider.fetch(symbol)
+                provider.last_latency_ms = round((time.monotonic() - started) * 1000, 1)
                 if result and result.get("price", 0) > 0:
+                    provider.success_count += 1
+                    provider.last_result_at = time.time()
+                    provider.symbols_served.add(symbol)
                     provider.breaker.record_success()
                     self._fail_counts[symbol] = 0  # reset on success
                     return result
 
                 reason = f"Empty or zero-price response for {symbol}"
+                provider.soft_failure_count += 1
                 provider.breaker.record_soft_failure(reason)
                 logger.debug(f"  [{provider.NAME}] soft-failed for {symbol}: {reason}")
             except Exception as e:
+                provider.last_latency_ms = round((time.monotonic() - started) * 1000, 1)
                 reason = str(e)
                 if provider.is_provider_error(e):
+                    provider.provider_failure_count += 1
                     provider.breaker.record_failure(reason)
                 else:
+                    provider.soft_failure_count += 1
                     provider.breaker.record_soft_failure(reason)
                 logger.debug(f"  [{provider.NAME}] failed for {symbol}: {e}")
 
@@ -877,11 +896,25 @@ class MultiSourceDataProvider:
     def get_provider_status(self) -> Dict[str, Any]:
         """Return status of all providers for monitoring."""
         status = {"stock": [], "crypto": [], "skipped_symbols": []}
-        for p in self.stock_providers:
-            status["stock"].append({
+
+        def _ui_status(p: BaseProvider) -> str:
+            if not p.enabled:
+                return "DISABLED"
+            if p.breaker.state == CBState.OPEN:
+                return "TRIPPED"
+            if p.breaker.state == CBState.HALF_OPEN:
+                return "PROBING"
+            if p.success_count > 0:
+                return "ACTIVE"
+            return "READY"
+
+        def _entry(p: BaseProvider) -> Dict[str, Any]:
+            return {
                 "name": p.NAME,
                 "enabled": p.enabled,
                 "state": p.breaker.state.value,
+                "ui_status": _ui_status(p),
+                "available": p.enabled and p.breaker.state != CBState.OPEN,
                 "failures": p.breaker.failures,
                 "failure_threshold": p.breaker.failure_threshold,
                 "cooldown_seconds": p.breaker.cooldown,
@@ -889,22 +922,22 @@ class MultiSourceDataProvider:
                 "last_error": p.breaker.last_error,
                 "last_failure_at": p.breaker.last_failure_at,
                 "last_success_at": p.breaker.last_success_at,
+                "last_result_at": p.last_result_at,
+                "last_symbol": p.last_symbol,
+                "latency_ms": p.last_latency_ms,
+                "request_count": p.request_count,
+                "success_count": p.success_count,
+                "soft_failures": p.soft_failure_count,
+                "provider_failures": p.provider_failure_count,
+                "assets_tracked": len(p.symbols_served),
                 "requires_key": p.REQUIRES_KEY,
                 "key_env": p.KEY_ENV if p.REQUIRES_KEY else None,
-            })
+            }
+
+        for p in self.stock_providers:
+            status["stock"].append(_entry(p))
         for p in self.crypto_providers:
-            status["crypto"].append({
-                "name": p.NAME,
-                "enabled": p.enabled,
-                "state": p.breaker.state.value,
-                "failures": p.breaker.failures,
-                "failure_threshold": p.breaker.failure_threshold,
-                "cooldown_seconds": p.breaker.cooldown,
-                "seconds_until_retry": round(p.breaker.seconds_until_retry, 2),
-                "last_error": p.breaker.last_error,
-                "last_failure_at": p.breaker.last_failure_at,
-                "last_success_at": p.breaker.last_success_at,
-            })
+            status["crypto"].append(_entry(p))
         status["skipped_symbols"] = [
             s for s, c in self._fail_counts.items() if c >= self._SKIP_THRESHOLD
         ]

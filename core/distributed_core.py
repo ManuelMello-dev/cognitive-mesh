@@ -675,9 +675,16 @@ class DistributedCognitiveCore:
                         name = p.get('name', '?')
                         providers[name] = {
                             "name": name,
-                            "status": p.get('state', 'unknown'),
-                            "assets_tracked": p.get('failures', 0),
-                            "latency_ms": 0,
+                            "status": p.get('ui_status', p.get('state', 'unknown')),
+                            "breaker_state": p.get('state', 'unknown'),
+                            "enabled": p.get('enabled', True),
+                            "available": p.get('available', True),
+                            "assets_tracked": p.get('assets_tracked', 0),
+                            "latency_ms": p.get('latency_ms', 0),
+                            "request_count": p.get('request_count', 0),
+                            "success_count": p.get('success_count', 0),
+                            "last_symbol": p.get('last_symbol'),
+                            "last_error": p.get('last_error'),
                         }
                 except Exception as e:
                     logger.debug(f"Provider status error in cache: {e}")
@@ -1043,9 +1050,16 @@ class DistributedCognitiveCore:
                         name = p.get('name', '?')
                         providers[name] = {
                             "name": name,
-                            "status": p.get('state', 'unknown'),
-                            "assets_tracked": p.get('failures', 0),
-                            "latency_ms": 0,
+                            "status": p.get('ui_status', p.get('state', 'unknown')),
+                            "breaker_state": p.get('state', 'unknown'),
+                            "enabled": p.get('enabled', True),
+                            "available": p.get('available', True),
+                            "assets_tracked": p.get('assets_tracked', 0),
+                            "latency_ms": p.get('latency_ms', 0),
+                            "request_count": p.get('request_count', 0),
+                            "success_count": p.get('success_count', 0),
+                            "last_symbol": p.get('last_symbol'),
+                            "last_error": p.get('last_error'),
                         }
                 except Exception as e:
                     logger.debug(f"Provider status error in cache: {e}")

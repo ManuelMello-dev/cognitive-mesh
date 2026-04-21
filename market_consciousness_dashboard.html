@@ -299,7 +299,7 @@
 
     <!-- EEG -->
     <div class="panel wide">
-        <h2>Global Consciousness EEG</h2>
+        <h2>Z³ Living Basin Attractor</h2>
         <canvas id="coherenceCanvas"></canvas>
     </div>
 
@@ -455,45 +455,174 @@
     const API_BASE = '/api';
     let globalState = {};
 
-    // drawEEG delegates to the real implementation set up inside DOMContentLoaded
-    // where it has access to the shared chartData closure.
-    function drawEEG() {
-        if (typeof window._drawEEGImpl === 'function') window._drawEEGImpl();
+    function drawAttractor(state = globalState) {
+        if (typeof window._drawAttractorImpl === 'function') window._drawAttractorImpl(state || {});
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         const coherenceCanvas = document.getElementById('coherenceCanvas');
         const ctx = coherenceCanvas.getContext('2d');
-        let chartData = { theta: [], alpha: [], beta: [], gamma: [] };
-        const chartCapacity = 200;
+        const basinTrail = [];
+        const basinTrailCapacity = 160;
 
-        // Register the real drawEEG implementation so the outer stub can call it
-        window._drawEEGImpl = function() {
+        function resizeCanvas() {
             if (!coherenceCanvas) return;
+            coherenceCanvas.width = coherenceCanvas.clientWidth;
+            coherenceCanvas.height = coherenceCanvas.clientHeight;
+        }
+
+        function clamp(value, min = 0, max = 1) {
+            return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+        }
+
+        function num(value, fallback = 0) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : fallback;
+        }
+
+        function buildAgentNodes(state) {
+            const metrics = state.metrics || {};
+            const predictions = state.predictions || state.prediction_snapshot?.predictions || [];
+            const providers = Object.values(state.providers || {});
+            const providerFaults = providers.filter(p => String(p.status || '').toLowerCase() === 'open').length;
+            const providerHealth = providers.length ? 1 - (providerFaults / providers.length) : 0.5;
+            const rings = num(state.resonant_memory?.metrics?.rings, num(metrics.resonant_memory_rings, 0));
+            const rules = num(metrics.total_rules, 0);
+            const concepts = num(metrics.total_concepts, 0);
+            const goals = num(metrics.total_goals, 0);
+            const samples = num(metrics.samples_processed, 0);
+            const phi = clamp(num(metrics.global_coherence_phi, num(state.phi, 0.5)));
+            const sigma = clamp(num(metrics.noise_level_sigma, num(state.sigma, 0.5)));
+
+            return [
+                { name: 'Prediction', color: '#00d4ff', orbit: 0.42, intensity: clamp(num(metrics.prediction_accuracy, 0) * 0.75 + Math.min(predictions.length / 12, 0.25) + phi * 0.2), phase: 0.1 },
+                { name: 'Reasoning', color: '#ffd700', orbit: 0.58, intensity: clamp(Math.min(rules / 24, 0.8) * 0.7 + phi * 0.25), phase: 1.25 },
+                { name: 'Learning', color: '#00ff41', orbit: 0.74, intensity: clamp(Math.min(samples / 200, 0.7) * 0.75 + Math.min(concepts / 80, 0.25)), phase: 2.2 },
+                { name: 'Goals', color: '#ff7f50', orbit: 0.9, intensity: clamp(Math.min(goals / 10, 0.65) + phi * 0.2), phase: 3.15 },
+                { name: 'Memory', color: '#b44dff', orbit: 1.06, intensity: clamp(Math.min(rings / 24, 0.75) + Math.min(num(metrics.phi_access_window, 0) / 12, 0.25)), phase: 4.2 },
+                { name: 'Providers', color: '#7fffd4', orbit: 1.22, intensity: clamp(providerHealth * 0.8 + (1 - sigma) * 0.2), phase: 5.15 },
+            ];
+        }
+
+        window._drawAttractorImpl = function(state = {}) {
+            if (!coherenceCanvas) return;
+            resizeCanvas();
+
             const width = coherenceCanvas.width;
             const height = coherenceCanvas.height;
+            const metrics = state.metrics || {};
+            const phi = clamp(num(metrics.global_coherence_phi, num(state.phi, 0.5)));
+            const sigma = clamp(num(metrics.noise_level_sigma, num(state.sigma, 0.5)));
+            const resonance = clamp(num(metrics.average_resonance, state.resonant_memory?.metrics?.average_resonance || 0));
+            const memoryConfidence = clamp(num(metrics.memory_reconstruction_confidence, state.resonant_memory?.metrics?.last_reconstruction_confidence || 0));
+            const iteration = num(state.iteration, num(metrics.total_observations, 0));
+            const nodes = buildAgentNodes(state);
+            const now = Date.now() / 1000;
+
             ctx.clearRect(0, 0, width, height);
-            const waveColors = {
-                theta: 'rgba(255, 75, 43, 0.8)',
-                alpha: 'rgba(255, 215, 0, 0.8)',
-                beta: 'rgba(0, 212, 255, 0.8)',
-                gamma: 'rgba(0, 255, 65, 0.8)',
-            };
-            Object.keys(chartData).forEach(wave => {
-                const data = chartData[wave];
-                if (!data || data.length < 2) return;
+
+            const bg = ctx.createLinearGradient(0, 0, width, height);
+            bg.addColorStop(0, '#020611');
+            bg.addColorStop(1, '#000000');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, width, height);
+
+            const centerX = width * 0.5;
+            const centerY = height * 0.53;
+            const basinRadius = Math.min(width, height) * (0.18 + phi * 0.12 + resonance * 0.08);
+            const driftX = Math.cos(now * 0.35 + iteration * 0.015) * basinRadius * (0.28 + sigma * 0.4);
+            const driftY = Math.sin(now * 0.28 + resonance * Math.PI) * basinRadius * (0.18 + (1 - phi) * 0.38);
+            const attractorX = centerX + driftX;
+            const attractorY = centerY + driftY;
+
+            basinTrail.push({ x: attractorX, y: attractorY, phi, sigma });
+            if (basinTrail.length > basinTrailCapacity) basinTrail.shift();
+
+            for (let ring = 6; ring >= 1; ring--) {
+                const ratio = ring / 6;
                 ctx.beginPath();
-                ctx.strokeStyle = waveColors[wave];
-                ctx.lineWidth = 1.5;
-                for (let i = 0; i < data.length; i++) {
-                    const x = (i / (chartCapacity - 1)) * width;
-                    const y = (height / 2) - (data[i] * (height / 2.5));
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
+                ctx.strokeStyle = `rgba(0, 212, 255, ${0.08 + ratio * 0.05})`;
+                ctx.lineWidth = 1;
+                ctx.ellipse(
+                    centerX,
+                    centerY,
+                    basinRadius * (0.8 + ratio * (1.25 + sigma * 0.55)),
+                    basinRadius * (0.45 + ratio * (0.85 + (1 - phi) * 0.45)),
+                    now * 0.08 + ring * 0.18,
+                    0,
+                    Math.PI * 2
+                );
                 ctx.stroke();
+            }
+
+            if (basinTrail.length > 1) {
+                ctx.beginPath();
+                basinTrail.forEach((point, index) => {
+                    const alpha = (index + 1) / basinTrail.length;
+                    if (index === 0) ctx.moveTo(point.x, point.y);
+                    else ctx.lineTo(point.x, point.y);
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${0.08 + alpha * 0.4})`;
+                });
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            const anchorGlow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, basinRadius * 0.9);
+            anchorGlow.addColorStop(0, `rgba(180, 77, 255, ${0.18 + phi * 0.2})`);
+            anchorGlow.addColorStop(1, 'rgba(180, 77, 255, 0)');
+            ctx.fillStyle = anchorGlow;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, basinRadius * 0.9, 0, Math.PI * 2);
+            ctx.fill();
+
+            nodes.forEach((node, index) => {
+                const angle = now * (0.28 + index * 0.025) + node.phase + phi * Math.PI * 0.8;
+                const orbitRadius = basinRadius * (1.25 + node.orbit + sigma * 0.15);
+                const nodeX = centerX + Math.cos(angle) * orbitRadius;
+                const nodeY = centerY + Math.sin(angle) * orbitRadius * (0.68 + resonance * 0.28);
+                const nodeRadius = 5 + node.intensity * 8;
+
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(255,255,255,${0.08 + node.intensity * 0.2})`;
+                ctx.lineWidth = 1 + node.intensity * 1.5;
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(nodeX, nodeY);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.fillStyle = node.color;
+                ctx.shadowColor = node.color;
+                ctx.shadowBlur = 12 + node.intensity * 14;
+                ctx.arc(nodeX, nodeY, nodeRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.font = '11px Courier New';
+                ctx.fillText(node.name, nodeX + 10, nodeY + 4);
             });
+
+            ctx.beginPath();
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.arc(centerX, centerY, 9 + phi * 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.font = 'bold 13px Courier New';
+            ctx.fillText('Z³ Anchor', centerX + 14, centerY - 10);
+            ctx.font = '11px Courier New';
+            ctx.fillStyle = 'rgba(0,255,65,0.85)';
+            ctx.fillText(`φ ${phi.toFixed(3)}   σ ${sigma.toFixed(3)}   resonance ${resonance.toFixed(3)}`, 16, 24);
+            ctx.fillStyle = 'rgba(180, 77, 255, 0.85)';
+            ctx.fillText(`memory ${memoryConfidence.toFixed(3)}   observations ${num(metrics.total_observations, 0)}`, 16, 42);
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.8)';
+            ctx.fillText('living basin: node glow = activity, orbit drift = state change, trail = attractor path', 16, height - 16);
         };
+
+        window.addEventListener('resize', () => drawAttractor(globalState));
 
         // Fetch helper with AbortController timeout (default 8s)
         async function fetchWithTimeout(url, timeoutMs = 8000) {
@@ -513,23 +642,8 @@
         let _statePollingActive = false;
         let _lastToggleSignature = '';
 
-        async function fetchEEG() {
-            try {
-                const response = await fetchWithTimeout(`${API_BASE}/eeg`, 8000);
-                const data = await response.json();
-                if (data && !data.error) {
-                    // EEG returns amplitude values keyed by wave name
-                    ['theta','alpha','beta','gamma'].forEach(wave => {
-                        const val = data[wave];
-                        const amplitude = (val && typeof val === 'object') ? (val.amplitude || 0) : (typeof val === 'number' ? val : 0);
-                        chartData[wave].push(amplitude);
-                        if (chartData[wave].length > chartCapacity) chartData[wave].shift();
-                    });
-                    window.requestAnimationFrame(drawEEG);
-                }
-            } catch (error) {
-                // EEG errors are non-critical — silently skip this frame
-            }
+        function refreshAttractor() {
+            window.requestAnimationFrame(() => drawAttractor(globalState));
         }
 
         async function fetchState() {
@@ -565,6 +679,7 @@
                 }
                 globalState = state;
                 updateAllTabs(state);
+                refreshAttractor();
                 // After a successful fetch, clear any error state so updateAllTabs can set the real state
                 if (!state._cache_warming && consciousnessState && (consciousnessState.textContent === 'Connection Lost...' || consciousnessState.textContent === 'Connecting...')) {
                     consciousnessState.textContent = 'Awaiting Mesh Activation...';
@@ -812,7 +927,13 @@
                 providerTable.innerHTML = '';
                 Object.values(providersState).forEach(p => {
                     const row = providerTable.insertRow();
-                    row.innerHTML = `<td>${p.name}</td><td>${p.status}</td><td>${p.assets_tracked}</td><td>${p.latency_ms}ms</td>`;
+                    const details = [
+                        p.breaker_state ? `breaker:${p.breaker_state}` : null,
+                        p.last_symbol ? `last:${p.last_symbol}` : null,
+                        p.last_error ? `err:${String(p.last_error).slice(0, 40)}` : null,
+                    ].filter(Boolean).join(' · ');
+                    row.title = details;
+                    row.innerHTML = `<td>${p.name}</td><td>${p.status}</td><td>${p.assets_tracked}</td><td>${Number(p.latency_ms || 0).toFixed(0)}ms</td>`;
                 });
             }
 
@@ -941,14 +1062,8 @@
         setTimeout(fetchState, 2000);
         setInterval(fetchState, 3000); // Main state update every 3s
 
-        // EEG: start after 3s, poll every 3s (matches state poll — prevents 499 floods on Railway)
-        setTimeout(() => {
-            fetchEEG();
-            setInterval(fetchEEG, 3000);
-        }, 3000);
-
         // Initial drawing of the canvas
-        drawEEG();
+        drawAttractor(globalState);
     });
 </script>
 </body>
