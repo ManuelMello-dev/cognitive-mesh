@@ -511,6 +511,7 @@
 
         let _consecutiveStateErrors = 0;
         let _statePollingActive = false;
+        let _lastToggleSignature = '';
 
         async function fetchEEG() {
             try {
@@ -589,6 +590,16 @@
             if (!state) return;
             // During cache warm-up, skip clearing containers — don't show false zeros
             const isWarming = !!state._cache_warming;
+            const metrics = state.metrics || state;
+            const conceptsState = state.concepts || state.abstractions || {};
+            const rulesState = state.rules || {};
+            const factsState = state.facts || [];
+            const goalsState = state.goals || state.active_goals || {};
+            const analogiesState = state.analogies || [];
+            const causalState = state.causal_graph || {};
+            const predictionsState = state.predictions || state.prediction_snapshot?.predictions || [];
+            const providersState = state.providers || {};
+            const togglesState = state.toggles || {};
 
             // Overview Tab
             const mPhi = document.getElementById('mPhi');
@@ -597,9 +608,8 @@
             const mAcc = document.getElementById('mAcc');
             const consciousnessState = document.getElementById('consciousnessState');
 
-	            // Metrics can be top-level or in state.metrics
-	            const metrics = state.metrics || state;
-	            if (mPhi) mPhi.textContent = (metrics.global_coherence_phi || metrics.phi || 0).toFixed(4);
+            if (mPhi) mPhi.textContent = (metrics.global_coherence_phi || metrics.phi || 0).toFixed(4);
+
 	            if (mSigma) mSigma.textContent = (metrics.noise_level_sigma || metrics.sigma || 0).toFixed(4);
 	            if (mAttn) mAttn.textContent = `${((metrics.attention_density || metrics.attention || 0) * 100).toFixed(1)}%`;
 	            if (mAcc) mAcc.textContent = `${((metrics.prediction_accuracy || metrics.accuracy || 0) * 100).toFixed(1)}%`;
@@ -630,9 +640,9 @@
                 symbolCountDisplay.textContent = metrics.symbols_tracked || 0;
             }
             // Build symbol cards from concepts (each concept has a symbol field)
-            if (symbolGrid && state.concepts) {
+            if (symbolGrid && conceptsState) {
                 const seenSymbols = {};
-                Object.values(state.concepts).forEach(c => {
+                Object.values(conceptsState).forEach(c => {
                     if (c.symbol && !seenSymbols[c.symbol]) {
                         seenSymbols[c.symbol] = c;
                     }
@@ -667,9 +677,9 @@
 
             // Predictions Tab
             const predictionsTable = document.getElementById('predictionsTable')?.getElementsByTagName('tbody')[0];
-            if (predictionsTable && state.predictions) {
+            if (predictionsTable) {
                 predictionsTable.innerHTML = '';
-                state.predictions.forEach(p => {
+                predictionsState.forEach(p => {
                     const row = predictionsTable.insertRow();
                     row.innerHTML = `<td>${p.id}</td><td>${p.symbol}</td><td>${p.type}</td><td>${(p.confidence * 100).toFixed(1)}%</td><td>${p.horizon}</td><td>${p.outcome}</td>`;
                 });
@@ -677,9 +687,9 @@
 
             // Learning Tab — Concept Hierarchy
             const conceptContainer = document.getElementById('conceptContainer');
-            if (conceptContainer && state.concepts && !isWarming) {
+            if (conceptContainer && !isWarming) {
                 conceptContainer.innerHTML = '';
-                const conceptList = Object.values(state.concepts);
+                const conceptList = Object.values(conceptsState || {});
                 conceptList.forEach(c => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
@@ -697,8 +707,8 @@
 
             // Continuous Learning panel
             const learningContainer = document.getElementById('learningContainer');
-            if (learningContainer && state.metrics) {
-                const m = state.metrics;
+            if (learningContainer && metrics) {
+                const m = metrics;
                 learningContainer.innerHTML = [
                     `Patterns discovered: ${m.patterns_discovered || 0}`,
                     `Samples processed: ${m.samples_processed || 0}`,
@@ -710,9 +720,9 @@
 
             // Reasoning Tab
             const factContainer = document.getElementById('factContainer');
-            if (factContainer && state.facts && !isWarming) {
+            if (factContainer && !isWarming) {
                 factContainer.innerHTML = '';
-                state.facts.forEach(f => {
+                factsState.forEach(f => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
                     item.textContent = `${f.subject} -> ${f.predicate} -> ${f.object}`;
@@ -720,9 +730,9 @@
                 });
             }
             const ruleContainer = document.getElementById('ruleContainer');
-            if (ruleContainer && state.rules && !isWarming) {
+            if (ruleContainer && !isWarming) {
                 ruleContainer.innerHTML = '';
-                const ruleList = Object.values(state.rules);
+                const ruleList = Array.isArray(rulesState) ? rulesState : Object.values(rulesState || {});
                 ruleList.forEach(r => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
@@ -739,9 +749,9 @@
 
             // Cross-Domain Tab
             const analogyContainer = document.getElementById('analogyContainer');
-            if (analogyContainer && state.analogies && !isWarming) {
+            if (analogyContainer && !isWarming) {
                 analogyContainer.innerHTML = '';
-                state.analogies.forEach(a => {
+                analogiesState.forEach(a => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
                     item.textContent = `${a.source} is like ${a.target} (Similarity: ${(a.similarity * 100).toFixed(1)}%)`;
@@ -751,9 +761,9 @@
 
             // Causal Tab
             const causalContainer = document.getElementById('causalContainer');
-            if (causalContainer && state.causal_graph && !isWarming) {
+            if (causalContainer && !isWarming) {
                 causalContainer.innerHTML = '';
-                const cg = state.causal_graph;
+                const cg = causalState || {};
                 // causal_graph = { causal_links: [...], discovered_count: N }
                 const links = Array.isArray(cg.causal_links) ? cg.causal_links : [];
                 const count = cg.discovered_count || 0;
@@ -781,9 +791,9 @@
 
             // Goals Tab
             const goalContainer = document.getElementById('goalContainer');
-            if (goalContainer && state.goals && !isWarming) {
+            if (goalContainer && !isWarming) {
                 goalContainer.innerHTML = '';
-                const goalList = Object.values(state.goals);
+                const goalList = Array.isArray(goalsState) ? goalsState : Object.values(goalsState || {});
                 goalList.forEach(g => {
                     const item = document.createElement('div');
                     item.className = 'log-entry';
@@ -798,9 +808,9 @@
 
             // Providers Tab
             const providerTable = document.getElementById('providerTable')?.getElementsByTagName('tbody')[0];
-            if (providerTable && state.providers) {
+            if (providerTable) {
                 providerTable.innerHTML = '';
-                Object.values(state.providers).forEach(p => {
+                Object.values(providersState).forEach(p => {
                     const row = providerTable.insertRow();
                     row.innerHTML = `<td>${p.name}</td><td>${p.status}</td><td>${p.assets_tracked}</td><td>${p.latency_ms}ms</td>`;
                 });
@@ -808,9 +818,12 @@
 
             // Toggles Tab — render once when real data arrives (not during cache warm-up)
             const toggleContainer = document.getElementById('toggleContainer');
-            const togglesReady = state.toggles && !state._cache_warming;
-            if (toggleContainer && togglesReady && toggleContainer.children.length === 0) {
-                Object.entries(state.toggles).forEach(([key, value]) => {
+            const togglesReady = togglesState && !state._cache_warming;
+            const toggleSignature = JSON.stringify(togglesState || {});
+            if (toggleContainer && togglesReady && _lastToggleSignature !== toggleSignature) {
+                toggleContainer.innerHTML = '';
+                _lastToggleSignature = toggleSignature;
+                Object.entries(togglesState).forEach(([key, value]) => {
                     const row = document.createElement('div');
                     row.className = 'toggle-row';
                     const label = document.createElement('span');
@@ -849,12 +862,18 @@
 
         async function handleToggle(key, value) {
             try {
-                await fetch(`${API_BASE}/toggles`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key, value })
-                });
-                // The backend will update the state, which will be fetched by the next interval
+                    const response = await fetch(`${API_BASE}/toggles`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key, value })
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const result = await response.json();
+                    if (result && result.toggles) {
+                        globalState = { ...globalState, toggles: result.toggles };
+                        updateAllTabs(globalState);
+                    }
+
             } catch (error) {
                 console.error('Toggle Error:', error);
             }
@@ -892,13 +911,13 @@
                 const response = await fetch(`${API_BASE}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: message })
+                    body: JSON.stringify({ message, mode: 'chat' })
                 });
                 const data = await response.json();
 
                 const aiMsgDiv = document.createElement('div');
                 aiMsgDiv.className = 'chat-message ai-message';
-                aiMsgDiv.textContent = data.response;
+                aiMsgDiv.textContent = data.response || data.error || 'No response from the mesh.';
                 chatMessages.appendChild(aiMsgDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             } catch (error) {

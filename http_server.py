@@ -77,7 +77,7 @@ async def handle_chat(request):
     """Output Layer endpoint — the ONLY node that produces natural language (Mesh Principle 7)"""
     try:
         data = await request.json()
-        message = data.get("message", "")
+        message = (data.get("message") or data.get("prompt") or data.get("query") or "").strip()
         history = data.get("history", [])
         render_mode = data.get("mode", "chat")  # chat | summary | status | analysis
 

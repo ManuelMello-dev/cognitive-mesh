@@ -895,6 +895,144 @@ class DistributedCognitiveCore:
             m["concepts_merged"]         = self._concepts_merged
             m["concepts_pruned"]         = self._concepts_pruned
 
+            # ── Normalize coordinator-backed cache to the dashboard schema ─────
+            try:
+                concepts = self.get_concepts_snapshot()
+            except Exception:
+                concepts = {}
+            try:
+                rules = self.get_rules_snapshot()
+            except Exception:
+                rules = {}
+            try:
+                goals = self.get_goals_snapshot()
+            except Exception:
+                goals = {}
+            try:
+                cross_domain = self.get_cross_domain_snapshot()
+            except Exception:
+                cross_domain = {}
+            try:
+                analogies = self.get_analogies()
+            except Exception:
+                analogies = []
+            try:
+                causal_graph = self.get_causal_graph()
+            except Exception:
+                causal_graph = {}
+            try:
+                concept_hierarchy = self.get_concept_hierarchy()
+            except Exception:
+                concept_hierarchy = {}
+            try:
+                explanations = self.get_explanations()
+            except Exception:
+                explanations = []
+            try:
+                plans = self.get_plans()
+            except Exception:
+                plans = []
+            try:
+                pursuits = self.get_pursuit_log()
+            except Exception:
+                pursuits = []
+            try:
+                transfer_suggestions = self.get_transfer_suggestions()
+            except Exception:
+                transfer_suggestions = []
+            try:
+                strategy_performance = self.get_strategy_performance()
+            except Exception:
+                strategy_performance = {}
+            try:
+                feature_importances = self.get_feature_importances()
+            except Exception:
+                feature_importances = {}
+            try:
+                drift_events = self.get_drift_events()
+            except Exception:
+                drift_events = []
+            try:
+                orchestrator_status = self.get_orchestrator_status()
+            except Exception:
+                orchestrator_status = {
+                    "status": "running" if self._running else "stopped",
+                    "node_id": self.node_id,
+                }
+
+            facts = []
+            try:
+                with self._lock:
+                    raw_facts = list(self.cognitive_system.reasoning.facts)[:50]
+                for fact in raw_facts:
+                    if isinstance(fact, dict):
+                        facts.append(fact)
+                    elif hasattr(fact, '__dict__'):
+                        facts.append(fact.__dict__)
+                    elif isinstance(fact, str):
+                        parts = fact.split('_', 2)
+                        if len(parts) == 3:
+                            facts.append({"subject": parts[0], "predicate": parts[1], "object": parts[2]})
+                        else:
+                            facts.append({"subject": fact, "predicate": "is", "object": "true"})
+                    else:
+                        facts.append({"subject": str(fact), "predicate": "is", "object": "true"})
+            except Exception:
+                facts = []
+
+            recent_preds = pred_i.get('recent_predictions', []) if isinstance(pred_i, dict) else []
+            predictions = []
+            for i, p in enumerate(recent_preds):
+                if isinstance(p, dict):
+                    predictions.append({
+                        "id": p.get('id', f"pred_{i}"),
+                        "symbol": p.get('symbol', '?'),
+                        "type": p.get('direction', p.get('type', '?')),
+                        "confidence": p.get('confidence', 0),
+                        "horizon": p.get('horizon', '?'),
+                        "outcome": 'correct' if p.get('correct') else ('pending' if not p.get('validated') else 'wrong'),
+                    })
+
+            prediction_snapshot = {
+                "predictions": predictions,
+                "metrics": {
+                    "accuracy": pred_i.get('global_accuracy', 0) if isinstance(pred_i, dict) else 0,
+                    "total_validated": pred_i.get('total_validated', 0) if isinstance(pred_i, dict) else 0,
+                    "total_correct": pred_i.get('total_correct', 0) if isinstance(pred_i, dict) else 0,
+                    "phi": round(float(coord_state.get("phi", 0.5)), 4),
+                    "sigma": round(float(coord_state.get("sigma", 0.5)), 4),
+                },
+            }
+
+            learning = {
+                "metrics": dict(m),
+                "feature_importances": feature_importances,
+                "drift_events": drift_events,
+                "strategy_performance": strategy_performance,
+            }
+
+            coord_state["concepts"] = concepts
+            coord_state["rules"] = rules
+            coord_state["facts"] = facts
+            coord_state["goals"] = goals
+            coord_state["cross_domain"] = cross_domain
+            coord_state["analogies"] = analogies
+            coord_state["causal_graph"] = causal_graph
+            coord_state["predictions"] = predictions
+            coord_state["concept_hierarchy"] = concept_hierarchy
+            coord_state["explanations"] = explanations
+            coord_state["plans"] = plans
+            coord_state["pursuits"] = pursuits
+            coord_state["transfer_suggestions"] = transfer_suggestions
+            coord_state["strategy_performance"] = strategy_performance
+            coord_state["feature_importances"] = feature_importances
+            coord_state["drift_events"] = drift_events
+            coord_state["prediction_snapshot"] = prediction_snapshot
+            coord_state["learning"] = learning
+            coord_state["orchestrator_status"] = orchestrator_status
+            coord_state["log"] = list(self._activity_log)
+            coord_state["_cache_warming"] = False
+
             # Provider status (data plane, not cognitive plane)
             providers = {}
             if self.data_provider:
