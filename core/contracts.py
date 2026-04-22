@@ -31,10 +31,14 @@ class ConstitutionalOutput:
     assignment_distance: float = 0.0
     distance_to_attractor: float = 0.0
     gradient_norm: float = 0.0
+    collapse_probability: float = 0.0
+    z_state: List[float] = field(default_factory=list)
     z_prime_state: List[float] = field(default_factory=list)
+    z_double_prime_state: List[float] = field(default_factory=list)
+    checkpoint_state: Dict[str, Any] = field(default_factory=dict)
+    interference_state: Dict[str, Any] = field(default_factory=dict)
+    logos_state: Dict[str, Any] = field(default_factory=dict)
     z_cubed_state: Dict[str, Any] = field(default_factory=dict)
-
-
 
 
 # ─────────────────────────────────────────────

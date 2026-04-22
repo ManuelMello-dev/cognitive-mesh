@@ -143,6 +143,29 @@ class ResonantMemoryGeometry:
             observation.get("constitutional_drift", constitutional_context.get("drift")),
             0.0,
         )
+        collapse_probability = _safe_float(
+            observation.get("constitutional_collapse_probability", constitutional_context.get("collapse_probability")),
+            0.0,
+        )
+        checkpoint_state = constitutional_context.get("checkpoint_state", {}) if constitutional_context else {}
+        interference_state = constitutional_context.get("interference_state", {}) if constitutional_context else {}
+        logos_state = constitutional_context.get("logos_state", {}) if constitutional_context else {}
+        checkpoint_continuity = _safe_float(
+            observation.get("constitutional_checkpoint_continuity", checkpoint_state.get("continuity")),
+            0.0,
+        )
+        checkpoint_amplification = _safe_float(
+            observation.get("constitutional_checkpoint_amplification", checkpoint_state.get("amplification")),
+            0.0,
+        )
+        interference_net = _safe_float(
+            observation.get("constitutional_interference_net", interference_state.get("net")),
+            0.0,
+        )
+        logos_reflective_energy = _safe_float(
+            observation.get("constitutional_logos_reflective_energy", logos_state.get("reflective_energy")),
+            0.0,
+        )
 
         return {
             "price": math.tanh(price / 1000.0),
@@ -154,6 +177,11 @@ class ResonantMemoryGeometry:
             "sigma": (2.0 * _clamp(sigma)) - 1.0,
             "coherence": math.tanh(coherence * 4.0),
             "drift": math.tanh(drift * 4.0),
+            "collapse_probability": (2.0 * _clamp(collapse_probability)) - 1.0,
+            "checkpoint_continuity": (2.0 * _clamp(checkpoint_continuity)) - 1.0,
+            "checkpoint_amplification": (2.0 * _clamp(checkpoint_amplification)) - 1.0,
+            "interference_net": max(-1.0, min(1.0, interference_net)),
+            "logos_reflective_energy": math.tanh(logos_reflective_energy * 4.0),
         }
 
     def _phase_position(self, anchors: List[str], state_vector: Dict[str, float]) -> float:
@@ -249,11 +277,15 @@ class ResonantMemoryGeometry:
             )
 
         salience = _clamp(
-            0.35
-            + 0.35 * reconstruction_confidence
-            + 0.15 * _clamp(phi_hint)
+            0.28
+            + 0.28 * reconstruction_confidence
+            + 0.12 * _clamp(phi_hint)
             + 0.10 * _clamp(abs(state_vector.get("pct_change", 0.0)))
             + 0.10 * _clamp(abs(state_vector.get("coherence", 0.0)))
+            + 0.06 * _clamp(abs(state_vector.get("checkpoint_continuity", 0.0)))
+            + 0.06 * _clamp(abs(state_vector.get("checkpoint_amplification", 0.0)))
+            + 0.05 * _clamp(abs(state_vector.get("interference_net", 0.0)))
+            + 0.05 * _clamp(abs(state_vector.get("logos_reflective_energy", 0.0)))
         )
 
         ring = ResonantRing(
@@ -291,6 +323,9 @@ class ResonantMemoryGeometry:
             "top_matches": top_links,
             "phase_position": round(phase_position, 6),
             "salience": round(salience, 6),
+            "checkpoint_bias": round(_clamp(abs(state_vector.get("checkpoint_continuity", 0.0))), 6),
+            "interference_bias": round(max(-1.0, min(1.0, state_vector.get("interference_net", 0.0))), 6),
+            "logos_bias": round(_clamp(abs(state_vector.get("logos_reflective_energy", 0.0))), 6),
         }
 
     def get_snapshot(self, recent_ring_count: int = 12) -> Dict[str, Any]:

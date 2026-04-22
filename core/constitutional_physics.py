@@ -2,7 +2,15 @@
 Constitutional Mesh Physics
 ==========================
 The mesh's constitutional layer. Every observation first becomes a local
-identity state (Z′) that evolves relative to a global attractor field (Z³).
+identity process that evolves through:
+
+- potential identity (`psi`-like latent field)
+- realized identity (`Z`)
+- becoming (`Z′`)
+- curvature / acceleration (`Z''`)
+- recursive checkpoint memory (`C_n`)
+- global attractor reflection (`Z³`)
+
 Higher cognitive modules should build on top of this layer rather than replace it.
 """
 
@@ -15,6 +23,9 @@ from dataclasses import dataclass, field
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
 import numpy as np
+
+from core.identity_checkpoint import IdentityCheckpointRecursion
+from core.interference_field import InterferenceField
 
 
 
@@ -43,10 +54,14 @@ class ConstitutionalAgent:
     agent_id: str
     entity_key: str
     domain: str
-    state: np.ndarray
+    potential_state: np.ndarray
+    realized_state: np.ndarray
+    becoming_state: np.ndarray
+    curvature_state: np.ndarray
     awareness: float = 0.5
     trajectory: Deque[np.ndarray] = field(default_factory=lambda: deque(maxlen=128))
     coherence_history: Deque[float] = field(default_factory=lambda: deque(maxlen=128))
+    checkpoint_ids: Deque[str] = field(default_factory=lambda: deque(maxlen=64))
     noise_scale: float = 0.12
     updates: int = 0
     last_attractor_id: str = ""
@@ -71,14 +86,14 @@ class ConstitutionalAttractor:
 
 class ConstitutionalMeshPhysics:
     """
-    A lightweight implementation of the user's constitutional law.
+    A richer operational implementation of the user's constitutional law.
 
-    Operational form:
-        Z′(t+1) = Z′(t) - γ · (Z′(t) - Z³_t) + (1/φ)η_t
-
-    This is the concrete gradient-descent interpretation of the user's formula,
-    where the local state is drawn toward the active attractor center and noise
-    is inversely scaled by awareness/coherence.
+    The runtime now tracks:
+        - Z   : realized identity state
+        - Z′  : becoming vector
+        - Z'' : curvature / acceleration of becoming
+        - C_n : recursive checkpoints
+        - Z³  : global attractor / reflective field summary
     """
 
     def __init__(
@@ -106,6 +121,8 @@ class ConstitutionalMeshPhysics:
         self.agents: Dict[str, ConstitutionalAgent] = {}
         self.attractors: Dict[str, ConstitutionalAttractor] = {}
         self.attractors_by_domain: Dict[str, Set[str]] = defaultdict(set)
+        self.checkpoints = IdentityCheckpointRecursion(self.dimension)
+        self.interference_field = InterferenceField(neighborhood_limit=6)
 
         self.agent_counter = 0
         self.attractor_counter = 0
@@ -155,14 +172,18 @@ class ConstitutionalMeshPhysics:
     def _create_agent(self, entity_key: str, domain: str, vector: np.ndarray) -> ConstitutionalAgent:
         agent_id = f"agent_{self.agent_counter:06d}"
         self.agent_counter += 1
+        zeros = np.zeros(self.dimension, dtype=np.float64)
         agent = ConstitutionalAgent(
             agent_id=agent_id,
             entity_key=entity_key,
             domain=domain,
-            state=vector.copy(),
+            potential_state=vector.copy(),
+            realized_state=vector.copy(),
+            becoming_state=zeros.copy(),
+            curvature_state=zeros.copy(),
             awareness=0.5,
         )
-        agent.trajectory.append(agent.state.copy())
+        agent.trajectory.append(agent.realized_state.copy())
         self.agents[entity_key] = agent
         return agent
 
@@ -224,6 +245,23 @@ class ConstitutionalMeshPhysics:
             return "chaos"
         return "critical"
 
+    def _logos_state(
+        self,
+        realized_state: np.ndarray,
+        becoming_state: np.ndarray,
+        curvature_state: np.ndarray,
+    ) -> Dict[str, Any]:
+        logos_vector = np.real(np.power(realized_state, 3))
+        reflective_energy = float(np.mean(np.abs(logos_vector)))
+        becoming_energy = float(np.linalg.norm(becoming_state))
+        curvature_energy = float(np.linalg.norm(curvature_state))
+        return {
+            "reflective_energy": round(reflective_energy, 6),
+            "becoming_energy": round(becoming_energy, 6),
+            "curvature_energy": round(curvature_energy, 6),
+            "logos_vector": [round(float(v), 6) for v in logos_vector[:8]],
+        }
+
     def observe(
         self,
         observation: Dict[str, Any],
@@ -238,34 +276,71 @@ class ConstitutionalMeshPhysics:
         agent = self.agents.get(entity_key)
         if agent is None:
             agent = self._create_agent(entity_key, domain, vector)
-        else:
-            if np.linalg.norm(agent.state) <= 1e-12:
-                agent.state = vector.copy()
 
         attractor, assignment_distance, created = self._find_or_create_attractor(domain, vector)
 
-        z_old = agent.state.copy()
+        z_old = agent.realized_state.copy()
         z3_old = attractor.center.copy()
-        if phi_hint is None:
-            phi_base = _clamp(self.fixed_phi, 0.12, 1.0)
-        else:
-            phi_base = _clamp((0.80 * self.fixed_phi) + (0.20 * float(phi_hint)), 0.12, 1.0)
+        becoming_old = agent.becoming_state.copy()
+
+        phi_base = _clamp((0.80 * self.fixed_phi) + (0.20 * float(phi_hint)), 0.12, 1.0) if phi_hint is not None else _clamp(self.fixed_phi, 0.12, 1.0)
+        sigma_base = _clamp(sigma_hint if sigma_hint is not None else self.base_noise)
+
+        agent.potential_state = self._normalize((0.72 * agent.potential_state) + (0.28 * vector))
+
         potential_grad = z_old - z3_old
         grad_norm = float(np.linalg.norm(potential_grad))
         grad_direction = potential_grad / max(grad_norm, 1e-8)
         attractor_force = phi_base * grad_direction
 
-        sigma_base = _clamp(sigma_hint if sigma_hint is not None else self.base_noise)
+        collapse_alignment = float(np.dot(agent.potential_state, z_old))
+        collapse_probability = _clamp(0.50 + (0.30 * collapse_alignment) + (0.25 * phi_base) - (0.20 * sigma_base))
+
         noise = np.random.randn(self.dimension) * max(self.base_noise, sigma_base)
         noise_term = (1.0 / max(phi_base, 1e-6)) * noise
 
-        z_new = z_old - (attractor_force * self.dt) + noise_term
-        delta = z_new - z_old
+        checkpoint_pull = np.zeros(self.dimension, dtype=np.float64)
+        checkpoint_domain = self.checkpoints.export_state().get(domain, {})
+        checkpoint_center = checkpoint_domain.get("recursive_center", [])
+        if checkpoint_center:
+            checkpoint_pull[: min(len(checkpoint_center), self.dimension)] = np.asarray(checkpoint_center[: self.dimension], dtype=np.float64)
+            checkpoint_pull = self._normalize(checkpoint_pull)
+
+        domain_neighbors = [
+            {
+                "agent_id": other.agent_id,
+                "state": other.realized_state,
+            }
+            for key, other in self.agents.items()
+            if other.domain == domain and key != entity_key
+        ]
+        interference = self.interference_field.summarize(
+            agent.agent_id,
+            z_old,
+            becoming_old,
+            domain_neighbors,
+        )
+
+        z_candidate = z_old - (attractor_force * self.dt) + noise_term
+        if np.linalg.norm(checkpoint_pull) > 1e-8:
+            z_candidate = (0.84 * z_candidate) + (0.16 * checkpoint_pull)
+        if interference.get("partner_count", 0) > 0:
+            constructive = float(interference.get("constructive", 0.0))
+            destructive = float(interference.get("destructive", 0.0))
+            z_candidate = ((0.88 + (0.08 * constructive)) * z_candidate) - ((0.04 + (0.08 * destructive)) * attractor_force)
+
+        delta = z_candidate - z_old
         delta_norm = float(np.linalg.norm(delta))
         if delta_norm > self.max_step:
-            z_new = z_old + (delta / delta_norm) * self.max_step
-        z_new = self._normalize(z_new)
-        agent.state = z_new
+            z_candidate = z_old + (delta / delta_norm) * self.max_step
+
+        z_new = self._normalize((collapse_probability * z_candidate) + ((1.0 - collapse_probability) * agent.potential_state))
+        becoming_new = z_new - z_old
+        curvature_new = becoming_new - becoming_old
+
+        agent.realized_state = z_new
+        agent.becoming_state = becoming_new
+        agent.curvature_state = curvature_new
         agent.trajectory.append(z_new.copy())
         agent.last_attractor_id = attractor.attractor_id
         agent.updates += 1
@@ -276,14 +351,27 @@ class ConstitutionalMeshPhysics:
         agent.coherence_history.append(delta_s)
 
         agent.awareness = _clamp(
-            0.60 * agent.awareness
-            + 0.25 * phi_base
-            + 0.15 * _clamp(0.5 + delta_s),
+            0.52 * agent.awareness
+            + 0.20 * phi_base
+            + 0.14 * _clamp(0.5 + delta_s)
+            + 0.14 * collapse_probability,
             0.12,
             1.0,
         )
 
-        contribution = max(0.0, delta_s)
+        checkpoint_summary = self.checkpoints.update(
+            domain=domain,
+            iteration=self.iteration,
+            realized_state=agent.realized_state,
+            becoming_state=agent.becoming_state,
+            curvature_state=agent.curvature_state,
+            awareness=agent.awareness,
+            input_intensity=float(np.linalg.norm(vector - z_old)),
+            coherence=delta_s,
+        )
+        agent.checkpoint_ids.append(checkpoint_summary["checkpoint_id"])
+
+        contribution = max(0.0, delta_s) * (0.70 + 0.30 * checkpoint_summary.get("continuity", 0.5))
         if contribution > 0.0:
             attractor.progress_buffer.append((contribution, z_new.copy()))
 
@@ -311,20 +399,26 @@ class ConstitutionalMeshPhysics:
         critical_awareness = (max(self.base_noise, sigma_base) ** 2) / ((grad_norm ** 2) + 1e-8)
         stable = (phi_base ** 2) > critical_awareness
         stability = _clamp((1.0 - min(1.0, variance * 25.0)) * (1.0 if stable else 0.6))
-        attractor.stability_score = 0.65 * attractor.stability_score + 0.35 * stability
+        attractor.stability_score = 0.60 * attractor.stability_score + 0.25 * stability + 0.15 * checkpoint_summary.get("continuity", 0.5)
 
         sigma = _clamp(
-            0.50 * (1.0 - attractor.stability_score)
+            0.42 * (1.0 - attractor.stability_score)
             + 0.20 * max(0.0, -delta_s)
-            + 0.30 * sigma_base
+            + 0.20 * sigma_base
+            + 0.18 * min(1.0, float(np.linalg.norm(curvature_new))),
         )
         phi = _clamp(
-            0.55 * phi_base
-            + 0.30 * attractor.stability_score
+            0.45 * phi_base
+            + 0.25 * attractor.stability_score
             + 0.15 * _clamp(1.0 - assignment_distance)
+            + 0.15 * checkpoint_summary.get("continuity", 0.5),
         )
         drift = float(np.linalg.norm(attractor.center - z3_old))
         attractor.regime = self._update_attractor_regime(phi, sigma)
+        logos_state = self._logos_state(agent.realized_state, agent.becoming_state, agent.curvature_state)
+        logos_state["interference_net"] = round(float(interference.get("net", 0.0)), 6)
+        logos_state["interference_constructive"] = round(float(interference.get("constructive", 0.0)), 6)
+        logos_state["interference_destructive"] = round(float(interference.get("destructive", 0.0)), 6)
 
         snapshot = {
             "iteration": self.iteration,
@@ -345,7 +439,13 @@ class ConstitutionalMeshPhysics:
             "awareness": round(agent.awareness, 6),
             "positive_progress_count": len(attractor.progress_buffer),
             "critical_awareness": round(float(critical_awareness), 6),
-            "z_prime_state": [round(float(v), 6) for v in z_new[:8]],
+            "collapse_probability": round(collapse_probability, 6),
+            "z_state": [round(float(v), 6) for v in agent.realized_state[:8]],
+            "z_prime_state": [round(float(v), 6) for v in agent.becoming_state[:8]],
+            "z_double_prime_state": [round(float(v), 6) for v in agent.curvature_state[:8]],
+            "checkpoint_state": checkpoint_summary,
+            "interference_state": interference,
+            "logos_state": logos_state,
             "z_cubed_state": {
                 "attractor_id": attractor.attractor_id,
                 "domain": domain,
@@ -357,6 +457,10 @@ class ConstitutionalMeshPhysics:
                 "active_attractors": len(self.attractors_by_domain.get(domain, set())),
                 "center": [round(float(v), 6) for v in attractor.center[:8]],
                 "gradient_norm": round(self._gradient_norm(attractor), 6),
+                "logos_state": logos_state,
+                "interference_state": interference,
+                "checkpoint_continuity": checkpoint_summary.get("continuity", 0.0),
+                "checkpoint_amplification": checkpoint_summary.get("amplification", 0.0),
             },
         }
         self.last_snapshot = snapshot
@@ -372,5 +476,6 @@ class ConstitutionalMeshPhysics:
             "total_agents": len(self.agents),
             "total_attractors": len(self.attractors),
             "domains": by_domain,
+            "checkpoints": self.checkpoints.export_state(),
             "last_snapshot": dict(self.last_snapshot),
         }

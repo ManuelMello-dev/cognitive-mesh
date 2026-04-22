@@ -133,7 +133,19 @@ class MeshCoordinator:
         if self.state.constitutional:
             c = self.state.constitutional
             coherence_score = max(0.0, min(1.0, 0.5 + (c.coherence * 2.0)))
-            raw = (c.phi + c.stability + coherence_score) / 3.0
+            checkpoint_continuity = float(c.checkpoint_state.get("continuity", 0.0)) if c.checkpoint_state else 0.0
+            collapse_stability = float(c.collapse_probability)
+            interference_penalty = max(0.0, -float(c.interference_state.get("net", 0.0))) if c.interference_state else 0.0
+            logos_energy = float(c.logos_state.get("reflective_energy", 0.0)) if c.logos_state else 0.0
+            raw = (
+                0.26 * c.phi
+                + 0.22 * c.stability
+                + 0.18 * coherence_score
+                + 0.14 * checkpoint_continuity
+                + 0.10 * collapse_stability
+                + 0.10 * min(1.0, logos_energy * 3.0)
+            )
+            raw *= (1.0 - 0.25 * interference_penalty)
             signals["constitutional"] = raw * self._MODULE_WEIGHTS["constitutional"]
         else:
             signals["constitutional"] = 0.0
@@ -241,8 +253,11 @@ class MeshCoordinator:
         Other modules may modulate the state, but may not replace it.
         """
         if constitutional:
-            base_phi = constitutional.phi
-            base_sigma = constitutional.sigma
+            checkpoint_continuity = float(constitutional.checkpoint_state.get("continuity", 0.0)) if constitutional.checkpoint_state else 0.0
+            interference_net = float(constitutional.interference_state.get("net", 0.0)) if constitutional.interference_state else 0.0
+            logos_energy = float(constitutional.logos_state.get("reflective_energy", 0.0)) if constitutional.logos_state else 0.0
+            base_phi = max(0.0, min(1.0, (0.72 * constitutional.phi) + (0.18 * checkpoint_continuity) + (0.10 * min(1.0, logos_energy * 3.0))))
+            base_sigma = max(0.0, min(1.0, constitutional.sigma + max(0.0, -interference_net) * 0.15))
         else:
             base_phi = self.state.phi
             base_sigma = self.state.sigma
@@ -296,6 +311,9 @@ class MeshCoordinator:
         """
         s = self.state
         constitutional_z3 = s.constitutional.z_cubed_state if s.constitutional else {}
+        checkpoint_state = s.constitutional.checkpoint_state if s.constitutional else {}
+        interference_state = s.constitutional.interference_state if s.constitutional else {}
+        logos_state = s.constitutional.logos_state if s.constitutional else {}
         s.z_cubed_state.update(constitutional_z3)
         s.z_cubed_state.update({
             "iteration": s.iteration,
@@ -313,6 +331,11 @@ class MeshCoordinator:
             "constitutional_regime": s.constitutional.regime if s.constitutional else "critical",
             "constitutional_stability": round(s.constitutional.stability, 4) if s.constitutional else round(s.phi, 4),
             "constitutional_coherence": round(s.constitutional.coherence, 4) if s.constitutional else 0.0,
+            "constitutional_collapse_probability": round(s.constitutional.collapse_probability, 4) if s.constitutional else 0.0,
+            "checkpoint_continuity": round(float(checkpoint_state.get("continuity", 0.0)), 4),
+            "checkpoint_amplification": round(float(checkpoint_state.get("amplification", 0.0)), 4),
+            "interference_net": round(float(interference_state.get("net", 0.0)), 4),
+            "logos_reflective_energy": round(float(logos_state.get("reflective_energy", 0.0)), 4),
             "active_attractor": s.constitutional.attractor_id if s.constitutional else None,
             "active_agent": s.constitutional.agent_id if s.constitutional else None,
         })
