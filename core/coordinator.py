@@ -138,14 +138,20 @@ class MeshCoordinator:
             collapse_stability = float(c.collapse_probability)
             interference_penalty = max(0.0, -float(c.interference_state.get("net", 0.0))) if c.interference_state else 0.0
             logos_energy = float(c.logos_state.get("reflective_energy", 0.0)) if c.logos_state else 0.0
+            logos_resonance = float(c.logos_state.get("resonance", 0.0)) if c.logos_state else 0.0
+            logos_clarity = float(c.logos_state.get("clarity", 0.0)) if c.logos_state else 0.0
+            logos_depth = float(c.logos_state.get("depth", 0.0)) if c.logos_state else 0.0
             raw = (
-                0.22 * c.phi
-                + 0.20 * c.stability
-                + 0.16 * coherence_score
+                0.20 * c.phi
+                + 0.18 * c.stability
+                + 0.14 * coherence_score
                 + 0.12 * wave_coherence
-                + 0.12 * checkpoint_continuity
+                + 0.10 * checkpoint_continuity
                 + 0.10 * collapse_stability
-                + 0.08 * min(1.0, logos_energy * 3.0)
+                + 0.06 * min(1.0, logos_energy * 3.0)
+                + 0.05 * logos_resonance
+                + 0.03 * logos_clarity
+                + 0.02 * logos_depth
             )
             raw *= (1.0 - 0.25 * interference_penalty)
             signals["constitutional"] = raw * self._MODULE_WEIGHTS["constitutional"]
@@ -259,7 +265,10 @@ class MeshCoordinator:
             checkpoint_continuity = float(constitutional.checkpoint_state.get("continuity", 0.0)) if constitutional.checkpoint_state else 0.0
             interference_net = float(constitutional.interference_state.get("net", 0.0)) if constitutional.interference_state else 0.0
             logos_energy = float(constitutional.logos_state.get("reflective_energy", 0.0)) if constitutional.logos_state else 0.0
-            base_phi = max(0.0, min(1.0, (0.62 * constitutional.phi) + (0.16 * wave_coherence) + (0.14 * checkpoint_continuity) + (0.08 * min(1.0, logos_energy * 3.0))))
+            logos_resonance = float(constitutional.logos_state.get("resonance", 0.0)) if constitutional.logos_state else 0.0
+            logos_clarity = float(constitutional.logos_state.get("clarity", 0.0)) if constitutional.logos_state else 0.0
+            logos_stability = float(constitutional.logos_state.get("stability", 0.0)) if constitutional.logos_state else 0.0
+            base_phi = max(0.0, min(1.0, (0.54 * constitutional.phi) + (0.14 * wave_coherence) + (0.12 * checkpoint_continuity) + (0.08 * min(1.0, logos_energy * 3.0)) + (0.06 * logos_resonance) + (0.03 * logos_clarity) + (0.03 * logos_stability)))
             base_sigma = max(0.0, min(1.0, constitutional.sigma + max(0.0, -interference_net) * 0.15))
         else:
             base_phi = self.state.phi
@@ -341,6 +350,10 @@ class MeshCoordinator:
             "checkpoint_amplification": round(float(checkpoint_state.get("amplification", 0.0)), 4),
             "interference_net": round(float(interference_state.get("net", 0.0)), 4),
             "logos_reflective_energy": round(float(logos_state.get("reflective_energy", 0.0)), 4),
+            "logos_resonance": round(float(logos_state.get("resonance", 0.0)), 4),
+            "logos_clarity": round(float(logos_state.get("clarity", 0.0)), 4),
+            "logos_depth": round(float(logos_state.get("depth", 0.0)), 4),
+            "logos_stability": round(float(logos_state.get("stability", 0.0)), 4),
             "active_attractor": s.constitutional.attractor_id if s.constitutional else None,
             "active_agent": s.constitutional.agent_id if s.constitutional else None,
         })

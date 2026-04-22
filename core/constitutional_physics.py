@@ -26,6 +26,7 @@ import numpy as np
 
 from core.identity_checkpoint import IdentityCheckpointRecursion
 from core.interference_field import InterferenceField
+from core.logos_field import LogosField, LogosState
 from core.wave_identity import WaveIdentityField, WaveState
 
 
@@ -61,6 +62,7 @@ class ConstitutionalAgent:
     curvature_state: np.ndarray
     awareness: float = 0.5
     wave_state: Optional[WaveState] = None
+    logos_state: Optional[LogosState] = None
     trajectory: Deque[np.ndarray] = field(default_factory=lambda: deque(maxlen=128))
     coherence_history: Deque[float] = field(default_factory=lambda: deque(maxlen=128))
     checkpoint_ids: Deque[str] = field(default_factory=lambda: deque(maxlen=64))
@@ -126,6 +128,7 @@ class ConstitutionalMeshPhysics:
         self.checkpoints = IdentityCheckpointRecursion(self.dimension)
         self.interference_field = InterferenceField(neighborhood_limit=6)
         self.wave_identity = WaveIdentityField(self.dimension)
+        self.logos_field = LogosField(self.dimension)
 
         self.agent_counter = 0
         self.attractor_counter = 0
@@ -186,6 +189,7 @@ class ConstitutionalMeshPhysics:
             curvature_state=zeros.copy(),
             awareness=0.5,
             wave_state=self.wave_identity.initialize(vector.copy()),
+            logos_state=self.logos_field.initialize(vector.copy()),
         )
         agent.trajectory.append(agent.realized_state.copy())
         self.agents[entity_key] = agent
@@ -251,20 +255,21 @@ class ConstitutionalMeshPhysics:
 
     def _logos_state(
         self,
-        realized_state: np.ndarray,
+        logos_state: LogosState,
         becoming_state: np.ndarray,
         curvature_state: np.ndarray,
     ) -> Dict[str, Any]:
-        logos_vector = np.real(np.power(realized_state, 3))
-        reflective_energy = float(np.mean(np.abs(logos_vector)))
+        reflective_energy = float(np.mean(np.abs(logos_state.reflective_vector)))
         becoming_energy = float(np.linalg.norm(becoming_state))
         curvature_energy = float(np.linalg.norm(curvature_state))
-        return {
+        payload = logos_state.to_dict()
+        payload.update({
             "reflective_energy": round(reflective_energy, 6),
             "becoming_energy": round(becoming_energy, 6),
             "curvature_energy": round(curvature_energy, 6),
-            "logos_vector": [round(float(v), 6) for v in logos_vector[:8]],
-        }
+            "logos_vector": payload.get("reflective_vector", []),
+        })
+        return payload
 
     def observe(
         self,
@@ -385,6 +390,18 @@ class ConstitutionalMeshPhysics:
             input_intensity=float(np.linalg.norm(vector - z_old)),
             coherence=delta_s,
         )
+
+        if agent.logos_state is None:
+            agent.logos_state = self.logos_field.initialize(agent.realized_state)
+        agent.logos_state = self.logos_field.evolve(
+            previous=agent.logos_state,
+            realized_state=agent.realized_state,
+            becoming_state=agent.becoming_state,
+            curvature_state=agent.curvature_state,
+            wave_coherence=float(agent.wave_state.coherence if agent.wave_state is not None else 0.0),
+            checkpoint_continuity=float(checkpoint_summary.get("continuity", 0.0)),
+            interference_net=float(interference.get("net", 0.0)),
+        )
         agent.checkpoint_ids.append(checkpoint_summary["checkpoint_id"])
 
         contribution = max(0.0, delta_s) * (0.70 + 0.30 * checkpoint_summary.get("continuity", 0.5))
@@ -431,7 +448,7 @@ class ConstitutionalMeshPhysics:
         )
         drift = float(np.linalg.norm(attractor.center - z3_old))
         attractor.regime = self._update_attractor_regime(phi, sigma)
-        logos_state = self._logos_state(agent.realized_state, agent.becoming_state, agent.curvature_state)
+        logos_state = self._logos_state(agent.logos_state, agent.becoming_state, agent.curvature_state)
         wave_summary = agent.wave_state.to_dict() if agent.wave_state is not None else {}
         logos_state["wave_coherence"] = round(float(wave_summary.get("coherence", 0.0)), 6)
         logos_state["interference_net"] = round(float(interference.get("net", 0.0)), 6)

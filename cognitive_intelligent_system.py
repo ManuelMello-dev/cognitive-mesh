@@ -219,6 +219,10 @@ class CognitiveIntelligentSystem:
         enriched_obs['constitutional_interference_constructive'] = interference_state.get('constructive', 0.0)
         enriched_obs['constitutional_interference_destructive'] = interference_state.get('destructive', 0.0)
         enriched_obs['constitutional_logos_reflective_energy'] = logos_state.get('reflective_energy', 0.0)
+        enriched_obs['constitutional_logos_resonance'] = logos_state.get('resonance', 0.0)
+        enriched_obs['constitutional_logos_clarity'] = logos_state.get('clarity', 0.0)
+        enriched_obs['constitutional_logos_depth'] = logos_state.get('depth', 0.0)
+        enriched_obs['constitutional_logos_stability'] = logos_state.get('stability', 0.0)
         results['constitutional'] = constitutional_snapshot
         
         # 1. Learn from observation through constitutional context
@@ -434,6 +438,10 @@ class CognitiveIntelligentSystem:
             'constitutional_interference_constructive': interference_state.get('constructive', 0.0),
             'constitutional_interference_destructive': interference_state.get('destructive', 0.0),
             'constitutional_logos_reflective_energy': logos_state.get('reflective_energy', 0.0),
+            'constitutional_logos_resonance': logos_state.get('resonance', 0.0),
+            'constitutional_logos_clarity': logos_state.get('clarity', 0.0),
+            'constitutional_logos_depth': logos_state.get('depth', 0.0),
+            'constitutional_logos_stability': logos_state.get('stability', 0.0),
         })
         return metrics
 

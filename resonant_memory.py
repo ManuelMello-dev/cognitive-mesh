@@ -171,6 +171,22 @@ class ResonantMemoryGeometry:
             observation.get("constitutional_logos_reflective_energy", logos_state.get("reflective_energy")),
             0.0,
         )
+        logos_resonance = _safe_float(
+            observation.get("constitutional_logos_resonance", logos_state.get("resonance")),
+            0.0,
+        )
+        logos_clarity = _safe_float(
+            observation.get("constitutional_logos_clarity", logos_state.get("clarity")),
+            0.0,
+        )
+        logos_depth = _safe_float(
+            observation.get("constitutional_logos_depth", logos_state.get("depth")),
+            0.0,
+        )
+        logos_stability = _safe_float(
+            observation.get("constitutional_logos_stability", logos_state.get("stability")),
+            0.0,
+        )
 
         return {
             "price": math.tanh(price / 1000.0),
@@ -188,6 +204,10 @@ class ResonantMemoryGeometry:
             "checkpoint_amplification": (2.0 * _clamp(checkpoint_amplification)) - 1.0,
             "interference_net": max(-1.0, min(1.0, interference_net)),
             "logos_reflective_energy": math.tanh(logos_reflective_energy * 4.0),
+            "logos_resonance": (2.0 * _clamp(logos_resonance)) - 1.0,
+            "logos_clarity": (2.0 * _clamp(logos_clarity)) - 1.0,
+            "logos_depth": (2.0 * _clamp(logos_depth)) - 1.0,
+            "logos_stability": (2.0 * _clamp(logos_stability)) - 1.0,
         }
 
     def _phase_position(self, anchors: List[str], state_vector: Dict[str, float]) -> float:
@@ -292,7 +312,11 @@ class ResonantMemoryGeometry:
             + 0.06 * _clamp(abs(state_vector.get("checkpoint_continuity", 0.0)))
             + 0.06 * _clamp(abs(state_vector.get("checkpoint_amplification", 0.0)))
             + 0.05 * _clamp(abs(state_vector.get("interference_net", 0.0)))
-            + 0.05 * _clamp(abs(state_vector.get("logos_reflective_energy", 0.0)))
+            + 0.04 * _clamp(abs(state_vector.get("logos_reflective_energy", 0.0)))
+            + 0.03 * _clamp(abs(state_vector.get("logos_resonance", 0.0)))
+            + 0.03 * _clamp(abs(state_vector.get("logos_clarity", 0.0)))
+            + 0.03 * _clamp(abs(state_vector.get("logos_depth", 0.0)))
+            + 0.03 * _clamp(abs(state_vector.get("logos_stability", 0.0)))
         )
 
         ring = ResonantRing(
@@ -333,6 +357,8 @@ class ResonantMemoryGeometry:
             "checkpoint_bias": round(_clamp(abs(state_vector.get("checkpoint_continuity", 0.0))), 6),
             "interference_bias": round(max(-1.0, min(1.0, state_vector.get("interference_net", 0.0))), 6),
             "logos_bias": round(_clamp(abs(state_vector.get("logos_reflective_energy", 0.0))), 6),
+            "logos_resonance_bias": round(_clamp(abs(state_vector.get("logos_resonance", 0.0))), 6),
+            "logos_clarity_bias": round(_clamp(abs(state_vector.get("logos_clarity", 0.0))), 6),
         }
 
     def get_snapshot(self, recent_ring_count: int = 12) -> Dict[str, Any]:
