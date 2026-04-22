@@ -147,9 +147,14 @@ class ResonantMemoryGeometry:
             observation.get("constitutional_collapse_probability", constitutional_context.get("collapse_probability")),
             0.0,
         )
+        wave_state = constitutional_context.get("wave_state", {}) if constitutional_context else {}
         checkpoint_state = constitutional_context.get("checkpoint_state", {}) if constitutional_context else {}
         interference_state = constitutional_context.get("interference_state", {}) if constitutional_context else {}
         logos_state = constitutional_context.get("logos_state", {}) if constitutional_context else {}
+        wave_coherence = _safe_float(
+            observation.get("constitutional_wave_coherence", wave_state.get("coherence")),
+            0.0,
+        )
         checkpoint_continuity = _safe_float(
             observation.get("constitutional_checkpoint_continuity", checkpoint_state.get("continuity")),
             0.0,
@@ -178,6 +183,7 @@ class ResonantMemoryGeometry:
             "coherence": math.tanh(coherence * 4.0),
             "drift": math.tanh(drift * 4.0),
             "collapse_probability": (2.0 * _clamp(collapse_probability)) - 1.0,
+            "wave_coherence": (2.0 * _clamp(wave_coherence)) - 1.0,
             "checkpoint_continuity": (2.0 * _clamp(checkpoint_continuity)) - 1.0,
             "checkpoint_amplification": (2.0 * _clamp(checkpoint_amplification)) - 1.0,
             "interference_net": max(-1.0, min(1.0, interference_net)),
@@ -282,6 +288,7 @@ class ResonantMemoryGeometry:
             + 0.12 * _clamp(phi_hint)
             + 0.10 * _clamp(abs(state_vector.get("pct_change", 0.0)))
             + 0.10 * _clamp(abs(state_vector.get("coherence", 0.0)))
+            + 0.06 * _clamp(abs(state_vector.get("wave_coherence", 0.0)))
             + 0.06 * _clamp(abs(state_vector.get("checkpoint_continuity", 0.0)))
             + 0.06 * _clamp(abs(state_vector.get("checkpoint_amplification", 0.0)))
             + 0.05 * _clamp(abs(state_vector.get("interference_net", 0.0)))

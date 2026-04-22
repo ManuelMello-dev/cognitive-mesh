@@ -26,6 +26,7 @@ import numpy as np
 
 from core.identity_checkpoint import IdentityCheckpointRecursion
 from core.interference_field import InterferenceField
+from core.wave_identity import WaveIdentityField, WaveState
 
 
 
@@ -59,6 +60,7 @@ class ConstitutionalAgent:
     becoming_state: np.ndarray
     curvature_state: np.ndarray
     awareness: float = 0.5
+    wave_state: Optional[WaveState] = None
     trajectory: Deque[np.ndarray] = field(default_factory=lambda: deque(maxlen=128))
     coherence_history: Deque[float] = field(default_factory=lambda: deque(maxlen=128))
     checkpoint_ids: Deque[str] = field(default_factory=lambda: deque(maxlen=64))
@@ -123,6 +125,7 @@ class ConstitutionalMeshPhysics:
         self.attractors_by_domain: Dict[str, Set[str]] = defaultdict(set)
         self.checkpoints = IdentityCheckpointRecursion(self.dimension)
         self.interference_field = InterferenceField(neighborhood_limit=6)
+        self.wave_identity = WaveIdentityField(self.dimension)
 
         self.agent_counter = 0
         self.attractor_counter = 0
@@ -182,6 +185,7 @@ class ConstitutionalMeshPhysics:
             becoming_state=zeros.copy(),
             curvature_state=zeros.copy(),
             awareness=0.5,
+            wave_state=self.wave_identity.initialize(vector.copy()),
         )
         agent.trajectory.append(agent.realized_state.copy())
         self.agents[entity_key] = agent
@@ -293,8 +297,20 @@ class ConstitutionalMeshPhysics:
         grad_direction = potential_grad / max(grad_norm, 1e-8)
         attractor_force = phi_base * grad_direction
 
-        collapse_alignment = float(np.dot(agent.potential_state, z_old))
-        collapse_probability = _clamp(0.50 + (0.30 * collapse_alignment) + (0.25 * phi_base) - (0.20 * sigma_base))
+        if agent.wave_state is None:
+            agent.wave_state = self.wave_identity.initialize(agent.potential_state)
+        agent.wave_state = self.wave_identity.evolve(
+            agent.wave_state,
+            observation_vector=agent.potential_state,
+            realized_state=z_old,
+            attractor_state=z3_old,
+            phi=phi_base,
+            sigma=sigma_base,
+            dt=self.dt,
+        )
+        wave_projection = self.wave_identity.collapse_vector(agent.wave_state)
+        collapse_alignment = float(np.dot(wave_projection, z_old))
+        collapse_probability = agent.wave_state.collapse_probability
 
         noise = np.random.randn(self.dimension) * max(self.base_noise, sigma_base)
         noise_term = (1.0 / max(phi_base, 1e-6)) * noise
@@ -321,7 +337,7 @@ class ConstitutionalMeshPhysics:
             domain_neighbors,
         )
 
-        z_candidate = z_old - (attractor_force * self.dt) + noise_term
+        z_candidate = (0.78 * wave_projection) + (0.22 * z_old) - (attractor_force * self.dt) + noise_term
         if np.linalg.norm(checkpoint_pull) > 1e-8:
             z_candidate = (0.84 * z_candidate) + (0.16 * checkpoint_pull)
         if interference.get("partner_count", 0) > 0:
@@ -416,6 +432,8 @@ class ConstitutionalMeshPhysics:
         drift = float(np.linalg.norm(attractor.center - z3_old))
         attractor.regime = self._update_attractor_regime(phi, sigma)
         logos_state = self._logos_state(agent.realized_state, agent.becoming_state, agent.curvature_state)
+        wave_summary = agent.wave_state.to_dict() if agent.wave_state is not None else {}
+        logos_state["wave_coherence"] = round(float(wave_summary.get("coherence", 0.0)), 6)
         logos_state["interference_net"] = round(float(interference.get("net", 0.0)), 6)
         logos_state["interference_constructive"] = round(float(interference.get("constructive", 0.0)), 6)
         logos_state["interference_destructive"] = round(float(interference.get("destructive", 0.0)), 6)
@@ -440,6 +458,7 @@ class ConstitutionalMeshPhysics:
             "positive_progress_count": len(attractor.progress_buffer),
             "critical_awareness": round(float(critical_awareness), 6),
             "collapse_probability": round(collapse_probability, 6),
+            "wave_state": wave_summary,
             "z_state": [round(float(v), 6) for v in agent.realized_state[:8]],
             "z_prime_state": [round(float(v), 6) for v in agent.becoming_state[:8]],
             "z_double_prime_state": [round(float(v), 6) for v in agent.curvature_state[:8]],
@@ -457,6 +476,7 @@ class ConstitutionalMeshPhysics:
                 "active_attractors": len(self.attractors_by_domain.get(domain, set())),
                 "center": [round(float(v), 6) for v in attractor.center[:8]],
                 "gradient_norm": round(self._gradient_norm(attractor), 6),
+                "wave_state": wave_summary,
                 "logos_state": logos_state,
                 "interference_state": interference,
                 "checkpoint_continuity": checkpoint_summary.get("continuity", 0.0),

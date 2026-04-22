@@ -32,6 +32,7 @@ class ConstitutionalOutput:
     distance_to_attractor: float = 0.0
     gradient_norm: float = 0.0
     collapse_probability: float = 0.0
+    wave_state: Dict[str, Any] = field(default_factory=dict)
     z_state: List[float] = field(default_factory=list)
     z_prime_state: List[float] = field(default_factory=list)
     z_double_prime_state: List[float] = field(default_factory=list)

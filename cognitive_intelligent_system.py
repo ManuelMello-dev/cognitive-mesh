@@ -208,9 +208,11 @@ class CognitiveIntelligentSystem:
         enriched_obs['constitutional_drift'] = constitutional_snapshot.get('drift', 0.0)
         enriched_obs['constitutional_regime'] = constitutional_snapshot.get('regime', 'critical')
         enriched_obs['constitutional_collapse_probability'] = constitutional_snapshot.get('collapse_probability', 0.0)
+        wave_state = constitutional_snapshot.get('wave_state', {}) or {}
         checkpoint_state = constitutional_snapshot.get('checkpoint_state', {}) or {}
         interference_state = constitutional_snapshot.get('interference_state', {}) or {}
         logos_state = constitutional_snapshot.get('logos_state', {}) or {}
+        enriched_obs['constitutional_wave_coherence'] = wave_state.get('coherence', 0.0)
         enriched_obs['constitutional_checkpoint_continuity'] = checkpoint_state.get('continuity', 0.0)
         enriched_obs['constitutional_checkpoint_amplification'] = checkpoint_state.get('amplification', 0.0)
         enriched_obs['constitutional_interference_net'] = interference_state.get('net', 0.0)
@@ -407,6 +409,7 @@ class CognitiveIntelligentSystem:
         metrics = self.cognitive_metrics.copy()
         resonance_metrics = self.resonant_memory.get_snapshot().get('metrics', {})
         constitutional = self._last_constitutional_snapshot or {}
+        wave_state = constitutional.get('wave_state', {}) if constitutional else {}
         checkpoint_state = constitutional.get('checkpoint_state', {}) if constitutional else {}
         interference_state = constitutional.get('interference_state', {}) if constitutional else {}
         logos_state = constitutional.get('logos_state', {}) if constitutional else {}
@@ -424,6 +427,7 @@ class CognitiveIntelligentSystem:
             'constitutional_regime': constitutional.get('regime', 'critical'),
             'constitutional_stability': constitutional.get('stability', 0.5),
             'constitutional_collapse_probability': constitutional.get('collapse_probability', 0.0),
+            'constitutional_wave_coherence': wave_state.get('coherence', 0.0),
             'constitutional_checkpoint_continuity': checkpoint_state.get('continuity', 0.0),
             'constitutional_checkpoint_amplification': checkpoint_state.get('amplification', 0.0),
             'constitutional_interference_net': interference_state.get('net', 0.0),
@@ -539,6 +543,7 @@ class CognitiveIntelligentSystem:
             distance_to_attractor=float(snapshot.get('distance_to_attractor', 0.0)),
             gradient_norm=float(snapshot.get('gradient_norm', 0.0)),
             collapse_probability=float(snapshot.get('collapse_probability', 0.0)),
+            wave_state=dict(snapshot.get('wave_state', {})),
             z_state=list(snapshot.get('z_state', [])),
             z_prime_state=list(snapshot.get('z_prime_state', [])),
             z_double_prime_state=list(snapshot.get('z_double_prime_state', [])),
