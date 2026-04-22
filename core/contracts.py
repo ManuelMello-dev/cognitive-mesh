@@ -13,6 +13,31 @@ from typing import Dict, List, Any, Optional
 
 
 # ─────────────────────────────────────────────
+# Constitutional Physics Layer
+# ─────────────────────────────────────────────
+@dataclass
+class ConstitutionalOutput:
+    """Structured snapshot of the agent-attractor constitutional layer."""
+    agent_id: str
+    attractor_id: str
+    domain: str
+    phi: float
+    sigma: float
+    coherence: float
+    drift: float
+    stability: float
+    regime: str
+    awareness: float
+    assignment_distance: float = 0.0
+    distance_to_attractor: float = 0.0
+    gradient_norm: float = 0.0
+    z_prime_state: List[float] = field(default_factory=list)
+    z_cubed_state: Dict[str, Any] = field(default_factory=dict)
+
+
+
+
+# ─────────────────────────────────────────────
 # Abstraction Engine
 # ─────────────────────────────────────────────
 @dataclass
@@ -146,6 +171,9 @@ class CoordinatorState:
     Principle 4: Identity Continuity (Z3 Anchor).
     """
     iteration: int = 0
+
+    # Constitutional layer — populated before all higher cognition
+    constitutional: Optional[ConstitutionalOutput] = None
 
     # Module outputs — populated each cycle
     abstractions: List[AbstractionOutput] = field(default_factory=list)

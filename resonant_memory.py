@@ -116,12 +116,33 @@ class ResonantMemoryGeometry:
 
         return sorted({a for a in anchors if a})
 
-    def _build_state_vector(self, observation: Dict[str, Any]) -> Dict[str, float]:
+    def _build_state_vector(
+        self,
+        observation: Dict[str, Any],
+        constitutional_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, float]:
         price = _safe_float(observation.get("price") or observation.get("value"), 0.0)
         volume = _safe_float(observation.get("volume"), 0.0)
         pct_change = _safe_float(observation.get("pct_change"), 0.0)
         volatility = _safe_float(observation.get("volatility_5"), 0.0)
         secondary = _safe_float(observation.get("secondary_value"), 0.0)
+        constitutional_context = constitutional_context or {}
+        phi = _safe_float(
+            observation.get("constitutional_phi", constitutional_context.get("phi")),
+            0.5,
+        )
+        sigma = _safe_float(
+            observation.get("constitutional_sigma", constitutional_context.get("sigma")),
+            0.5,
+        )
+        coherence = _safe_float(
+            observation.get("constitutional_coherence", constitutional_context.get("coherence")),
+            0.0,
+        )
+        drift = _safe_float(
+            observation.get("constitutional_drift", constitutional_context.get("drift")),
+            0.0,
+        )
 
         return {
             "price": math.tanh(price / 1000.0),
@@ -129,6 +150,10 @@ class ResonantMemoryGeometry:
             "pct_change": math.tanh(pct_change / 10.0),
             "volatility": math.tanh(volatility / 10.0),
             "secondary": math.tanh(secondary / 1000.0),
+            "phi": (2.0 * _clamp(phi)) - 1.0,
+            "sigma": (2.0 * _clamp(sigma)) - 1.0,
+            "coherence": math.tanh(coherence * 4.0),
+            "drift": math.tanh(drift * 4.0),
         }
 
     def _phase_position(self, anchors: List[str], state_vector: Dict[str, float]) -> float:
@@ -167,11 +192,19 @@ class ResonantMemoryGeometry:
         domain: str,
         phi_hint: float = 0.5,
         sigma_hint: float = 0.5,
+        constitutional_context: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         now = _safe_float(observation.get("timestamp"), time.time())
         entity_id = str(observation.get("entity_id") or observation.get("symbol") or "unknown").strip().upper()
         anchors = self._extract_anchors(observation, domain)
-        state_vector = self._build_state_vector(observation)
+        constitutional_context = constitutional_context or {}
+        regime = str(observation.get("constitutional_regime") or constitutional_context.get("regime") or "critical").strip().lower()
+        if regime:
+            anchors.append(f"regime:{regime}")
+        attractor_id = str(constitutional_context.get("attractor_id") or "").strip()
+        if attractor_id:
+            anchors.append(attractor_id)
+        state_vector = self._build_state_vector(observation, constitutional_context=constitutional_context)
         phase_position = self._phase_position(anchors, state_vector)
 
         candidate_links: List[Dict[str, Any]] = []
@@ -219,7 +252,8 @@ class ResonantMemoryGeometry:
             0.35
             + 0.35 * reconstruction_confidence
             + 0.15 * _clamp(phi_hint)
-            + 0.15 * _clamp(abs(state_vector.get("pct_change", 0.0)))
+            + 0.10 * _clamp(abs(state_vector.get("pct_change", 0.0)))
+            + 0.10 * _clamp(abs(state_vector.get("coherence", 0.0)))
         )
 
         ring = ResonantRing(

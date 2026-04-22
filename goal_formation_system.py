@@ -231,28 +231,74 @@ class OpenEndedGoalSystem:
     def _generate_improvement_goals(self, context: GoalGenerationContext) -> List[Goal]:
         """Generate goals focused on improving performance"""
         goals = []
-        
-        # Improve on low-performing metrics
+
+        constitutional = {}
+        if isinstance(context.performance_metrics, dict):
+            constitutional = context.performance_metrics.get('constitutional', {}) or {}
+
+        phi = float(constitutional.get('phi', context.current_state.get('constitutional_phi', 0.5) if isinstance(context.current_state, dict) else 0.5))
+        sigma = float(constitutional.get('sigma', context.current_state.get('constitutional_sigma', 0.5) if isinstance(context.current_state, dict) else 0.5))
+        drift = float(constitutional.get('drift', context.current_state.get('constitutional_drift', 0.0) if isinstance(context.current_state, dict) else 0.0))
+
+        if phi < 0.62:
+            goal_id = f"goal_{self.goal_counter}"
+            self.goal_counter += 1
+            goals.append(Goal(
+                goal_id=goal_id,
+                goal_type=GoalType.OPTIMIZATION,
+                description=f"Increase constitutional coherence from {phi:.2f} toward 0.70",
+                success_criteria={'constitutional_phi': 0.70},
+                priority=0.85,
+                status=GoalStatus.PROPOSED
+            ))
+
+        if sigma > 0.40:
+            goal_id = f"goal_{self.goal_counter}"
+            self.goal_counter += 1
+            goals.append(Goal(
+                goal_id=goal_id,
+                goal_type=GoalType.OPTIMIZATION,
+                description=f"Reduce constitutional noise from {sigma:.2f} toward 0.30",
+                success_criteria={'constitutional_sigma': 0.30},
+                priority=0.80,
+                status=GoalStatus.PROPOSED
+            ))
+
+        if abs(drift) > 0.12:
+            goal_id = f"goal_{self.goal_counter}"
+            self.goal_counter += 1
+            goals.append(Goal(
+                goal_id=goal_id,
+                goal_type=GoalType.MAINTENANCE,
+                description=f"Stabilize attractor drift from {drift:.2f} back within anchor tolerance",
+                success_criteria={'constitutional_drift_max': 0.08},
+                priority=0.78,
+                status=GoalStatus.PROPOSED
+            ))
+
+        # Improve on low-performing scalar metrics only
         for metric_name, metric_value in context.performance_metrics.items():
+            if not isinstance(metric_value, (int, float)):
+                continue
             if metric_value < 0.7:  # Room for improvement
                 goal_id = f"goal_{self.goal_counter}"
                 self.goal_counter += 1
-                
-                target = min(metric_value + 0.2, 1.0)
-                
+
+                target = min(float(metric_value) + 0.2, 1.0)
+
                 goal = Goal(
                     goal_id=goal_id,
                     goal_type=GoalType.OPTIMIZATION,
-                    description=f"Improve {metric_name} from {metric_value:.2f} to {target:.2f}",
+                    description=f"Improve {metric_name} from {float(metric_value):.2f} to {target:.2f}",
                     success_criteria={
                         metric_name: target
                     },
                     priority=0.7,
                     status=GoalStatus.PROPOSED
                 )
-                
+
                 goals.append(goal)
-        
+
         return goals
     
     def _generate_exploration_goals(self, context: GoalGenerationContext) -> List[Goal]:

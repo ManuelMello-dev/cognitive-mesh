@@ -20,6 +20,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import asdict
 
 from contracts import (
+    ConstitutionalOutput,
     AbstractionOutput,
     ReasoningOutput,
     PredictionOutput,
@@ -47,13 +48,14 @@ class MeshCoordinator:
 
     # Signal weights — coordinator decides how much each module influences PHI
     _MODULE_WEIGHTS: Dict[str, float] = {
-        "abstraction": 0.20,
-        "reasoning":   0.20,
-        "prediction":  0.25,
-        "eeg":         0.15,
-        "cross_domain":0.10,
-        "goals":       0.05,
-        "learning":    0.05,
+        "constitutional": 0.35,
+        "abstraction":    0.15,
+        "reasoning":      0.15,
+        "prediction":     0.15,
+        "eeg":            0.10,
+        "cross_domain":   0.05,
+        "goals":          0.03,
+        "learning":       0.02,
     }
 
     # Drift threshold — if drift_vector exceeds this, apply identity correction
@@ -71,6 +73,7 @@ class MeshCoordinator:
 
     def coordinate(
         self,
+        constitutional: Optional[ConstitutionalOutput],
         abstractions: List[AbstractionOutput],
         rules: List[ReasoningOutput],
         predictions: List[PredictionOutput],
@@ -88,7 +91,8 @@ class MeshCoordinator:
         self.state.iteration += 1
         self.state.cycle_timestamp = time.time()
 
-        # 1. Store raw module outputs
+        # 1. Store constitutional state and raw module outputs
+        self.state.constitutional = constitutional
         self.state.abstractions = abstractions
         self.state.rules = rules
         self.state.predictions = predictions
@@ -103,8 +107,8 @@ class MeshCoordinator:
         # 3. Resolve conflicts between contradictory signals
         self.state.resolved_conflicts = self._resolve_conflicts()
 
-        # 4. Update PHI and SIGMA from EEG + prediction accuracy
-        self._update_coherence(eeg, predictions)
+        # 4. Update PHI and SIGMA from constitutional physics first, then module context
+        self._update_coherence(constitutional, eeg, predictions)
 
         # 5. Update Z³ identity state
         self._update_z3_state()
@@ -124,6 +128,15 @@ class MeshCoordinator:
         Returns a dict of {module_name: weighted_signal_strength}.
         """
         signals: Dict[str, float] = {}
+
+        # Constitutional signal: the governing physics of the mesh
+        if self.state.constitutional:
+            c = self.state.constitutional
+            coherence_score = max(0.0, min(1.0, 0.5 + (c.coherence * 2.0)))
+            raw = (c.phi + c.stability + coherence_score) / 3.0
+            signals["constitutional"] = raw * self._MODULE_WEIGHTS["constitutional"]
+        else:
+            signals["constitutional"] = 0.0
 
         # Abstraction signal: mean confidence of formed concepts
         if self.state.abstractions:
@@ -219,44 +232,52 @@ class MeshCoordinator:
 
     def _update_coherence(
         self,
+        constitutional: Optional[ConstitutionalOutput],
         eeg: Optional[EEGOutput],
         predictions: List[PredictionOutput],
     ) -> None:
         """
-        Update PHI (global coherence) and SIGMA (noise) from EEG + prediction data.
-        PHI is the primary Z³ health signal.
+        Update PHI and SIGMA with constitutional physics as the primary source.
+        Other modules may modulate the state, but may not replace it.
         """
-        phi_components: List[float] = []
+        if constitutional:
+            base_phi = constitutional.phi
+            base_sigma = constitutional.sigma
+        else:
+            base_phi = self.state.phi
+            base_sigma = self.state.sigma
 
-        # EEG component
+        phi_modifiers: List[float] = []
+        sigma_modifiers: List[float] = []
+
         if eeg:
-            phi_components.append(eeg.phi)
+            phi_modifiers.append(eeg.phi)
+            sigma_modifiers.append(eeg.sigma)
 
-        # Prediction confidence component
         if predictions:
             avg_conf = sum(p.confidence for p in predictions) / len(predictions)
-            phi_components.append(avg_conf)
+            phi_modifiers.append(avg_conf)
 
-        # Rule confidence component
         if self.state.rules:
             avg_rule = sum(r.confidence for r in self.state.rules) / len(self.state.rules)
-            phi_components.append(avg_rule)
+            phi_modifiers.append(avg_rule)
 
-        if phi_components:
-            new_phi = sum(phi_components) / len(phi_components)
-            # Exponential moving average for stability
-            alpha = 0.3
-            self.state.phi = alpha * new_phi + (1 - alpha) * self.state.phi
+        if phi_modifiers:
+            modifier = sum(phi_modifiers) / len(phi_modifiers)
+            new_phi = (0.70 * base_phi) + (0.30 * modifier)
         else:
-            # Decay toward 0.5 (neutral) when no data
-            self.state.phi = 0.9 * self.state.phi + 0.1 * 0.5
+            new_phi = base_phi
+        self.state.phi = max(0.0, min(1.0, new_phi))
 
-        # SIGMA: noise = inverse of concept confidence stability
-        if self.state.abstractions:
+        if sigma_modifiers:
+            modifier_sigma = sum(sigma_modifiers) / len(sigma_modifiers)
+            new_sigma = (0.70 * base_sigma) + (0.30 * modifier_sigma)
+        elif self.state.abstractions:
             conf_variance = self._variance([a.confidence for a in self.state.abstractions])
-            self.state.sigma = min(1.0, conf_variance * 4.0)
+            new_sigma = (0.75 * base_sigma) + (0.25 * min(1.0, conf_variance * 4.0))
         else:
-            self.state.sigma = 0.5
+            new_sigma = base_sigma
+        self.state.sigma = max(0.0, min(1.0, new_sigma))
 
         self._phi_history.append(self.state.phi)
         self._sigma_history.append(self.state.sigma)
@@ -274,6 +295,8 @@ class MeshCoordinator:
         Principle 4: Identity Continuity.
         """
         s = self.state
+        constitutional_z3 = s.constitutional.z_cubed_state if s.constitutional else {}
+        s.z_cubed_state.update(constitutional_z3)
         s.z_cubed_state.update({
             "iteration": s.iteration,
             "phi": round(s.phi, 4),
@@ -287,6 +310,11 @@ class MeshCoordinator:
             "weighted_signal_sum": round(sum(s.weighted_signals.values()), 4),
             "conflicts_resolved": len(s.resolved_conflicts),
             "cycle_timestamp": s.cycle_timestamp,
+            "constitutional_regime": s.constitutional.regime if s.constitutional else "critical",
+            "constitutional_stability": round(s.constitutional.stability, 4) if s.constitutional else round(s.phi, 4),
+            "constitutional_coherence": round(s.constitutional.coherence, 4) if s.constitutional else 0.0,
+            "active_attractor": s.constitutional.attractor_id if s.constitutional else None,
+            "active_agent": s.constitutional.agent_id if s.constitutional else None,
         })
 
     def _check_drift(self) -> None:
@@ -309,6 +337,8 @@ class MeshCoordinator:
         recent_mean = sum(recent) / len(recent)
         baseline_mean = sum(baseline) / len(baseline)
         drift = recent_mean - baseline_mean
+        if self.state.constitutional:
+            drift = 0.65 * drift + 0.35 * self.state.constitutional.drift
         self.state.drift_vector = round(drift, 4)
 
         if abs(drift) > self._DRIFT_THRESHOLD:
@@ -343,6 +373,7 @@ class MeshCoordinator:
             "drift_vector": s.drift_vector,
             "cycle_timestamp": s.cycle_timestamp,
             "z_cubed_state": s.z_cubed_state,
+            "constitutional": asdict(s.constitutional) if s.constitutional else None,
             "weighted_signals": s.weighted_signals,
             "resolved_conflicts": s.resolved_conflicts,
             "abstractions": [asdict(a) for a in s.abstractions],

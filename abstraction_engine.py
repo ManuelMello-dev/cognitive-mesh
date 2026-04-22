@@ -110,12 +110,12 @@ class AbstractionEngine:
                 return cid
             return AbstractionOutput(
                 concept_id=cid,
-                concept_name=concept.name,
-                domain=domain,
+                label=concept.name,
+                features=dict(concept.attributes) if concept.attributes else {},
                 confidence=concept.confidence,
-                attributes=dict(concept.attributes) if concept.attributes else {},
-                is_new=is_new,
-                abstraction_level=concept.level,
+                domain=domain,
+                support_count=len(getattr(concept, 'examples', []) or []),
+                observation_count=len(getattr(concept, 'examples', []) or []),
             )
 
         if matched_concept:

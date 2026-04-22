@@ -22,6 +22,8 @@ from reasoning_engine import ReasoningEngine, RuleType
 from cross_domain_engine import CrossDomainEngine
 from goal_formation_system import OpenEndedGoalSystem, GoalGenerationContext, GoalType
 from resonant_memory import ResonantMemoryGeometry
+from core.constitutional_physics import ConstitutionalMeshPhysics
+from core.contracts import ConstitutionalOutput
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,10 @@ class CognitiveIntelligentSystem:
         self._price_history: Dict[str, List[float]] = defaultdict(list)
         self._max_price_history = 50
 
+        # Constitutional physics — the runtime foundation beneath all cognition
+        self.constitutional_physics = ConstitutionalMeshPhysics(dimension=32)
+        self._last_constitutional_snapshot: Dict[str, Any] = {}
+
         # Resonant memory geometry — preserves temporal phase relations across rings
         self.resonant_memory = ResonantMemoryGeometry(max_rings=512, resonance_horizon=96)
         
@@ -184,18 +190,37 @@ class CognitiveIntelligentSystem:
         Process observation through full cognitive pipeline
         """
         results = {}
+
+        # 0. Constitutional layer — local identity evolves relative to a global attractor
+        if domain not in self.cross_domain.domains:
+            self.cross_domain.register_domain(domain, domain)
+        meta = domain.split(':')[0] if ':' in domain else domain
+        self._ensure_meta_domain(meta)
+        if meta in self._meta_domains:
+            self._meta_domains[meta].add(domain)
+
+        enriched_obs = self._enrich_observation(observation, domain)
+        constitutional_snapshot = self.constitutional_physics.observe(enriched_obs, domain)
+        self._last_constitutional_snapshot = constitutional_snapshot
+        enriched_obs['constitutional_phi'] = constitutional_snapshot.get('phi', 0.5)
+        enriched_obs['constitutional_sigma'] = constitutional_snapshot.get('sigma', 0.5)
+        enriched_obs['constitutional_coherence'] = constitutional_snapshot.get('coherence', 0.0)
+        enriched_obs['constitutional_drift'] = constitutional_snapshot.get('drift', 0.0)
+        enriched_obs['constitutional_regime'] = constitutional_snapshot.get('regime', 'critical')
+        results['constitutional'] = constitutional_snapshot
         
-        # 1. Learn from observation
+        # 1. Learn from observation through constitutional context
         learning_result = self.learning_engine.process_observation(
-            observation,
+            enriched_obs,
             outcome=outcome
         )
         results['learning'] = learning_result
         
         # 2. Form abstractions and concepts
-        concept_id = self.abstraction.observe(observation)
-        if concept_id:
-            results['concept'] = concept_id
+        concept_output = self.abstraction.observe(enriched_obs)
+        if concept_output:
+            concept_id = getattr(concept_output, 'concept_id', concept_output)
+            results['concept'] = concept_output
             # Signal new concept for activity log
             results['new_concept'] = concept_id not in self.active_concepts
             concept_obj = self.abstraction.concepts.get(concept_id)
@@ -207,11 +232,11 @@ class CognitiveIntelligentSystem:
             self.active_concepts.add(concept_id)
 
             # Also add to meta-domain
-            meta = "crypto" if domain.startswith("crypto:") else ("stock" if domain.startswith("stock:") else "general")
-            self.cross_domain.add_concept_to_domain(meta, concept_id)
+            meta_domain = "crypto" if domain.startswith("crypto:") else ("stock" if domain.startswith("stock:") else meta)
+            self.cross_domain.add_concept_to_domain(meta_domain, concept_id)
         
         # 3. Extract RICH facts for reasoning
-        facts = self._extract_facts(observation, domain)
+        facts = self._extract_facts(enriched_obs, domain)
         for fact in facts:
             self.reasoning.assert_fact(fact)
         
@@ -221,18 +246,17 @@ class CognitiveIntelligentSystem:
             results['inferred_facts'] = list(inferred)
         
         # 5. Store observation for rule learning
-        enriched_obs = self._enrich_observation(observation, domain)
         self._observation_history.append(enriched_obs)
         if len(self._observation_history) > self._max_observation_history:
             self._observation_history = self._observation_history[-self._max_observation_history:]
         
         # 6. Resonant memory geometry — treat each enriched observation as a ring in time
-        learning_accuracy = self.learning_engine.metrics.accuracy if hasattr(self.learning_engine, 'metrics') else 0.5
         resonance = self.resonant_memory.observe(
             enriched_obs,
             domain,
-            phi_hint=learning_accuracy,
-            sigma_hint=1.0 - learning_accuracy,
+            phi_hint=constitutional_snapshot.get('phi', 0.5),
+            sigma_hint=constitutional_snapshot.get('sigma', 0.5),
+            constitutional_context=constitutional_snapshot,
         )
         results['resonance'] = resonance
         self.cognitive_metrics['resonance_events'] += resonance.get('accessible_rings', 0)
@@ -311,6 +335,28 @@ class CognitiveIntelligentSystem:
             else:
                 facts.append(f"stable({entity_id})")
 
+        coherence = float(observation.get('constitutional_coherence', 0.0))
+        phi = float(observation.get('constitutional_phi', 0.5))
+        sigma = float(observation.get('constitutional_sigma', 0.5))
+        regime = str(observation.get('constitutional_regime', 'critical'))
+
+        if phi >= 0.7:
+            facts.append(f"coherent({entity_id})")
+        elif phi <= 0.35:
+            facts.append(f"fragmented({entity_id})")
+
+        if sigma >= 0.65:
+            facts.append(f"noise_high({entity_id})")
+        elif sigma <= 0.35:
+            facts.append(f"noise_low({entity_id})")
+
+        if coherence > 0.0:
+            facts.append(f"approaching_attractor({entity_id})")
+        elif coherence < 0.0:
+            facts.append(f"drifting_from_attractor({entity_id})")
+
+        facts.append(f"regime={regime}({entity_id})")
+
         # Boolean/categorical fields become direct facts
         for k, v in observation.items():
             if isinstance(v, bool):
@@ -350,6 +396,7 @@ class CognitiveIntelligentSystem:
         """Return combined cognitive metrics."""
         metrics = self.cognitive_metrics.copy()
         resonance_metrics = self.resonant_memory.get_snapshot().get('metrics', {})
+        constitutional = self._last_constitutional_snapshot or {}
         metrics.update({
             'active_concepts': len(self.active_concepts),
             'iteration': self.iteration,
@@ -358,6 +405,11 @@ class CognitiveIntelligentSystem:
             'phi_access_window': resonance_metrics.get('phi_access_window', 0),
             'average_resonance': resonance_metrics.get('average_resonance', 0),
             'memory_reconstruction_confidence': resonance_metrics.get('last_reconstruction_confidence', 0),
+            'constitutional_phi': constitutional.get('phi', 0.5),
+            'constitutional_sigma': constitutional.get('sigma', 0.5),
+            'constitutional_drift': constitutional.get('drift', 0.0),
+            'constitutional_regime': constitutional.get('regime', 'critical'),
+            'constitutional_stability': constitutional.get('stability', 0.5),
         })
         return metrics
 
@@ -395,6 +447,7 @@ class CognitiveIntelligentSystem:
             'drift_events': self.get_drift_events(),
             'strategy_performance': self.get_strategy_performance(),
             'resonant_memory': self.get_resonant_memory_snapshot(),
+            'constitutional_physics': self.constitutional_physics.export_state(),
         }
 
 
@@ -445,6 +498,29 @@ class CognitiveIntelligentSystem:
     def get_drift_events(self) -> list:
         """Return distribution drift events."""
         return self.learning_engine.get_insights().get('drift_events', [])
+
+    def get_constitutional_output(self) -> Optional[ConstitutionalOutput]:
+        """Return the latest constitutional snapshot as a structured contract."""
+        if not self._last_constitutional_snapshot:
+            return None
+        snapshot = dict(self._last_constitutional_snapshot)
+        return ConstitutionalOutput(
+            agent_id=str(snapshot.get('agent_id', '')),
+            attractor_id=str(snapshot.get('attractor_id', '')),
+            domain=str(snapshot.get('domain', '')),
+            phi=float(snapshot.get('phi', 0.5)),
+            sigma=float(snapshot.get('sigma', 0.5)),
+            coherence=float(snapshot.get('coherence', 0.0)),
+            drift=float(snapshot.get('drift', 0.0)),
+            stability=float(snapshot.get('stability', 0.5)),
+            regime=str(snapshot.get('regime', 'critical')),
+            awareness=float(snapshot.get('awareness', 0.5)),
+            assignment_distance=float(snapshot.get('assignment_distance', 0.0)),
+            distance_to_attractor=float(snapshot.get('distance_to_attractor', 0.0)),
+            gradient_norm=float(snapshot.get('gradient_norm', 0.0)),
+            z_prime_state=list(snapshot.get('z_prime_state', [])),
+            z_cubed_state=dict(snapshot.get('z_cubed_state', {})),
+        )
 
     def get_resonant_memory_snapshot(self) -> Dict[str, Any]:
         """Return the current resonant memory geometry state."""

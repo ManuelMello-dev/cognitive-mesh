@@ -1238,6 +1238,7 @@ class DistributedCognitiveCore:
 
                                 # ── Coordinator: collect all outputs, update Z³ state ──
                                 self.coordinator.coordinate(
+                                    constitutional=cs.get_constitutional_output() if hasattr(cs, 'get_constitutional_output') else None,
                                     abstractions=abstractions,
                                     rules=rules_out,
                                     predictions=predictions_out,
@@ -2015,13 +2016,32 @@ class DistributedCognitiveCore:
         except Exception:
             pass
 
+        constitutional_state = {}
+        try:
+            constitutional_state = self.cognitive_system.constitutional_physics.export_state()
+        except Exception:
+            constitutional_state = {}
+
+        current_state = self.get_metrics()
+        current_state['constitutional'] = constitutional_state.get('last_snapshot', {})
+        current_state['constitutional_totals'] = {
+            'agents': constitutional_state.get('total_agents', 0),
+            'attractors': constitutional_state.get('total_attractors', 0),
+        }
+
+        performance_metrics = dict(pred_insights)
+        performance_metrics['constitutional'] = constitutional_state.get('last_snapshot', {})
+
         return GoalGenerationContext(
             observations=obs_history,
             patterns=patterns,
-            capabilities=set(['reasoning', 'abstraction', 'prediction', 'self_evolution']),
-            constraints={},
-            current_state=self.get_metrics(),
-            performance_metrics=pred_insights,
+            capabilities=set(['reasoning', 'abstraction', 'prediction', 'self_evolution', 'constitutional_physics']),
+            constraints={
+                'must_preserve_constitutional_anchor': True,
+                'goal_priority_should_track_coherence': True,
+            },
+            current_state=current_state,
+            performance_metrics=performance_metrics,
         )
 
     async def save_state(self):
