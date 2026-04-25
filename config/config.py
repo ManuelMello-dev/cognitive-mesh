@@ -15,7 +15,7 @@ class Config:
     NODE_ID = os.getenv("NODE_ID", "global_mind_01")
 
     # ── Networking ────────────────────────────────────────────────────────────
-    PORT = int(os.getenv("PORT", 8080))
+    PORT = int(os.getenv("PORT", 8081))
     UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 30))  # seconds between cycles
 
     # ── Cognitive Core ────────────────────────────────────────────────────────

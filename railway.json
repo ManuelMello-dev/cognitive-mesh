@@ -5,7 +5,8 @@
     "dockerfile": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "node openclaw-gateway.js",
+    "startCommand": "python main.py",
+    "port": 8081,
     "restartPolicyMaxRetries": 10,
     "restartPolicyWindowMs": 300000,
     "healthcheckPath": "/health",
