@@ -13,9 +13,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Cache-bust: increment CACHE_BUST to force a full rebuild on Railway
-# Current value: 6 (bumped 2026-04-08 — removed Dockerfile ambiguity: merged
-#                    Dockerfile.railway into Dockerfile as single source of truth)
-ARG CACHE_BUST=6
+# Current value: 7 (bumped 2026-04-24 — replaced aioredis==2.0.1 with redis>=4.2.0
+#                    to fix Python 3.11 duplicate base class TimeoutError crash)
+ARG CACHE_BUST=7
 
 # Copy application files
 COPY . .

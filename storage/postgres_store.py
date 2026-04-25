@@ -211,8 +211,6 @@ class PostgresStore:
         CREATE INDEX IF NOT EXISTS idx_observation_history_timestamp ON observation_history(timestamp DESC);
         CREATE INDEX IF NOT EXISTS idx_price_history_symbol ON price_history(symbol);
         CREATE INDEX IF NOT EXISTS idx_price_history_timestamp ON price_history(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
-        CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority DESC);
         """
         
         try:

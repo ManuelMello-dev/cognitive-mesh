@@ -671,7 +671,7 @@ class CognitiveMeshOrchestrator:
     async def _connect_milvus_background(self):
         """Connect to Milvus in background — never blocks startup"""
         try:
-            self.milvus = MilvusStore(Config.MILVUS_HOST)
+            self.milvus = MilvusStore(Config.MILVUS_HOST, port=Config.MILVUS_PORT)
             loop = asyncio.get_event_loop()
             await asyncio.wait_for(
                 loop.run_in_executor(None, self._milvus_sync_connect),

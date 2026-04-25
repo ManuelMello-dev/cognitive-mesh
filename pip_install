@@ -1,1 +1,1 @@
-pip install pymilvus aioredis asyncpg
+pip install pymilvus redis asyncpg

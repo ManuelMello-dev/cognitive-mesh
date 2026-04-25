@@ -48,6 +48,7 @@ class Config:
     # commonly injected by managed providers such as Railway.
     POSTGRES_URL = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
     MILVUS_HOST = os.getenv("MILVUS_HOST")
+    MILVUS_PORT = int(os.getenv("MILVUS_PORT", 19530))
     REDIS_URL = os.getenv("REDIS_URL")
     REDIS_HOST = os.getenv("REDIS_HOST")
     REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
