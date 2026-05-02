@@ -36,12 +36,20 @@ class Config:
     DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 150))
 
     # ── Plugin Flags ─────────────────────────────────────────────────────────
-    # Set DISABLE_MARKET_PLUGIN=1 to run without financial data
-    DISABLE_MARKET_PLUGIN = os.getenv("DISABLE_MARKET_PLUGIN", "").lower() in ("1", "true", "yes")
+    # CERN collision data is the default proving data source.
+    DISABLE_CERN_PLUGIN = os.getenv("DISABLE_CERN_PLUGIN", "").lower() in ("1", "true", "yes")
 
-    # Market plugin price scan filters (only relevant when market plugin is active)
-    MIN_SCAN_PRICE = float(os.getenv("MIN_SCAN_PRICE", 0.0))
-    MAX_SCAN_PRICE = float(os.getenv("MAX_SCAN_PRICE", float("inf")))
+    # Market systems are legacy/optional. They load only when explicitly enabled.
+    ENABLE_MARKET_PLUGIN = os.getenv("ENABLE_MARKET_PLUGIN", "").lower() in ("1", "true", "yes")
+    ENABLE_MARKET_CONTEXT_PLUGINS = os.getenv("ENABLE_MARKET_CONTEXT_PLUGINS", "").lower() in ("1", "true", "yes")
+    DISABLE_MARKET_PLUGIN = not ENABLE_MARKET_PLUGIN
+
+    # Generic value filters. Legacy MIN/MAX_SCAN_PRICE aliases are still accepted
+    # for backward compatibility when the old MarketPlugin is explicitly enabled.
+    MIN_SCAN_VALUE = float(os.getenv("MIN_SCAN_VALUE", os.getenv("MIN_SCAN_PRICE", 0.0)))
+    MAX_SCAN_VALUE = float(os.getenv("MAX_SCAN_VALUE", os.getenv("MAX_SCAN_PRICE", float("inf"))))
+    MIN_SCAN_PRICE = MIN_SCAN_VALUE
+    MAX_SCAN_PRICE = MAX_SCAN_VALUE
 
     # ── Persistence ───────────────────────────────────────────────────────────
     # Accept both the repository's historical variable names and the defaults

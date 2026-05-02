@@ -88,7 +88,8 @@ Optional fields:
 
 | Plugin | File | Description |
 |---|---|---|
-| `MarketPlugin` | `main.py` | Financial markets via MultiSourceDataProvider |
+| `CERNCollisionPlugin` | `agents/plugins/cern_collision_plugin.py` | Default proving stream: CMS dielectron collision events from CERN Open Data record 304 |
+| `MarketPlugin` | `main.py` | Legacy optional financial markets plugin, loaded only with `ENABLE_MARKET_PLUGIN=1` |
 
 ### Adding a New Domain
 
@@ -111,6 +112,22 @@ orchestrator.register_plugin(WeatherPlugin())
 ```
 
 The cognitive core will immediately begin forming concepts, inferring rules, and generating goals for the new domain — no other changes required.
+
+---
+
+## Default Proving Dataset: CERN Collision Data
+
+The default runtime now loads `CERNCollisionPlugin`, which ingests real CMS dielectron collision events from CERN Open Data record 304.  The dataset contains 100,000 events with two electrons from 2010 and an invariant-mass range of 2–110 GeV.  It is intentionally used as a non-financial proving stream: the mesh receives only generic observations and metadata, while particle-physics semantics remain in the plugin layer.
+
+| Generic observation field | CERN mapping |
+|---|---|
+| `entity_id` | `cms_dielectron_run{Run}_event{Event}` |
+| `value` | invariant mass `M` in GeV by default |
+| `secondary_value` | electron transverse momentum `pt1` in GeV by default |
+| `domain` | `cern:cms:dielectron` |
+| Metadata | run, event, energies, momenta, pseudorapidity, phi, charges, DOI, source URL |
+
+This keeps the original claim honest: the core is not a market model.  Market ingestion remains available as a legacy plugin, but the canonical boot path is now a physical collision-data stream.
 
 ---
 
@@ -188,7 +205,15 @@ GOAL_GENERATION_INTERVAL=50
 EVOLUTION_INTERVAL=25       # self-evolution frequency (cognitive cycles)
 
 # Plugins
-DISABLE_MARKET_PLUGIN=0     # set to 1 to run without financial data
+DISABLE_CERN_PLUGIN=0       # CERN collision data is enabled by default
+CERN_COLLISION_DATA_URL=https://opendata.cern.ch/record/304/files/dielectron.csv?download=1
+CERN_COLLISION_BATCH_SIZE=25
+CERN_COLLISION_PRIMARY_VALUE=M
+CERN_COLLISION_SECONDARY_VALUE=pt1
+
+# Legacy financial plugins are opt-in, not default identity
+ENABLE_MARKET_PLUGIN=0
+ENABLE_MARKET_CONTEXT_PLUGINS=0
 
 # LLM Interpreter (optional)
 OPENAI_API_KEY=              # leave blank to run in native-only mode
@@ -256,7 +281,7 @@ curl -X POST http://localhost:8080/api/ingest \
 Multiple mesh nodes can be connected via ZeroMQ.  Each node independently forms concepts and learns rules; the AMFG gossip protocol propagates high-confidence insights across the network.
 
 ```
-Node A (financial data)  ←─ gossip ─→  Node B (sensor data)  ←─ gossip ─→  Node C (text data)
+Node A (CERN collision data)  ←─ gossip ─→  Node B (sensor data)  ←─ gossip ─→  Node C (text data)
 ```
 
 Nodes share concepts and rules but maintain independent cognitive states.  Cross-domain transfer happens both within a node (across domains) and across nodes (via gossip).

@@ -1,29 +1,18 @@
 """
 agents/plugins
 ==============
-Market-relevant DataPlugin implementations.
+DataPlugin implementations for the cognitive mesh.
 
-Each plugin is a self-contained data source that feeds observations
-into the cognitive mesh. All plugins extend DataPlugin from agents.provider.
-
-Available plugins:
-  - SentimentPlugin      : Fear & Greed, AAII investor sentiment
-  - MacroPlugin          : Fed rates, yield curve, VIX, DXY, oil, gold
-  - OnChainPlugin        : BTC/ETH on-chain metrics, global market stats
-  - NewsPlugin           : Reuters, Yahoo Finance, CoinDesk, Fed RSS feeds
-  - DerivativesPlugin    : Funding rates, open interest, long/short ratio
-  - SocialPlugin         : Reddit mentions, CoinGecko trending
-  - MicrostructurePlugin : Order book depth, bid/ask imbalance, 24h stats
+The mesh is data-source agnostic.  CERN collision data is the default proving
+domain because it exercises the same observation contract without financial
+market assumptions.  Market-context plugins remain available as legacy optional
+plugins and are loaded only when explicitly enabled by environment flags.
 """
-from agents.plugins.sentiment_plugin import SentimentPlugin
-from agents.plugins.macro_plugin import MacroPlugin
-from agents.plugins.onchain_plugin import OnChainPlugin
-from agents.plugins.news_plugin import NewsPlugin
-from agents.plugins.derivatives_plugin import DerivativesPlugin
-from agents.plugins.social_plugin import SocialPlugin
-from agents.plugins.microstructure_plugin import MicrostructurePlugin
+
+from agents.plugins.cern_collision_plugin import CERNCollisionPlugin
 
 __all__ = [
+    "CERNCollisionPlugin",
     "SentimentPlugin",
     "MacroPlugin",
     "OnChainPlugin",

@@ -18,7 +18,8 @@ Architecture:
   DistributedCognitiveCore
     └─ Async wrapper with DB persistence + cognitive loop thread
   DataPlugin system (domain-agnostic)
-    └─ MarketPlugin (financial) — optional, loaded if enabled
+    └─ CERNCollisionPlugin — default proving stream from CERN Open Data
+    └─ MarketPlugin (financial) — legacy optional plugin, opt-in only
     └─ Any other plugin can be added without touching the core
 
 The core is completely domain-agnostic.  All domain-specific logic
@@ -501,37 +502,52 @@ class CognitiveMeshOrchestrator:
         # ── Data plugins ──────────────────────────────────────────────────
         self.plugins: List[DataPlugin] = []
 
-        # Market plugin is loaded by default (can be disabled via env var)
-        if os.getenv("DISABLE_MARKET_PLUGIN", "").lower() not in ("1", "true", "yes"):
+        # CERN collision data is the default proving stream for the agnostic mesh.
+        if os.getenv("DISABLE_CERN_PLUGIN", "").lower() not in ("1", "true", "yes"):
+            try:
+                from agents.plugins.cern_collision_plugin import CERNCollisionPlugin
+                self.plugins.append(CERNCollisionPlugin())
+                logger.info("CERNCollisionPlugin enabled as default data source")
+            except Exception as _e:
+                logger.warning(f"CERNCollisionPlugin could not be loaded ({_e}) — continuing without it")
+        else:
+            logger.info("CERNCollisionPlugin disabled via DISABLE_CERN_PLUGIN env var")
+
+        # Market plugin is legacy and opt-in only. This keeps the system capable of
+        # market ingestion without letting finance define the mesh identity.
+        if os.getenv("ENABLE_MARKET_PLUGIN", "").lower() in ("1", "true", "yes"):
             self.market_plugin = MarketPlugin()
             self.plugins.append(self.market_plugin)
+            logger.info("MarketPlugin enabled via ENABLE_MARKET_PLUGIN env var")
         else:
             self.market_plugin = None
-            logger.info("MarketPlugin disabled via DISABLE_MARKET_PLUGIN env var")
+            logger.info("MarketPlugin not loaded; set ENABLE_MARKET_PLUGIN=1 for legacy market ingestion")
 
         # ── Extended market-context plugins ───────────────────────────────
-        # Each plugin is optional — a failure to import or init never blocks startup.
-        # Disable any plugin via env var: DISABLE_<PLUGIN_NAME>_PLUGIN=1
-        _plugin_specs = [
-            ("SENTIMENT",      "agents.plugins.sentiment_plugin",      "SentimentPlugin"),
-            ("MACRO",          "agents.plugins.macro_plugin",          "MacroPlugin"),
-            ("ONCHAIN",        "agents.plugins.onchain_plugin",        "OnChainPlugin"),
-            ("NEWS",           "agents.plugins.news_plugin",           "NewsPlugin"),
-            ("DERIVATIVES",    "agents.plugins.derivatives_plugin",    "DerivativesPlugin"),
-            ("SOCIAL",         "agents.plugins.social_plugin",         "SocialPlugin"),
-            ("MICROSTRUCTURE", "agents.plugins.microstructure_plugin", "MicrostructurePlugin"),
-        ]
-        for _env_name, _module, _cls in _plugin_specs:
-            if os.getenv(f"DISABLE_{_env_name}_PLUGIN", "").lower() in ("1", "true", "yes"):
-                logger.info(f"{_cls} disabled via DISABLE_{_env_name}_PLUGIN env var")
-                continue
-            try:
-                import importlib
-                _mod = importlib.import_module(_module)
-                _plugin_cls = getattr(_mod, _cls)
-                self.plugins.append(_plugin_cls())
-            except Exception as _e:
-                logger.warning(f"{_cls} could not be loaded ({_e}) — skipping")
+        # These remain opt-in because they are finance-specific peripheral sensors.
+        if os.getenv("ENABLE_MARKET_CONTEXT_PLUGINS", "").lower() in ("1", "true", "yes"):
+            _plugin_specs = [
+                ("SENTIMENT",      "agents.plugins.sentiment_plugin",      "SentimentPlugin"),
+                ("MACRO",          "agents.plugins.macro_plugin",          "MacroPlugin"),
+                ("ONCHAIN",        "agents.plugins.onchain_plugin",        "OnChainPlugin"),
+                ("NEWS",           "agents.plugins.news_plugin",           "NewsPlugin"),
+                ("DERIVATIVES",    "agents.plugins.derivatives_plugin",    "DerivativesPlugin"),
+                ("SOCIAL",         "agents.plugins.social_plugin",         "SocialPlugin"),
+                ("MICROSTRUCTURE", "agents.plugins.microstructure_plugin", "MicrostructurePlugin"),
+            ]
+            for _env_name, _module, _cls in _plugin_specs:
+                if os.getenv(f"DISABLE_{_env_name}_PLUGIN", "").lower() in ("1", "true", "yes"):
+                    logger.info(f"{_cls} disabled via DISABLE_{_env_name}_PLUGIN env var")
+                    continue
+                try:
+                    import importlib
+                    _mod = importlib.import_module(_module)
+                    _plugin_cls = getattr(_mod, _cls)
+                    self.plugins.append(_plugin_cls())
+                except Exception as _e:
+                    logger.warning(f"{_cls} could not be loaded ({_e}) — skipping")
+        else:
+            logger.info("Market-context plugins not loaded; set ENABLE_MARKET_CONTEXT_PLUGINS=1 to enable them")
 
         # ── Core cognitive system ─────────────────────────────────────────
         self.core = DistributedCognitiveCore(node_id=self.node_id)
@@ -601,7 +617,7 @@ class CognitiveMeshOrchestrator:
         self.core.milvus = self.milvus
         self.core.redis = self.redis
 
-        # Expose the market provider to the core for the HTTP provider status tab
+        # Expose legacy market provider to the HTTP provider status tab only when loaded.
         if self.market_plugin and self.market_plugin._provider:
             self.core.data_provider = self.market_plugin._provider
 
@@ -720,7 +736,7 @@ class CognitiveMeshOrchestrator:
         asyncio.set_event_loop(http_loop)
         try:
             logger.info("HTTP server thread: starting aiohttp on dedicated event loop")
-            # Pass the market provider for the providers status tab (if available)
+            # Pass legacy provider for the providers status tab if market ingestion is enabled.
             data_provider = (
                 self.market_plugin._provider
                 if self.market_plugin and self.market_plugin._provider
