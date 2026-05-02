@@ -653,10 +653,15 @@ class CognitiveMeshOrchestrator:
         if Config.POSTGRES_URL and PostgresStore:
             try:
                 self.postgres = PostgresStore(Config.POSTGRES_URL)
-                await asyncio.wait_for(self.postgres.connect(), timeout=5.0)
+                await asyncio.wait_for(
+                    self.postgres.connect(),
+                    timeout=Config.POSTGRES_CONNECT_TIMEOUT,
+                )
                 logger.info("Connected to PostgreSQL")
             except asyncio.TimeoutError:
-                logger.warning("PostgreSQL connection timed out — skipping")
+                logger.warning(
+                    f"PostgreSQL connection timed out after {Config.POSTGRES_CONNECT_TIMEOUT}s — skipping"
+                )
                 self.postgres = None
             except Exception as e:
                 logger.warning(f"PostgreSQL connection failed: {e} — skipping")

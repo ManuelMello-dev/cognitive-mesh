@@ -55,6 +55,10 @@ class Config:
     # Accept both the repository's historical variable names and the defaults
     # commonly injected by managed providers such as Railway.
     POSTGRES_URL = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+    POSTGRES_CONNECT_TIMEOUT = float(os.getenv("POSTGRES_CONNECT_TIMEOUT", 15.0))
+    POSTGRES_POOL_MIN_SIZE = int(os.getenv("POSTGRES_POOL_MIN_SIZE", 1))
+    POSTGRES_POOL_MAX_SIZE = int(os.getenv("POSTGRES_POOL_MAX_SIZE", 3))
+    POSTGRES_COMMAND_TIMEOUT = float(os.getenv("POSTGRES_COMMAND_TIMEOUT", 30.0))
     MILVUS_HOST = os.getenv("MILVUS_HOST")
     MILVUS_PORT = int(os.getenv("MILVUS_PORT", 19530))
     REDIS_URL = os.getenv("REDIS_URL")

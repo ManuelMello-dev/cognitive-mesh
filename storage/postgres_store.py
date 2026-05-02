@@ -30,16 +30,55 @@ class PostgresStore:
         self.connected = False
     
     async def connect(self):
-        """Initialize connection pool"""
+        """Initialize connection pool with deployment-friendly defaults."""
         try:
             import asyncpg
-            self.pool = await asyncpg.create_pool(self.connection_string)
+
+            min_size = int(os.getenv("POSTGRES_POOL_MIN_SIZE", "1"))
+            max_size = int(os.getenv("POSTGRES_POOL_MAX_SIZE", "3"))
+            command_timeout = float(os.getenv("POSTGRES_COMMAND_TIMEOUT", "30"))
+            if max_size < min_size:
+                max_size = min_size
+
+            self.pool = await asyncpg.create_pool(
+                self.connection_string,
+                min_size=min_size,
+                max_size=max_size,
+                command_timeout=command_timeout,
+            )
             self.connected = True
-            logger.info("Connected to PostgreSQL")
+            logger.info(
+                "Connected to PostgreSQL (pool min=%s max=%s command_timeout=%ss)",
+                min_size,
+                max_size,
+                command_timeout,
+            )
             await self._init_schema()
         except ImportError:
             logger.warning("asyncpg not installed. Install with: pip install asyncpg")
             self.connected = False
+        except asyncio.CancelledError:
+            await self._close_partial_pool()
+            self.connected = False
+            raise
+        except Exception:
+            await self._close_partial_pool()
+            self.connected = False
+            raise
+
+    async def _close_partial_pool(self):
+        """Best-effort cleanup when startup is cancelled mid-connection."""
+        if not self.pool:
+            return
+        try:
+            await asyncio.wait_for(self.pool.close(), timeout=5.0)
+        except Exception:
+            try:
+                self.pool.terminate()
+            except Exception:
+                pass
+        finally:
+            self.pool = None
     
     async def _init_schema(self):
         """Create tables if they don't exist"""
@@ -721,8 +760,17 @@ class PostgresStore:
             logger.error(f"Error cleaning up gossip events: {e}")
     
     async def disconnect(self):
-        """Close connection pool"""
+        """Close connection pool without hanging shutdown indefinitely."""
         if self.pool:
-            await self.pool.close()
-            self.connected = False
-            logger.info("Disconnected from PostgreSQL")
+            try:
+                await asyncio.wait_for(self.pool.close(), timeout=10.0)
+            except Exception as e:
+                logger.warning(f"PostgreSQL pool close timed out/failed ({e}); terminating pool")
+                try:
+                    self.pool.terminate()
+                except Exception:
+                    pass
+            finally:
+                self.pool = None
+                self.connected = False
+                logger.info("Disconnected from PostgreSQL")
