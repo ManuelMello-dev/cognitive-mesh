@@ -1,6 +1,6 @@
 """
 Pursuit Agent - Refines rules dynamically based on system goals and feedback
-Enhanced with autonomous goal execution from OpenAI-powered reasoner
+Enhanced with autonomous goal execution from the native reasoner
 """
 import logging
 import asyncio

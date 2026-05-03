@@ -26,7 +26,7 @@ def json_serial(obj):
         return str(obj)
     return str(obj)
 
-from agents.llm_interpreter import LLMInterpreter
+from agents.native_interpreter import NativeInterpreter
 from agents.market_eeg import MarketEEG
 from agents.autonomous_reasoner import AutonomousReasoner
 from config.config import Config
@@ -568,7 +568,7 @@ async def start_http_server(core=None, data_provider=None):
 
     if core:
         app['core'] = core
-        app['interpreter'] = LLMInterpreter(core)  # kept for legacy /api/ingest
+        app['interpreter'] = NativeInterpreter(core)
         app['output_layer'] = OutputLayer()  # Mesh Principle 7: single output node
         app["reasoner"] = AutonomousReasoner(core)
         app["eeg"] = MarketEEG(core)

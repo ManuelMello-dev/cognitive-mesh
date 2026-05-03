@@ -144,16 +144,9 @@ This is not a simulation — the system literally rewrites its own learning para
 
 ---
 
-## LLM Interpreter (Optional)
+## Native Output Layer
 
-The LLM is **not** a reasoning engine.  It is a *tongue*, not a brain.
-
-| Layer | Role | Required |
-|---|---|---|
-| Native algorithmic reasoning | Source of truth, all decisions | Always |
-| LLM interpreter | Translates native output into prose | Optional |
-
-Set `LLM_ENABLED=0` to run in fully native mode with no external API calls.
+The mesh now renders status and chat responses through deterministic native code only. There is no external model client, no external inference API call, and no third-party model dependency in the runtime path.
 
 ---
 
@@ -215,9 +208,8 @@ CERN_COLLISION_SECONDARY_VALUE=pt1
 ENABLE_MARKET_PLUGIN=0
 ENABLE_MARKET_CONTEXT_PLUGINS=0
 
-# LLM Interpreter (optional)
-OPENAI_API_KEY=              # leave blank to run in native-only mode
-LLM_ENABLED=1               # set to 0 to fully disable LLM layer
+# Native output only — no external LLM/API layer
+NATIVE_OUTPUT_ONLY=1
 
 # Persistence
 # PostgreSQL is required if you want learned state to survive restarts.

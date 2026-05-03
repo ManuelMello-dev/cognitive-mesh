@@ -1169,26 +1169,27 @@ class DistributedCognitiveCore:
                     if batch:
                         for obs, domain in batch:
                             try:
-                                # ── Mesh Pipeline: each module processes independently ──
+                                # ── Unified Mesh Pipeline ─────────────────────────────
+                                # Route every queued observation through the full
+                                # CognitiveIntelligentSystem pipeline first. This is the
+                                # path that enriches observations, updates constitutional
+                                # physics, extracts facts, runs inference, stores history,
+                                # and writes resonant memory.
                                 cs = self.cognitive_system
+                                pipeline_result = {}
+                                try:
+                                    pipeline_result = cs.process_observation(obs, domain)
+                                except Exception as e:
+                                    logger.error(f"Unified cognitive pipeline error: {e}", exc_info=True)
+                                    pipeline_result = {}
 
-                                # Module 1: Abstraction
                                 abstractions = []
-                                try:
-                                    ab_out = cs.abstraction.observe(obs, domain)
-                                    if ab_out:
-                                        abstractions = [ab_out]
-                                except Exception as e:
-                                    logger.debug(f"Abstraction error: {e}")
+                                concept_out = pipeline_result.get('concept') if isinstance(pipeline_result, dict) else None
+                                if concept_out:
+                                    abstractions = [concept_out]
 
-                                # Module 2: Reasoning
-                                rules_out = []
-                                try:
-                                    rules_out = cs.reasoning.get_rules_as_outputs() if hasattr(cs.reasoning, 'get_rules_as_outputs') else []
-                                except Exception as e:
-                                    logger.debug(f"Reasoning error: {e}")
-
-                                # Module 3: Prediction
+                                # Prediction is owned by DistributedCognitiveCore, so it
+                                # remains adjacent to the unified cognitive-system pass.
                                 predictions_out = []
                                 try:
                                     self.prediction_engine.record_observation(obs, domain)
@@ -1196,7 +1197,12 @@ class DistributedCognitiveCore:
                                 except Exception as e:
                                     logger.debug(f"Prediction error: {e}")
 
-                                # Module 4: EEG (sampled every 10 obs to avoid overhead)
+                                rules_out = []
+                                try:
+                                    rules_out = cs.reasoning.get_rules_as_outputs() if hasattr(cs.reasoning, 'get_rules_as_outputs') else []
+                                except Exception as e:
+                                    logger.debug(f"Reasoning output error: {e}")
+
                                 eeg_out = None
                                 if self._observation_count % 10 == 0:
                                     try:
@@ -1212,29 +1218,25 @@ class DistributedCognitiveCore:
                                                 coherence_map=raw_eeg.get('coherence_map', {}),
                                             )
                                     except Exception as e:
-                                        logger.debug(f"EEG error: {e}")
+                                        logger.debug(f"EEG output error: {e}")
 
-                                # Module 5: Cross-domain
                                 transfers_out = []
                                 try:
                                     transfers_out = cs.cross_domain.get_transfers_as_outputs() if hasattr(cs.cross_domain, 'get_transfers_as_outputs') else []
                                 except Exception as e:
-                                    logger.debug(f"Cross-domain error: {e}")
+                                    logger.debug(f"Cross-domain output error: {e}")
 
-                                # Module 6: Goals
                                 goals_out = []
                                 try:
                                     goals_out = cs.goals.get_active_goals_as_outputs() if hasattr(cs.goals, 'get_active_goals_as_outputs') else []
                                 except Exception as e:
-                                    logger.debug(f"Goals error: {e}")
+                                    logger.debug(f"Goals output error: {e}")
 
-                                # Module 7: Learning
                                 learning_out = []
                                 try:
-                                    cs.learning_engine.process_observation(obs)
                                     learning_out = cs.learning_engine.get_patterns_as_outputs() if hasattr(cs.learning_engine, 'get_patterns_as_outputs') else []
                                 except Exception as e:
-                                    logger.debug(f"Learning error: {e}")
+                                    logger.debug(f"Learning output error: {e}")
 
                                 # ── Coordinator: collect all outputs, update Z³ state ──
                                 self.coordinator.coordinate(
