@@ -31,6 +31,7 @@ from continuous_learning_engine import Pattern, LearningMetrics
 
 from cognitive_intelligent_system import CognitiveIntelligentSystem
 from prediction_validation_engine import PredictionValidationEngine
+from world_model import OnlineWorldModel
 from config.config import Config
 # Mesh architecture — Coordinator and contracts
 from coordinator import MeshCoordinator
@@ -73,6 +74,7 @@ class DistributedCognitiveCore:
         # Core Engines
         self.cognitive_system = CognitiveIntelligentSystem(system_id=node_id)
         self.prediction_engine = PredictionValidationEngine()
+        self.world_model = OnlineWorldModel()
         # Mesh Coordinator — the Z³ anchor (Principle 3 & 4)
         self.coordinator = MeshCoordinator()
 
@@ -136,6 +138,10 @@ class DistributedCognitiveCore:
             "drift": 0.0,
             "prediction_accuracy": 0.0,
             "memory_reconstruction_confidence": 0.0,
+            "world_model_loss": 0.5,
+            "world_model_prediction_loss": 0.5,
+            "world_model_reconstruction_loss": 0.5,
+            "world_model_memory_loss": 1.0,
             "active_goals": 0,
             "control": {},
         }
@@ -258,6 +264,7 @@ class DistributedCognitiveCore:
                 "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
                 "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
+                "world_model_state": self.world_model.save_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -433,7 +440,8 @@ class DistributedCognitiveCore:
             self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
             self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
-            logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
+            self.world_model.load_state(loaded_caches.get("world_model_state", {}))
+            logger.debug("Loaded CognitiveIntelligentSystem caches and world model from Postgres.")
 
             # Load short-term memory and restore observation_count
             short_term_data = await self.postgres.load_short_term_memory()
@@ -922,6 +930,10 @@ class DistributedCognitiveCore:
             m["concepts_pruned"]         = self._concepts_pruned
             m["recursive_loss"]          = self._recursive_state.get("coherence_loss", 0.5)
             m["recursive_loss_delta"]    = self._recursive_state.get("loss_delta", 0.0)
+            m["world_model_loss"]        = self._recursive_state.get("world_model_loss", 0.5)
+            m["world_model_prediction_loss"] = self._recursive_state.get("world_model_prediction_loss", 0.5)
+            m["world_model_reconstruction_loss"] = self._recursive_state.get("world_model_reconstruction_loss", 0.5)
+            m["world_model_memory_loss"] = self._recursive_state.get("world_model_memory_loss", 1.0)
 
             # ── Normalize coordinator-backed cache to the dashboard schema ─────
             try:
@@ -1061,6 +1073,7 @@ class DistributedCognitiveCore:
             coord_state["log"] = list(self._activity_log)
             coord_state["recursive_state"] = dict(self._recursive_state)
             coord_state["recursive_feedback"] = list(self._recursive_feedback_log)[-50:]
+            coord_state["world_model"] = self.world_model.get_state()
             coord_state["_cache_warming"] = False
 
             # Provider status (data plane, not cognitive plane)
@@ -1159,6 +1172,7 @@ class DistributedCognitiveCore:
             "toggles": dict(self._toggles),
             "recursive_state": dict(self._recursive_state),
             "recursive_feedback": list(self._recursive_feedback_log)[-50:],
+            "world_model": self.world_model.get_state(),
             "node_id": self.node_id,
             "_cache_warming": True,
         }
@@ -1276,20 +1290,29 @@ class DistributedCognitiveCore:
                                     learning_patterns=learning_out,
                                 )
 
+                                world_model_output = self.world_model.observe(
+                                    obs,
+                                    domain=domain,
+                                    coordinator_state=self.coordinator.state,
+                                )
                                 self._apply_recursive_feedback(
                                     obs=obs,
                                     domain=domain,
                                     pipeline_result=pipeline_result,
                                     validation_result=validation_result,
+                                    world_model_output=world_model_output.to_dict(),
                                 )
 
                             except Exception as e:
                                 self._errors += 1
                                 logger.error(f"Error processing observation: {e}")
 
-                    # 1b. Update state cache every 5s OR if queue is large
+                    # 1b. Update state cache after a processed batch, every 5s,
+                    # or when the queue is large. This keeps recursive/world-model
+                    # metrics visible to API readers without waiting for the next
+                    # maintenance interval.
                     now = time.time()
-                    if (now - last_cache_update > 5.0) or (queue_size > 100 and iteration % 20 == 0):
+                    if batch or (now - last_cache_update > 5.0) or (queue_size > 100 and iteration % 20 == 0):
                         self._update_coordinator_cache()
                         last_cache_update = now
 
@@ -1385,6 +1408,7 @@ class DistributedCognitiveCore:
         domain: str,
         pipeline_result: Dict[str, Any],
         validation_result: Optional[Dict[str, Any]] = None,
+        world_model_output: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Close the loop between module outputs and future module behavior."""
         try:
@@ -1408,12 +1432,20 @@ class DistributedCognitiveCore:
             memory_conf = float(
                 resonance.get("reconstruction_confidence", resonance.get("last_reconstruction_confidence", 0.0)) or 0.0
             )
+            wm = world_model_output or {}
+            wm_loss = float(wm.get("total_loss", 0.5) or 0.5)
+            wm_prediction_loss = float(wm.get("prediction_loss", 0.5) or 0.5)
+            wm_reconstruction_loss = float(wm.get("reconstruction_loss", 0.5) or 0.5)
+            wm_memory_loss = float(wm.get("memory_loss", 1.0) or 1.0)
+            wm_coherence_loss = float(wm.get("coherence_alignment_loss", 0.5) or 0.5)
+
             loss = self._clamp(
-                (0.35 * (1.0 - phi))
-                + (0.30 * sigma)
-                + (0.20 * abs(drift))
+                (0.25 * (1.0 - phi))
+                + (0.20 * sigma)
+                + (0.15 * abs(drift))
                 + (0.10 * prediction_error)
-                + (0.05 * (1.0 - self._clamp(memory_conf, 0.0, 1.0))),
+                + (0.05 * (1.0 - self._clamp(memory_conf, 0.0, 1.0)))
+                + (0.25 * self._clamp(wm_loss, 0.0, 1.0)),
                 0.0,
                 1.0,
             )
@@ -1425,7 +1457,7 @@ class DistributedCognitiveCore:
             le = cs.learning_engine
             old_lr = float(getattr(le, "learning_rate", 0.01))
             new_lr = old_lr
-            if loss > 0.55 or loss_delta > 0.03 or sigma > 0.60:
+            if loss > 0.55 or loss_delta > 0.03 or sigma > 0.60 or wm_prediction_loss > 0.65:
                 new_lr = self._clamp((old_lr * 1.03) + 0.0005, 0.001, 0.05)
             elif loss < 0.35 and loss_delta <= 0.0:
                 new_lr = self._clamp(old_lr * 0.995, 0.001, 0.05)
@@ -1464,6 +1496,7 @@ class DistributedCognitiveCore:
             should_goal_cycle = (
                 self._observation_count % 25 == 0
                 or phi < 0.45
+                or wm_loss > 0.70
                 or (not cs.goals.active_goals and obs_count >= 10)
             )
             if should_goal_cycle:
@@ -1487,6 +1520,11 @@ class DistributedCognitiveCore:
                 "total_rules": len(getattr(cs.reasoning, "rules", {}) or {}),
                 "memory_reconstruction_confidence": memory_conf,
                 "recursive_loss": loss,
+                "world_model_loss": wm_loss,
+                "world_model_prediction_loss": wm_prediction_loss,
+                "world_model_reconstruction_loss": wm_reconstruction_loss,
+                "world_model_memory_loss": wm_memory_loss,
+                "world_model_coherence_loss": wm_coherence_loss,
             }
             for gid in list(getattr(cs.goals, "active_goals", []) or []):
                 try:
@@ -1511,6 +1549,12 @@ class DistributedCognitiveCore:
                 "drift": round(drift, 6),
                 "prediction_accuracy": round(accuracy, 6),
                 "memory_reconstruction_confidence": round(memory_conf, 6),
+                "world_model_loss": round(wm_loss, 6),
+                "world_model_prediction_loss": round(wm_prediction_loss, 6),
+                "world_model_reconstruction_loss": round(wm_reconstruction_loss, 6),
+                "world_model_memory_loss": round(wm_memory_loss, 6),
+                "world_model_coherence_loss": round(wm_coherence_loss, 6),
+                "world_model_latent_state": wm.get("latent_state", []),
                 "active_goals": len(getattr(cs.goals, "active_goals", []) or []),
                 "control": {
                     "learning_rate": round(float(getattr(le, "learning_rate", 0.0)), 8),
@@ -1528,6 +1572,7 @@ class DistributedCognitiveCore:
                     "loss": round(loss, 6),
                     "phi": round(phi, 6),
                     "sigma": round(sigma, 6),
+                    "world_model_loss": round(wm_loss, 6),
                     "actions": actions,
                 }
                 self._recursive_feedback_log.append(event)
@@ -2292,11 +2337,18 @@ class DistributedCognitiveCore:
 
         performance_metrics = dict(pred_insights)
         performance_metrics['constitutional'] = constitutional_state.get('last_snapshot', {})
+        performance_metrics.update({
+            'recursive_loss': self._recursive_state.get('coherence_loss', 0.5),
+            'world_model_loss': self._recursive_state.get('world_model_loss', 0.5),
+            'world_model_prediction_loss': self._recursive_state.get('world_model_prediction_loss', 0.5),
+            'world_model_reconstruction_loss': self._recursive_state.get('world_model_reconstruction_loss', 0.5),
+            'world_model_memory_loss': self._recursive_state.get('world_model_memory_loss', 1.0),
+        })
 
         return GoalGenerationContext(
             observations=obs_history,
             patterns=patterns,
-            capabilities=set(['reasoning', 'abstraction', 'prediction', 'self_evolution', 'constitutional_physics']),
+            capabilities=set(['reasoning', 'abstraction', 'prediction', 'self_evolution', 'constitutional_physics', 'world_model']),
             constraints={
                 'must_preserve_constitutional_anchor': True,
                 'goal_priority_should_track_coherence': True,
@@ -2389,6 +2441,7 @@ class DistributedCognitiveCore:
                 "_transfer_suggestions_cache": self.cognitive_system._transfer_suggestions_cache,
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
                 "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
+                "world_model_state": self.world_model.save_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -2510,7 +2563,8 @@ class DistributedCognitiveCore:
             self.cognitive_system._transfer_suggestions_cache = loaded_caches.get("_transfer_suggestions_cache", {})
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
             self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
-            logger.debug("Loaded CognitiveIntelligentSystem caches from Postgres.")
+            self.world_model.load_state(loaded_caches.get("world_model_state", {}))
+            logger.debug("Loaded CognitiveIntelligentSystem caches and world model from Postgres.")
 
         if self.milvus:
             logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
