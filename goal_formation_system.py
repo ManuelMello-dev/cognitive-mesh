@@ -269,35 +269,47 @@ class OpenEndedGoalSystem:
             self.goal_counter += 1
             goals.append(Goal(
                 goal_id=goal_id,
-                goal_type=GoalType.MAINTENANCE,
+                goal_type=GoalType.OPTIMIZATION,
                 description=f"Stabilize attractor drift from {drift:.2f} back within anchor tolerance",
                 success_criteria={'constitutional_drift_max': 0.08},
                 priority=0.78,
                 status=GoalStatus.PROPOSED
             ))
 
-        # Improve on low-performing scalar metrics only
+        # Improve low-performing scalar metrics. Metrics whose names imply
+        # minimization (sigma/noise/drift/loss/error) are targeted downward;
+        # all other scalar metrics are targeted upward.
         for metric_name, metric_value in context.performance_metrics.items():
             if not isinstance(metric_value, (int, float)):
                 continue
-            if metric_value < 0.7:  # Room for improvement
+            metric_l = str(metric_name).lower()
+            minimize = any(k in metric_l for k in ("sigma", "noise", "drift", "loss", "error"))
+            value_f = float(metric_value)
+
+            if minimize and value_f > 0.30:
                 goal_id = f"goal_{self.goal_counter}"
                 self.goal_counter += 1
-
-                target = min(float(metric_value) + 0.2, 1.0)
-
-                goal = Goal(
+                target = max(value_f - 0.20, 0.0)
+                goals.append(Goal(
                     goal_id=goal_id,
                     goal_type=GoalType.OPTIMIZATION,
-                    description=f"Improve {metric_name} from {float(metric_value):.2f} to {target:.2f}",
-                    success_criteria={
-                        metric_name: target
-                    },
+                    description=f"Reduce {metric_name} from {value_f:.2f} to {target:.2f}",
+                    success_criteria={metric_name: target},
                     priority=0.7,
                     status=GoalStatus.PROPOSED
-                )
-
-                goals.append(goal)
+                ))
+            elif (not minimize) and value_f < 0.7:
+                goal_id = f"goal_{self.goal_counter}"
+                self.goal_counter += 1
+                target = min(value_f + 0.2, 1.0)
+                goals.append(Goal(
+                    goal_id=goal_id,
+                    goal_type=GoalType.OPTIMIZATION,
+                    description=f"Improve {metric_name} from {value_f:.2f} to {target:.2f}",
+                    success_criteria={metric_name: target},
+                    priority=0.7,
+                    status=GoalStatus.PROPOSED
+                ))
 
         return goals
     
@@ -499,7 +511,12 @@ class OpenEndedGoalSystem:
                     if actual == target:
                         criteria_met += 1
                 elif isinstance(target, (int, float)):
-                    if actual >= target:
+                    # Some control objectives are minimization targets: lower
+                    # sigma/noise/drift/loss is better. Everything else remains
+                    # the original >= target maximization criterion.
+                    criterion_l = str(criterion).lower()
+                    minimize = any(k in criterion_l for k in ("sigma", "noise", "drift", "loss", "error"))
+                    if (actual <= target) if minimize else (actual >= target):
                         criteria_met += 1
         
         # Update progress

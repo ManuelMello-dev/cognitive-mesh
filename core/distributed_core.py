@@ -122,6 +122,25 @@ class DistributedCognitiveCore:
         # Activity log — rolling window of cognitive events shown in dashboard
         self._activity_log: deque = deque(maxlen=200)
 
+        # Recursive integration state — compact shared state that feeds module
+        # outputs back into future module behavior. This turns the mesh from a
+        # set of reporters into a closed observation → state → control loop.
+        self._recursive_state: Dict[str, Any] = {
+            "iteration": 0,
+            "coherence_loss": 0.5,
+            "loss_delta": 0.0,
+            "last_entity_id": None,
+            "last_domain": None,
+            "phi": 0.5,
+            "sigma": 0.5,
+            "drift": 0.0,
+            "prediction_accuracy": 0.0,
+            "memory_reconstruction_confidence": 0.0,
+            "active_goals": 0,
+            "control": {},
+        }
+        self._recursive_feedback_log: deque = deque(maxlen=200)
+
         # Toggles — runtime feature flags
         self._toggles: Dict[str, Any] = {
             "cognitive_loop": True,
@@ -901,6 +920,8 @@ class DistributedCognitiveCore:
             m["cognitive_loop_running"]  = self._running
             m["concepts_merged"]         = self._concepts_merged
             m["concepts_pruned"]         = self._concepts_pruned
+            m["recursive_loss"]          = self._recursive_state.get("coherence_loss", 0.5)
+            m["recursive_loss_delta"]    = self._recursive_state.get("loss_delta", 0.0)
 
             # ── Normalize coordinator-backed cache to the dashboard schema ─────
             try:
@@ -1038,6 +1059,8 @@ class DistributedCognitiveCore:
             coord_state["learning"] = learning
             coord_state["orchestrator_status"] = orchestrator_status
             coord_state["log"] = list(self._activity_log)
+            coord_state["recursive_state"] = dict(self._recursive_state)
+            coord_state["recursive_feedback"] = list(self._recursive_feedback_log)[-50:]
             coord_state["_cache_warming"] = False
 
             # Provider status (data plane, not cognitive plane)
@@ -1134,6 +1157,8 @@ class DistributedCognitiveCore:
             "providers": {},
             "resonant_memory": {"metrics": {"rings": 0, "phi_access_window": 0, "average_resonance": 0, "last_reconstruction_confidence": 0}, "recent_rings": [], "top_matches": []},
             "toggles": dict(self._toggles),
+            "recursive_state": dict(self._recursive_state),
+            "recursive_feedback": list(self._recursive_feedback_log)[-50:],
             "node_id": self.node_id,
             "_cache_warming": True,
         }
@@ -1191,8 +1216,9 @@ class DistributedCognitiveCore:
                                 # Prediction is owned by DistributedCognitiveCore, so it
                                 # remains adjacent to the unified cognitive-system pass.
                                 predictions_out = []
+                                validation_result = None
                                 try:
-                                    self.prediction_engine.record_observation(obs, domain)
+                                    validation_result = self.prediction_engine.record_observation(obs, domain)
                                     predictions_out = self.prediction_engine.get_active_predictions_as_outputs()
                                 except Exception as e:
                                     logger.debug(f"Prediction error: {e}")
@@ -1248,6 +1274,13 @@ class DistributedCognitiveCore:
                                     cross_domain_transfers=transfers_out,
                                     active_goals=goals_out,
                                     learning_patterns=learning_out,
+                                )
+
+                                self._apply_recursive_feedback(
+                                    obs=obs,
+                                    domain=domain,
+                                    pipeline_result=pipeline_result,
+                                    validation_result=validation_result,
                                 )
 
                             except Exception as e:
@@ -1337,6 +1370,174 @@ class DistributedCognitiveCore:
         if self._cognitive_thread:
             self._cognitive_thread.join(timeout=10)
             logger.info("Cognitive loop thread stopped")
+
+    # ──────────────────────────────────────────
+    # Recursive Integration Feedback
+    # ──────────────────────────────────────────
+
+    @staticmethod
+    def _clamp(value: float, low: float, high: float) -> float:
+        return max(low, min(high, float(value)))
+
+    def _apply_recursive_feedback(
+        self,
+        obs: Dict[str, Any],
+        domain: str,
+        pipeline_result: Dict[str, Any],
+        validation_result: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Close the loop between module outputs and future module behavior."""
+        try:
+            cs = self.cognitive_system
+            coord = self.coordinator.state
+            constitutional = (pipeline_result or {}).get("constitutional", {}) or {}
+            resonance = (pipeline_result or {}).get("resonance", {}) or {}
+
+            phi = self._clamp(getattr(coord, "phi", constitutional.get("phi", 0.5)), 0.0, 1.0)
+            sigma = self._clamp(getattr(coord, "sigma", constitutional.get("sigma", 0.5)), 0.0, 1.0)
+            drift = float(getattr(coord, "drift_vector", constitutional.get("drift", 0.0)) or 0.0)
+
+            try:
+                pred_i = self.prediction_engine.get_insights() or {}
+            except Exception:
+                pred_i = {}
+            accuracy = float(pred_i.get("global_accuracy", 0.0) or 0.0)
+            validated = int(pred_i.get("total_validated", 0) or 0)
+            prediction_error = (1.0 - accuracy) if validated > 0 else 0.5
+
+            memory_conf = float(
+                resonance.get("reconstruction_confidence", resonance.get("last_reconstruction_confidence", 0.0)) or 0.0
+            )
+            loss = self._clamp(
+                (0.35 * (1.0 - phi))
+                + (0.30 * sigma)
+                + (0.20 * abs(drift))
+                + (0.10 * prediction_error)
+                + (0.05 * (1.0 - self._clamp(memory_conf, 0.0, 1.0))),
+                0.0,
+                1.0,
+            )
+            prev_loss = float(self._recursive_state.get("coherence_loss", loss) or loss)
+            loss_delta = loss - prev_loss
+
+            actions = []
+
+            le = cs.learning_engine
+            old_lr = float(getattr(le, "learning_rate", 0.01))
+            new_lr = old_lr
+            if loss > 0.55 or loss_delta > 0.03 or sigma > 0.60:
+                new_lr = self._clamp((old_lr * 1.03) + 0.0005, 0.001, 0.05)
+            elif loss < 0.35 and loss_delta <= 0.0:
+                new_lr = self._clamp(old_lr * 0.995, 0.001, 0.05)
+            if abs(new_lr - old_lr) > 1e-9:
+                le.learning_rate = new_lr
+                actions.append(f"learning_rate {old_lr:.5f}->{new_lr:.5f}")
+
+            abst = cs.abstraction
+            obs_count = max(len(getattr(cs, "_observation_history", []) or []), 1)
+            concept_count = len(getattr(abst, "concepts", {}) or {})
+            concept_pressure = concept_count / obs_count
+            old_threshold = float(getattr(abst, "similarity_threshold", 0.85))
+            new_threshold = old_threshold
+            if obs_count >= 10 and concept_pressure > 0.75:
+                new_threshold = self._clamp(old_threshold + 0.01, 0.50, 0.95)
+            elif obs_count >= 20 and concept_pressure < 0.10:
+                new_threshold = self._clamp(old_threshold - 0.01, 0.50, 0.95)
+            if abs(new_threshold - old_threshold) > 1e-9:
+                abst.similarity_threshold = new_threshold
+                actions.append(f"abstraction_threshold {old_threshold:.3f}->{new_threshold:.3f}")
+
+            if validation_result:
+                entity = validation_result.get("entity_id") or obs.get("entity_id") or domain
+                correct = bool(validation_result.get("correct"))
+                fact = f"prediction_{'correct' if correct else 'incorrect'}({entity})"
+                try:
+                    cs.reasoning.assert_fact(fact)
+                    actions.append(f"assert_fact {fact}")
+                except Exception:
+                    pass
+                if not correct:
+                    old_explore = float(getattr(cs.goals, "exploration_rate", 0.3))
+                    cs.goals.exploration_rate = self._clamp(old_explore + 0.01, 0.05, 0.80)
+                    actions.append(f"exploration_rate {old_explore:.3f}->{cs.goals.exploration_rate:.3f}")
+
+            should_goal_cycle = (
+                self._observation_count % 25 == 0
+                or phi < 0.45
+                or (not cs.goals.active_goals and obs_count >= 10)
+            )
+            if should_goal_cycle:
+                try:
+                    before_goals = len(cs.goals.goals)
+                    ctx = self._build_goal_context()
+                    cs.goals.generate_goals(ctx)
+                    cs.goals.select_active_goals()
+                    added = len(cs.goals.goals) - before_goals
+                    if added > 0:
+                        actions.append(f"generated_goals +{added}")
+                except Exception as e:
+                    logger.debug(f"Recursive goal cycle skipped: {e}")
+
+            goal_metrics = {
+                "constitutional_phi": phi,
+                "constitutional_sigma": sigma,
+                "constitutional_drift": abs(drift),
+                "prediction_accuracy": accuracy,
+                "total_concepts": concept_count,
+                "total_rules": len(getattr(cs.reasoning, "rules", {}) or {}),
+                "memory_reconstruction_confidence": memory_conf,
+                "recursive_loss": loss,
+            }
+            for gid in list(getattr(cs.goals, "active_goals", []) or []):
+                try:
+                    goal = cs.goals.goals.get(gid)
+                    before = goal.progress if goal is not None else None
+                    cs.goals.update_goal_progress(gid, goal_metrics)
+                    goal = cs.goals.goals.get(gid)
+                    after = goal.progress if goal is not None else None
+                    if before is not None and after is not None and after != before:
+                        actions.append(f"goal_progress {gid} {before:.2f}->{after:.2f}")
+                except Exception:
+                    pass
+
+            self._recursive_state = {
+                "iteration": getattr(coord, "iteration", 0),
+                "coherence_loss": round(loss, 6),
+                "loss_delta": round(loss_delta, 6),
+                "last_entity_id": obs.get("entity_id") or obs.get("symbol") or domain,
+                "last_domain": domain,
+                "phi": round(phi, 6),
+                "sigma": round(sigma, 6),
+                "drift": round(drift, 6),
+                "prediction_accuracy": round(accuracy, 6),
+                "memory_reconstruction_confidence": round(memory_conf, 6),
+                "active_goals": len(getattr(cs.goals, "active_goals", []) or []),
+                "control": {
+                    "learning_rate": round(float(getattr(le, "learning_rate", 0.0)), 8),
+                    "abstraction_similarity_threshold": round(float(getattr(abst, "similarity_threshold", 0.0)), 6),
+                    "goal_exploration_rate": round(float(getattr(cs.goals, "exploration_rate", 0.0)), 6),
+                    "concept_pressure": round(concept_pressure, 6),
+                },
+            }
+
+            if actions or self._observation_count % 25 == 0:
+                event = {
+                    "ts": time.time(),
+                    "observation_count": self._observation_count,
+                    "domain": domain,
+                    "loss": round(loss, 6),
+                    "phi": round(phi, 6),
+                    "sigma": round(sigma, 6),
+                    "actions": actions,
+                }
+                self._recursive_feedback_log.append(event)
+                if actions:
+                    self._activity_log.append({
+                        "ts": time.time() * 1000,
+                        "msg": "Recursive feedback: " + "; ".join(actions[:4]),
+                    })
+        except Exception as e:
+            logger.debug(f"Recursive feedback error: {e}")
 
     # ──────────────────────────────────────────
     # Rule Confidence Feedback
@@ -1752,6 +1953,64 @@ class DistributedCognitiveCore:
             return {"success": True, "key": key, "value": value, "toggles": dict(self._toggles)}
         else:
             return {"success": False, "error": f"Unknown toggle '{key}'", "toggles": dict(self._toggles)}
+
+    def apply_goal_control(self, goal: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply bounded runtime control changes from an active goal.
+
+        This is intentionally conservative: goals may tune existing module
+        controls, but they may not execute arbitrary code or alter providers.
+        """
+        title = str(goal.get("goal") or goal.get("description") or "").lower()
+        changes = []
+        cs = self.cognitive_system
+
+        try:
+            if any(k in title for k in ("coherence", "stabilize", "stability", "information flow", "optimize")):
+                old = float(getattr(cs.learning_engine, "learning_rate", 0.01))
+                new = self._clamp(old * 0.99, 0.001, 0.05)
+                cs.learning_engine.learning_rate = new
+                self._toggles["concept_convergence"] = True
+                self._toggles["deep_introspection"] = True
+                changes.append(f"learning_rate {old:.5f}->{new:.5f}")
+                changes.append("concept_convergence=True")
+                changes.append("deep_introspection=True")
+
+            if any(k in title for k in ("pattern", "recognition", "concept", "abstraction")):
+                old = float(getattr(cs.abstraction, "similarity_threshold", 0.85))
+                new = self._clamp(old - 0.005, 0.50, 0.95)
+                cs.abstraction.similarity_threshold = new
+                changes.append(f"abstraction_threshold {old:.3f}->{new:.3f}")
+
+            if any(k in title for k in ("exploration", "exploit", "undersampled", "feature space")):
+                old = float(getattr(cs.goals, "exploration_rate", 0.3))
+                new = self._clamp(old + 0.02, 0.05, 0.80)
+                cs.goals.exploration_rate = new
+                changes.append(f"exploration_rate {old:.3f}->{new:.3f}")
+
+            if any(k in title for k in ("cross-domain", "transfer", "domain")):
+                self._toggles["knowledge_transfer"] = True
+                changes.append("knowledge_transfer=True")
+
+            if changes:
+                event = {
+                    "ts": time.time(),
+                    "observation_count": self._observation_count,
+                    "domain": "goal_control",
+                    "loss": self._recursive_state.get("coherence_loss", 0.5),
+                    "phi": self._recursive_state.get("phi", 0.5),
+                    "sigma": self._recursive_state.get("sigma", 0.5),
+                    "actions": [f"goal:{goal.get('id', goal.get('goal_id', '?'))}"] + changes,
+                }
+                self._recursive_feedback_log.append(event)
+                self._activity_log.append({
+                    "ts": time.time() * 1000,
+                    "msg": "Goal control: " + "; ".join(changes[:4]),
+                })
+
+            return {"success": True, "changes": changes, "goal": goal.get("goal") or goal.get("description")}
+        except Exception as e:
+            logger.warning(f"Goal control failed: {e}")
+            return {"success": False, "error": str(e), "changes": changes}
 
     # ──────────────────────────────────────────
     # Self-Reflection

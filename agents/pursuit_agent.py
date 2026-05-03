@@ -117,6 +117,12 @@ class PursuitAgent:
         goal_title = pursuit.get("goal", "").lower()
         
         try:
+            if hasattr(self.core, "apply_goal_control"):
+                control_result = self.core.apply_goal_control(pursuit)
+                pursuit["control_result"] = control_result
+                if control_result.get("changes"):
+                    logger.info(f"Goal control applied: {control_result.get('changes')}")
+
             # Goal: Optimize information flow
             if "information flow" in goal_title or "optimize" in goal_title:
                 # Prune low-confidence concepts
@@ -137,8 +143,7 @@ class PursuitAgent:
                 
             # Goal: Balance exploration vs exploitation
             elif "exploration" in goal_title or "exploitation" in goal_title:
-                # Adjust data collection strategy (would require core modification)
-                logger.info("Adjusting exploration/exploitation balance")
+                logger.info("Exploration/exploitation control delegated to core.apply_goal_control")
                 
             # Goal: Improve cross-domain coherence
             elif "cross-domain" in goal_title or "coherence" in goal_title:
