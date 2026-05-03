@@ -32,6 +32,7 @@ from continuous_learning_engine import Pattern, LearningMetrics
 from cognitive_intelligent_system import CognitiveIntelligentSystem
 from prediction_validation_engine import PredictionValidationEngine
 from world_model import OnlineWorldModel
+from agency import AgencyLayer
 from config.config import Config
 # Mesh architecture — Coordinator and contracts
 from coordinator import MeshCoordinator
@@ -75,6 +76,8 @@ class DistributedCognitiveCore:
         self.cognitive_system = CognitiveIntelligentSystem(system_id=node_id)
         self.prediction_engine = PredictionValidationEngine()
         self.world_model = OnlineWorldModel()
+        self.agency = AgencyLayer()
+        self._last_agency_cycle = 0
         # Mesh Coordinator — the Z³ anchor (Principle 3 & 4)
         self.coordinator = MeshCoordinator()
 
@@ -265,6 +268,7 @@ class DistributedCognitiveCore:
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
                 "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
                 "world_model_state": self.world_model.save_state(),
+                "agency_state": self.agency.get_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -441,7 +445,12 @@ class DistributedCognitiveCore:
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
             self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
             self.world_model.load_state(loaded_caches.get("world_model_state", {}))
-            logger.debug("Loaded CognitiveIntelligentSystem caches and world model from Postgres.")
+            agency_state = loaded_caches.get("agency_state", {}) or {}
+            self.agency.action_history = list(agency_state.get("action_history", []))[-500:]
+            self.agency.task_history = list(agency_state.get("task_history", []))[-500:]
+            self.agency.regression_events = list(agency_state.get("regression_events", []))[-200:]
+            self.agency.internal_requests = list(agency_state.get("internal_requests", []))[-100:]
+            logger.debug("Loaded CognitiveIntelligentSystem caches, world model, and agency state from Postgres.")
 
             # Load short-term memory and restore observation_count
             short_term_data = await self.postgres.load_short_term_memory()
@@ -934,6 +943,10 @@ class DistributedCognitiveCore:
             m["world_model_prediction_loss"] = self._recursive_state.get("world_model_prediction_loss", 0.5)
             m["world_model_reconstruction_loss"] = self._recursive_state.get("world_model_reconstruction_loss", 0.5)
             m["world_model_memory_loss"] = self._recursive_state.get("world_model_memory_loss", 1.0)
+            agency_state = self.agency.get_state()
+            if agency_state.get("task_history"):
+                m["agency_task_score"] = agency_state["task_history"][-1].get("score", 0.0)
+            m["agency_actions_taken"] = len(agency_state.get("action_history", []))
 
             # ── Normalize coordinator-backed cache to the dashboard schema ─────
             try:
@@ -1074,6 +1087,7 @@ class DistributedCognitiveCore:
             coord_state["recursive_state"] = dict(self._recursive_state)
             coord_state["recursive_feedback"] = list(self._recursive_feedback_log)[-50:]
             coord_state["world_model"] = self.world_model.get_state()
+            coord_state["agency"] = self.agency.get_state()
             coord_state["_cache_warming"] = False
 
             # Provider status (data plane, not cognitive plane)
@@ -1173,6 +1187,7 @@ class DistributedCognitiveCore:
             "recursive_state": dict(self._recursive_state),
             "recursive_feedback": list(self._recursive_feedback_log)[-50:],
             "world_model": self.world_model.get_state(),
+            "agency": self.agency.get_state(),
             "node_id": self.node_id,
             "_cache_warming": True,
         }
@@ -1302,6 +1317,7 @@ class DistributedCognitiveCore:
                                     validation_result=validation_result,
                                     world_model_output=world_model_output.to_dict(),
                                 )
+                                self._run_agency_cycle()
 
                             except Exception as e:
                                 self._errors += 1
@@ -1393,6 +1409,75 @@ class DistributedCognitiveCore:
         if self._cognitive_thread:
             self._cognitive_thread.join(timeout=10)
             logger.info("Cognitive loop thread stopped")
+
+    # ──────────────────────────────────────────
+    # Safe Agency, Planning, and Regression Gates
+    # ──────────────────────────────────────────
+
+    def _agency_state_view(self) -> Dict[str, Any]:
+        """Build the state view consumed by the safe agency planner."""
+        return {
+            "metrics": self.get_metrics(),
+            "recursive_state": dict(self._recursive_state),
+            "world_model": self.world_model.get_state(),
+            "resonant_memory": self.cognitive_system.get_resonant_memory_snapshot(),
+            "toggles": dict(self._toggles),
+        }
+
+    def _run_agency_cycle(self) -> None:
+        """Plan, execute, and regression-check bounded internal actions."""
+        try:
+            state = self._agency_state_view()
+            self.agency.evaluate_tasks(state)
+            # Regression gates are checked every cycle; planning/execution is cadence-limited.
+            gate = self.agency.check_regression(state, self)
+            if gate.get("checked"):
+                self._recursive_feedback_log.append({
+                    "ts": time.time(),
+                    "observation_count": self._observation_count,
+                    "domain": "agency_regression_gate",
+                    "loss": self._recursive_state.get("coherence_loss", 0.5),
+                    "phi": self._recursive_state.get("phi", 0.5),
+                    "sigma": self._recursive_state.get("sigma", 0.5),
+                    "actions": [f"regression_gate:{x.get('action_id')}={x.get('status')}" for x in gate.get("checked", [])],
+                })
+
+            should_plan = (
+                self._observation_count >= 5
+                and (
+                    self._observation_count - self._last_agency_cycle >= 10
+                    or self._recursive_state.get("coherence_loss", 0.5) > 0.55
+                    or self._recursive_state.get("world_model_prediction_loss", 0.5) > 0.60
+                )
+            )
+            if not should_plan:
+                return
+
+            plan = self.agency.plan(state)
+            selected = plan.get("selected_action", {})
+            action_id = selected.get("action_id")
+            if not action_id:
+                return
+            result = self.agency.execute(action_id, self)
+            self._last_agency_cycle = self._observation_count
+            self._recursive_feedback_log.append({
+                "ts": time.time(),
+                "observation_count": self._observation_count,
+                "domain": "agency_planner",
+                "loss": self._recursive_state.get("coherence_loss", 0.5),
+                "phi": self._recursive_state.get("phi", 0.5),
+                "sigma": self._recursive_state.get("sigma", 0.5),
+                "world_model_loss": self._recursive_state.get("world_model_loss", 0.5),
+                "actions": [f"planned:{action_id}"] + list(result.get("changes", [])),
+                "plan": plan,
+            })
+            if result.get("changes"):
+                self._activity_log.append({
+                    "ts": time.time() * 1000,
+                    "msg": "Agency action: " + action_id + " | " + "; ".join(result.get("changes", [])[:4]),
+                })
+        except Exception as e:
+            logger.debug(f"Agency cycle error: {e}")
 
     # ──────────────────────────────────────────
     # Recursive Integration Feedback
@@ -2442,6 +2527,7 @@ class DistributedCognitiveCore:
                 "_pursuit_log": list(self.cognitive_system._pursuit_log),
                 "resonant_memory_state": self.cognitive_system.resonant_memory.export_state(),
                 "world_model_state": self.world_model.save_state(),
+                "agency_state": self.agency.get_state(),
             }
             await self.postgres.save_caches(caches_to_save)
             logger.debug("Saved CognitiveIntelligentSystem caches to Postgres.")
@@ -2564,7 +2650,12 @@ class DistributedCognitiveCore:
             self.cognitive_system._pursuit_log = deque(loaded_caches.get("_pursuit_log", []), maxlen=100)
             self.cognitive_system.resonant_memory.load_state(loaded_caches.get("resonant_memory_state", {}))
             self.world_model.load_state(loaded_caches.get("world_model_state", {}))
-            logger.debug("Loaded CognitiveIntelligentSystem caches and world model from Postgres.")
+            agency_state = loaded_caches.get("agency_state", {}) or {}
+            self.agency.action_history = list(agency_state.get("action_history", []))[-500:]
+            self.agency.task_history = list(agency_state.get("task_history", []))[-500:]
+            self.agency.regression_events = list(agency_state.get("regression_events", []))[-200:]
+            self.agency.internal_requests = list(agency_state.get("internal_requests", []))[-100:]
+            logger.debug("Loaded CognitiveIntelligentSystem caches, world model, and agency state from Postgres.")
 
         if self.milvus:
             logger.debug("Milvus is assumed to be kept in sync by the Abstraction Engine.")
