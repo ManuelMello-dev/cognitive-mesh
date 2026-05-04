@@ -26,40 +26,34 @@ class OutputLayer:
         return self._render_native(user_query, coordinator_state)
 
     def render_status(self, coordinator_state: Dict[str, Any]) -> str:
+        z3 = self._get_z3(coordinator_state)
+        if z3:
+            baseline = z3.get("baseline", {}) if isinstance(z3.get("baseline"), dict) else {}
+            organism = z3.get("organism_state", {}) if isinstance(z3.get("organism_state"), dict) else {}
+            decision = z3.get("last_decision", {}) if isinstance(z3.get("last_decision"), dict) else {}
+            phi = float(baseline.get("phi", organism.get("coherence", 0.5)))
+            sigma = float(baseline.get("sigma", organism.get("noise", 0.5)))
+            drift = float(baseline.get("drift_vector", organism.get("drift", 0.0)))
+            iteration = int(baseline.get("iteration", organism.get("cycle", 0)))
+            state_label = str(organism.get("state", "stable")).upper()
+            next_watch = z3.get("next_watch_target") or "coherence_baseline"
+            return (
+                f"[Z3 Cycle {iteration}] PHI={phi:.3f} ({state_label}) "
+                f"SIGMA={sigma:.3f} Drift={drift:+.3f} | "
+                f"Baseline=v{baseline.get('version', 1)} "
+                f"Decision={decision.get('action', 'observe')} "
+                f"Watch={next_watch} "
+                f"NoveltyEvents={len(z3.get('novelty_events', []) or [])}"
+            )
+
         s = coordinator_state
         metrics = s.get("metrics", {}) if isinstance(s.get("metrics", {}), dict) else {}
         phi = s.get("phi", metrics.get("global_coherence_phi", 0.5))
         sigma = s.get("sigma", metrics.get("noise_level_sigma", 0.5))
         drift = s.get("drift_vector", 0.0)
         iteration = s.get("iteration", 0)
-        n_concepts = len(s.get("abstractions", s.get("concepts", [])) or [])
-        if isinstance(s.get("concepts"), dict):
-            n_concepts = max(n_concepts, len(s.get("concepts", {})))
-        n_rules = len(s.get("rules", {}) or {}) if isinstance(s.get("rules"), dict) else len(s.get("rules", []) or [])
-        n_predictions = len(s.get("predictions", []) or [])
-        n_goals = len(s.get("active_goals", s.get("goals", [])) or [])
-        if isinstance(s.get("goals"), dict):
-            n_goals = max(n_goals, len(s.get("goals", {})))
-        conflicts = s.get("resolved_conflicts", []) or []
-
-        coherence_label = (
-            "CRITICAL" if phi < 0.3 else
-            "LOW" if phi < 0.5 else
-            "MODERATE" if phi < 0.7 else
-            "HIGH"
-        )
-        drift_note = ""
-        if abs(drift) > 0.15:
-            direction = "upward" if drift > 0 else "downward"
-            drift_note = f" | DRIFT {direction} ({drift:+.3f})"
-
-        return (
-            f"[Cycle {iteration}] PHI={phi:.3f} ({coherence_label}) "
-            f"SIGMA={sigma:.3f}{drift_note} | "
-            f"Concepts={n_concepts} Rules={n_rules} "
-            f"Predictions={n_predictions} Goals={n_goals} "
-            f"Conflicts={len(conflicts)}"
-        )
+        coherence_label = "CRITICAL" if phi < 0.3 else "LOW" if phi < 0.5 else "MODERATE" if phi < 0.7 else "HIGH"
+        return f"[Cycle {iteration}] PHI={phi:.3f} ({coherence_label}) SIGMA={sigma:.3f} Drift={drift:+.3f}"
 
     def _render_native(self, user_query: str, coordinator_state: Dict[str, Any]) -> str:
         query = (user_query or "").strip().lower()
@@ -69,6 +63,16 @@ class OutputLayer:
         if any(term in query for term in ["status", "health", "alive", "state"]):
             return status
         if any(term in query for term in ["learn", "learning", "memory", "pattern", "rule"]):
+            z3 = self._get_z3(coordinator_state)
+            if z3:
+                metrics = z3.get("public_metrics", {}) if isinstance(z3.get("public_metrics"), dict) else {}
+                return (
+                    f"{status}\n"
+                    f"Z3 learning/memory view: concepts={metrics.get('concepts', 0)}, "
+                    f"rules={metrics.get('rules', 0)}, "
+                    f"world_model_loss={metrics.get('world_model_loss', 0)}, "
+                    f"memory_reconstruction_confidence={metrics.get('memory_reconstruction_confidence', 0)}."
+                )
             metrics = coordinator_state.get("metrics", {})
             return (
                 f"{status}\n"
@@ -89,7 +93,35 @@ class OutputLayer:
         return f"{status}\n\nState summary:\n{summary}"
 
     @staticmethod
+    def _get_z3(state: Dict[str, Any]) -> Dict[str, Any]:
+        z3 = state.get("z3", {}) if isinstance(state, dict) else {}
+        return z3 if isinstance(z3, dict) else {}
+
+    @staticmethod
     def _summarize_state(state: Dict[str, Any]) -> str:
+        z3 = OutputLayer._get_z3(state)
+        if z3:
+            baseline = z3.get("baseline", {}) if isinstance(z3.get("baseline"), dict) else {}
+            organism = z3.get("organism_state", {}) if isinstance(z3.get("organism_state"), dict) else {}
+            metrics = z3.get("public_metrics", {}) if isinstance(z3.get("public_metrics"), dict) else {}
+            decision = z3.get("last_decision", {}) if isinstance(z3.get("last_decision"), dict) else {}
+            events = z3.get("novelty_events", []) or []
+            lines = [
+                baseline.get("summary", "Z3 baseline is active."),
+                f"Organism state: {organism.get('state', 'stable')} | novelty_pressure={organism.get('novelty_pressure', 0)}",
+                f"Public metrics: observations={metrics.get('observations', 0)}, concepts={metrics.get('concepts', 0)}, rules={metrics.get('rules', 0)}, prediction_accuracy={metrics.get('prediction_accuracy', 0)}",
+                f"Last decision: {decision.get('action', 'observe')} — {decision.get('reason', 'No adjudication change pending.')}",
+                f"Next watch target: {z3.get('next_watch_target') or 'coherence_baseline'}",
+            ]
+            if events:
+                latest = events[0]
+                if isinstance(latest, dict):
+                    lines.append(
+                        f"Latest novelty: {latest.get('severity', 'unknown')} {latest.get('signal_type', 'signal')} from {latest.get('source', 'unknown')} score={latest.get('novelty_score', 0)}."
+                    )
+            else:
+                lines.append("Novelty feed: no compressed novelty event is currently above threshold.")
+            return "\n".join(lines)
         lines = []
         metrics = state.get("metrics", {}) if isinstance(state.get("metrics", {}), dict) else {}
         phi = state.get("phi", metrics.get("global_coherence_phi", 0.5))

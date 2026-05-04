@@ -167,6 +167,43 @@ async def handle_state(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_z3(request):
+    """Public Z3 state: organism-level console contract only."""
+    try:
+        core = request.app.get('core')
+        if not core:
+            return web.json_response({"error": "Core not initialized"}, status=503)
+        cached = core.get_cached_state()
+        z3 = cached.get('z3')
+        if not z3:
+            return web.json_response({"error": "Z3 projection not initialized", "_cache_warming": True}, status=503)
+        return _json_response(z3)
+    except Exception as e:
+        logger.error(f"Z3 query error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_z3_novelty(request):
+    """Public Z3 novelty feed: compressed events only, no raw internal module dump."""
+    try:
+        core = request.app.get('core')
+        if not core:
+            return web.json_response({"error": "Core not initialized"}, status=503)
+        cached = core.get_cached_state()
+        z3 = cached.get('z3') or {}
+        novelty_events = z3.get('novelty_events', []) if isinstance(z3, dict) else []
+        return _json_response({
+            "baseline_version": (z3.get('baseline') or {}).get('version') if isinstance(z3, dict) else None,
+            "events": novelty_events,
+            "last_decision": z3.get('last_decision') if isinstance(z3, dict) else None,
+            "next_watch_target": z3.get('next_watch_target') if isinstance(z3, dict) else None,
+            "_cache_warming": not bool(z3),
+        })
+    except Exception as e:
+        logger.error(f"Z3 novelty query error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_introspection(request):
     """Full system introspection — reads from state cache."""
     try:
@@ -589,6 +626,8 @@ async def start_http_server(core=None, data_provider=None):
     # Core state
     app.router.add_get('/api/metrics', handle_metrics)
     app.router.add_get('/api/state', handle_state)
+    app.router.add_get('/api/z3', handle_z3)
+    app.router.add_get('/api/z3/novelty', handle_z3_novelty)
     app.router.add_get('/api/introspection', handle_introspection)
     app.router.add_get('/api/goals', handle_goals)
     app.router.add_get('/api/learning', handle_learning)

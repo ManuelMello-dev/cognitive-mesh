@@ -37,6 +37,7 @@ from config.config import Config
 # Mesh architecture — Coordinator and contracts
 from coordinator import MeshCoordinator
 from contracts import EEGOutput
+from z3_interface import Z3Interface
 
 logger = logging.getLogger("DistributedCore")
 
@@ -80,6 +81,8 @@ class DistributedCognitiveCore:
         self._last_agency_cycle = 0
         # Mesh Coordinator — the Z³ anchor (Principle 3 & 4)
         self.coordinator = MeshCoordinator()
+        # Public Z3 membrane — projects raw mesh internals into the user-facing organism state.
+        self.z3_interface = Z3Interface()
 
         # Self-evolution engine (reactivated)
         from self_writing_engine import SelfEvolvingSystem
@@ -1117,6 +1120,19 @@ class DistributedCognitiveCore:
             coord_state["resonant_memory"] = resonance_i
             coord_state["toggles"] = dict(self._toggles)
             coord_state["node_id"] = self.node_id
+
+            # Public Z3 projection. Keep raw coordinator/module state available for
+            # existing developer endpoints, but expose this typed membrane as the
+            # primary product surface.
+            z3_state = self.z3_interface.project(
+                coordinator_state=coord_state,
+                world_model=coord_state.get("world_model", {}),
+                resonant_memory=coord_state.get("resonant_memory", {}),
+                learning=coord_state.get("learning", {}),
+                predictions=coord_state.get("predictions", []),
+                recursive_state=coord_state.get("recursive_state", {}),
+            )
+            coord_state["z3"] = z3_state.to_dict()
 
             with self._state_cache_lock:
                 self._state_cache = coord_state
