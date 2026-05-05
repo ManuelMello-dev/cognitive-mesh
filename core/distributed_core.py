@@ -287,6 +287,16 @@ class DistributedCognitiveCore:
             await self.postgres.save_short_term_memory(short_term_to_save)
             logger.debug(f"Saved {len(short_term_to_save['short_term_memory'])} short-term memory entries and observation_count={self._observation_count} to Postgres.")
 
+            # Persist the public Z3 organism state separately from raw module internals.
+            try:
+                cached_state = self.get_cached_state()
+                z3_state = cached_state.get("z3") if isinstance(cached_state, dict) else None
+                if z3_state and hasattr(self.postgres, "save_z3_state"):
+                    await self.postgres.save_z3_state(z3_state)
+                    logger.debug("Saved public Z3 baseline/events/decisions to Postgres.")
+            except Exception as e:
+                logger.warning(f"Z3 state persistence skipped: {e}")
+
         if self.milvus:
             # Sync concept vectors to Milvus so vector-similarity search stays current.
             # Concepts are already saved to Postgres above; here we push their signatures
@@ -333,6 +343,17 @@ class DistributedCognitiveCore:
         """Load the entire cognitive state from persistent storage."""
         logger.info("Loading cognitive state...")
         if self.postgres:
+            # Restore the public Z3 organism baseline first. This preserves
+            # identity continuity before raw module caches finish warming.
+            try:
+                if hasattr(self.postgres, "load_latest_z3_snapshot"):
+                    latest_z3 = await self.postgres.load_latest_z3_snapshot()
+                    if latest_z3:
+                        self.z3_interface.restore_from_public_state(latest_z3)
+                        logger.info("Restored latest public Z3 snapshot from Postgres.")
+            except Exception as e:
+                logger.warning(f"Z3 snapshot restore skipped: {e}")
+
             # Load Abstraction Engine state
             loaded_concepts = await self.postgres.load_concepts()
             for c_data in loaded_concepts:
@@ -2557,6 +2578,17 @@ class DistributedCognitiveCore:
         """Load the entire cognitive state from persistent storage."""
         logger.info("Loading cognitive state...")
         if self.postgres:
+            # Restore the public Z3 organism baseline first. This preserves
+            # identity continuity before raw module caches finish warming.
+            try:
+                if hasattr(self.postgres, "load_latest_z3_snapshot"):
+                    latest_z3 = await self.postgres.load_latest_z3_snapshot()
+                    if latest_z3:
+                        self.z3_interface.restore_from_public_state(latest_z3)
+                        logger.info("Restored latest public Z3 snapshot from Postgres.")
+            except Exception as e:
+                logger.warning(f"Z3 snapshot restore skipped: {e}")
+
             # Load Abstraction Engine state
             loaded_concepts = await self.postgres.load_concepts()
             for c_data in loaded_concepts:

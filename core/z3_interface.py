@@ -15,7 +15,8 @@ import time
 from collections import deque
 from typing import Any, Dict, Iterable, List, Optional
 
-from z3_contracts import BaselineState, NoveltyEvent, Z3Decision, Z3State
+from z3_adjudicator import Z3Adjudicator
+from z3_contracts import BaselineState, NoveltyEvent, Z3Decision, Z3EvidenceScore, Z3State, Z3Transition
 
 
 class Z3Interface:
@@ -24,12 +25,18 @@ class Z3Interface:
     def __init__(self, novelty_threshold: float = 0.35, severe_threshold: float = 0.72) -> None:
         self.novelty_threshold = float(novelty_threshold)
         self.severe_threshold = float(severe_threshold)
+        self.adjudicator = Z3Adjudicator(
+            novelty_threshold=self.novelty_threshold,
+            update_threshold=self.severe_threshold,
+        )
         self._baseline_version = 1
         self._baseline_id = "z3-baseline-1"
         self._last_signature: Optional[str] = None
         self._events: deque[NoveltyEvent] = deque(maxlen=100)
         self._event_ids: set[str] = set()
         self._decisions: deque[Z3Decision] = deque(maxlen=100)
+        self._decision_ids: set[str] = set()
+        self._transitions: deque = deque(maxlen=100)
 
     def project(
         self,
@@ -70,24 +77,25 @@ class Z3Interface:
                 self._events.appendleft(event)
                 self._event_ids.add(event.event_id)
 
-        decision = self._adjudicate(signature, list(self._events), phi, sigma, drift, now)
-        if decision:
+        signature_changed = self._last_signature is not None and signature != self._last_signature
+        decision, transition, resulting_version = self.adjudicator.adjudicate(
+            events=list(self._events),
+            phi=phi,
+            sigma=sigma,
+            drift=drift,
+            baseline_version=self._baseline_version,
+            signature_changed=signature_changed,
+            now=now,
+        )
+        if resulting_version != self._baseline_version:
+            self._baseline_version = resulting_version
+            self._baseline_id = f"z3-baseline-{self._baseline_version}"
+        if decision.decision_id not in self._decision_ids:
             self._decisions.appendleft(decision)
-            self._last_signature = signature
-        elif not self._decisions:
-            decision = Z3Decision(
-                decision_id=f"z3-decision-{int(now)}-observe",
-                action="observe",
-                reason="Initial public Z3 baseline established from current coordinator state.",
-                confidence=0.75,
-                baseline_version=self._baseline_version,
-                linked_event_id=None,
-                created_at=now,
-            )
-            self._decisions.appendleft(decision)
-            self._last_signature = signature
-        else:
-            decision = self._decisions[0]
+            self._decision_ids.add(decision.decision_id)
+        if transition:
+            self._transitions.appendleft(transition)
+        self._last_signature = signature
 
         baseline = BaselineState(
             baseline_id=self._baseline_id,
@@ -136,8 +144,81 @@ class Z3Interface:
             organism_state=organism_state,
             public_metrics=public_metrics,
             next_watch_target=watch_targets[0] if watch_targets else None,
+            transitions=list(self._transitions)[:25],
             timestamp=now,
         )
+
+    def restore_from_public_state(self, z3_state: Dict[str, Any]) -> None:
+        """Restore baseline/events/decisions from a persisted public Z3 snapshot."""
+        if not isinstance(z3_state, dict):
+            return
+        baseline = self._dict(z3_state.get("baseline"))
+        version = int(self._float(baseline.get("version", self._baseline_version), self._baseline_version))
+        self._baseline_version = max(1, version)
+        self._baseline_id = str(baseline.get("baseline_id", f"z3-baseline-{self._baseline_version}"))
+        self._events.clear()
+        self._event_ids.clear()
+        for raw_event in z3_state.get("novelty_events", []) or []:
+            if not isinstance(raw_event, dict) or not raw_event.get("event_id"):
+                continue
+            event = NoveltyEvent(
+                event_id=str(raw_event.get("event_id")),
+                source=str(raw_event.get("source", "unknown")),
+                signal_type=str(raw_event.get("signal_type", "unknown")),
+                novelty_score=self._float(raw_event.get("novelty_score", 0.0), 0.0),
+                severity=str(raw_event.get("severity", "low")),
+                summary=str(raw_event.get("summary", "Persisted Z3 novelty event.")),
+                evidence=self._dict(raw_event.get("evidence")),
+                baseline_version=int(self._float(raw_event.get("baseline_version", self._baseline_version), self._baseline_version)),
+                observed_at=self._float(raw_event.get("observed_at", 0.0), 0.0),
+            )
+            self._events.append(event)
+            self._event_ids.add(event.event_id)
+
+        self._decisions.clear()
+        self._decision_ids.clear()
+        raw_decision = self._dict(z3_state.get("last_decision"))
+        if raw_decision.get("decision_id"):
+            raw_score = self._dict(raw_decision.get("evidence_score"))
+            score = None
+            if raw_score:
+                score = Z3EvidenceScore(
+                    event_id=str(raw_score.get("event_id", "none")),
+                    novelty=self._float(raw_score.get("novelty", 0.0), 0.0),
+                    coherence=self._float(raw_score.get("coherence", 0.0), 0.0),
+                    stability=self._float(raw_score.get("stability", 0.0), 0.0),
+                    noise=self._float(raw_score.get("noise", 0.0), 0.0),
+                    drift_pressure=self._float(raw_score.get("drift_pressure", 0.0), 0.0),
+                    trust=self._float(raw_score.get("trust", 0.0), 0.0),
+                    recommendation=str(raw_score.get("recommendation", "observe")),
+                    rationale=str(raw_score.get("rationale", "Persisted evidence score.")),
+                )
+            decision = Z3Decision(
+                decision_id=str(raw_decision.get("decision_id")),
+                action=str(raw_decision.get("action", "observe")),
+                reason=str(raw_decision.get("reason", "Persisted Z3 decision.")),
+                confidence=self._float(raw_decision.get("confidence", 0.0), 0.0),
+                baseline_version=int(self._float(raw_decision.get("baseline_version", self._baseline_version), self._baseline_version)),
+                linked_event_id=raw_decision.get("linked_event_id"),
+                evidence_score=score,
+                created_at=self._float(raw_decision.get("created_at", 0.0), 0.0),
+            )
+            self._decisions.append(decision)
+            self._decision_ids.add(decision.decision_id)
+
+        self._transitions.clear()
+        for raw_transition in z3_state.get("transitions", []) or []:
+            if not isinstance(raw_transition, dict) or not raw_transition.get("transition_id"):
+                continue
+            self._transitions.append(Z3Transition(
+                transition_id=str(raw_transition.get("transition_id")),
+                from_baseline_version=int(self._float(raw_transition.get("from_baseline_version", self._baseline_version), self._baseline_version)),
+                to_baseline_version=int(self._float(raw_transition.get("to_baseline_version", self._baseline_version), self._baseline_version)),
+                action=str(raw_transition.get("action", "observe")),
+                decision_id=str(raw_transition.get("decision_id", "")),
+                linked_event_id=raw_transition.get("linked_event_id"),
+                created_at=self._float(raw_transition.get("created_at", 0.0), 0.0),
+            ))
 
     def _extract_novelty_events(
         self,

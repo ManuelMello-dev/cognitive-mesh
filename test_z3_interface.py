@@ -1,5 +1,5 @@
 """
-Z3 public membrane tests.
+Z3 public membrane and adjudication tests.
 Runs offline without starting the HTTP server.
 """
 import os
@@ -28,18 +28,18 @@ def check(name, condition, detail=""):
 
 
 print("=" * 60)
-print("TESTING Z3 PUBLIC MEMBRANE")
+print("TESTING Z3 PUBLIC MEMBRANE + ADJUDICATION")
 print("=" * 60)
 
 interface = Z3Interface(novelty_threshold=0.35, severe_threshold=0.72)
 coordinator_state = {
     "iteration": 7,
-    "phi": 0.61,
-    "sigma": 0.31,
-    "drift_vector": 0.04,
+    "phi": 0.82,
+    "sigma": 0.12,
+    "drift_vector": 0.02,
     "metrics": {
-        "global_coherence_phi": 0.61,
-        "noise_level_sigma": 0.31,
+        "global_coherence_phi": 0.82,
+        "noise_level_sigma": 0.12,
         "total_observations": 42,
         "total_concepts": 5,
         "total_rules": 3,
@@ -48,9 +48,9 @@ coordinator_state = {
         "active_goals": 2,
     },
     "z_cubed_state": {
-        "regime": "adaptive",
-        "coherence": 0.61,
-        "stability": 0.73,
+        "regime": "coherent",
+        "coherence": 0.82,
+        "stability": 0.88,
     },
 }
 world_model = {
@@ -69,8 +69,8 @@ world_model = {
 }
 recursive_state = {
     "iteration": 7,
-    "coherence_loss": 0.39,
-    "loss_delta": 0.06,
+    "coherence_loss": 0.18,
+    "loss_delta": 0.02,
     "world_model_loss": 0.28,
     "world_model_memory_loss": 0.81,
 }
@@ -88,12 +88,44 @@ check("Z3 state identity", z3_state.get("identity") == "Z3")
 check("Z3 baseline exists", isinstance(z3_state.get("baseline"), dict))
 check("Novelty event created", len(z3_state.get("novelty_events", [])) >= 1)
 check("Novelty event is compressed", "latent_state" not in z3_state["novelty_events"][0].get("evidence", {}))
-check("Baseline updated by severe novelty", z3_state["baseline"].get("version", 1) >= 2)
+check("Baseline updated by trusted novelty", z3_state["baseline"].get("version", 1) >= 2)
+check("Decision has evidence score", isinstance((z3_state.get("last_decision") or {}).get("evidence_score"), dict))
+check("Transition recorded", len(z3_state.get("transitions", [])) >= 1)
 check("No raw internals at public root", "rules" not in z3_state and "concepts" not in z3_state and "z_cubed_state" not in z3_state)
 
 rendered = OutputLayer().render("what is your state", {"z3": z3_state})
 check("Output speaks from Z3", rendered.startswith("[Z3 Cycle"), rendered)
 check("Output avoids raw dump header", "Weighted signals" not in rendered)
+
+# Noisy novelty should be quarantined instead of promoted.
+noisy = Z3Interface(novelty_threshold=0.35, severe_threshold=0.72)
+noisy_state = dict(coordinator_state)
+noisy_state["phi"] = 0.22
+noisy_state["sigma"] = 0.91
+noisy_z3 = noisy.project(
+    coordinator_state=noisy_state,
+    world_model=world_model,
+    resonant_memory={},
+    learning={},
+    predictions=[],
+    recursive_state={"loss_delta": 0.2, "world_model_memory_loss": 0.81},
+).to_dict()
+check("Noisy novelty rejected", noisy_z3["last_decision"].get("action") == "reject_noise", noisy_z3["last_decision"])
+check("Rejected novelty does not advance baseline", noisy_z3["baseline"].get("version") == 1)
+
+# Persisted public state should restore baseline identity into a fresh interface.
+restored = Z3Interface()
+restored.restore_from_public_state(z3_state)
+restored_state = restored.project(
+    coordinator_state=coordinator_state,
+    world_model={"latest": None},
+    resonant_memory={},
+    learning={},
+    predictions=[],
+    recursive_state=recursive_state,
+).to_dict()
+check("Restored baseline version survives", restored_state["baseline"].get("version") >= z3_state["baseline"].get("version"))
+check("Restored transitions survive", len(restored_state.get("transitions", [])) >= 1)
 
 print("=" * 60)
 print(f"PASS={PASS} FAIL={FAIL}")

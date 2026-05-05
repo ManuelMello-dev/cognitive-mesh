@@ -183,6 +183,25 @@ async def handle_z3(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_z3_decisions(request):
+    """Public Z3 adjudication history: decisions and baseline transitions only."""
+    try:
+        core = request.app.get('core')
+        if not core:
+            return web.json_response({"error": "Core not initialized"}, status=503)
+        cached = core.get_cached_state()
+        z3 = cached.get('z3') or {}
+        return _json_response({
+            "baseline_version": (z3.get('baseline') or {}).get('version') if isinstance(z3, dict) else None,
+            "last_decision": z3.get('last_decision') if isinstance(z3, dict) else None,
+            "transitions": z3.get('transitions', []) if isinstance(z3, dict) else [],
+            "_cache_warming": not bool(z3),
+        })
+    except Exception as e:
+        logger.error(f"Z3 decisions query error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_z3_novelty(request):
     """Public Z3 novelty feed: compressed events only, no raw internal module dump."""
     try:
@@ -627,6 +646,7 @@ async def start_http_server(core=None, data_provider=None):
     app.router.add_get('/api/metrics', handle_metrics)
     app.router.add_get('/api/state', handle_state)
     app.router.add_get('/api/z3', handle_z3)
+    app.router.add_get('/api/z3/decisions', handle_z3_decisions)
     app.router.add_get('/api/z3/novelty', handle_z3_novelty)
     app.router.add_get('/api/introspection', handle_introspection)
     app.router.add_get('/api/goals', handle_goals)

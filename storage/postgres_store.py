@@ -244,12 +244,64 @@ class PostgresStore:
             data JSONB NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Public Z3 organism-state persistence
+        CREATE TABLE IF NOT EXISTS z3_baselines (
+            baseline_id TEXT PRIMARY KEY,
+            version INT NOT NULL,
+            state JSONB NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS z3_novelty_events (
+            event_id TEXT PRIMARY KEY,
+            baseline_version INT,
+            source TEXT,
+            signal_type TEXT,
+            novelty_score FLOAT,
+            severity TEXT,
+            event JSONB NOT NULL,
+            observed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS z3_decisions (
+            decision_id TEXT PRIMARY KEY,
+            baseline_version INT,
+            action TEXT,
+            linked_event_id TEXT,
+            confidence FLOAT,
+            decision JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS z3_transitions (
+            transition_id TEXT PRIMARY KEY,
+            from_baseline_version INT,
+            to_baseline_version INT,
+            action TEXT,
+            decision_id TEXT,
+            linked_event_id TEXT,
+            transition JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS z3_snapshots (
+            id SERIAL PRIMARY KEY,
+            baseline_version INT,
+            state JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         -- Add indexes for new tables
         CREATE INDEX IF NOT EXISTS idx_facts_created_at ON facts(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cross_domain_mappings_source_target ON cross_domain_mappings(source_domain, target_domain);
         CREATE INDEX IF NOT EXISTS idx_observation_history_timestamp ON observation_history(timestamp DESC);
         CREATE INDEX IF NOT EXISTS idx_price_history_symbol ON price_history(symbol);
         CREATE INDEX IF NOT EXISTS idx_price_history_timestamp ON price_history(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_z3_baselines_version ON z3_baselines(version DESC);
+        CREATE INDEX IF NOT EXISTS idx_z3_novelty_observed ON z3_novelty_events(observed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_z3_decisions_created ON z3_decisions(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_z3_transitions_created ON z3_transitions(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_z3_snapshots_created ON z3_snapshots(created_at DESC);
         """
         
         try:
@@ -686,6 +738,101 @@ class PostgresStore:
                 return None
         except Exception as e:
             logger.error(f"Error loading short-term memory: {e}")
+            return None
+
+    async def save_z3_state(self, z3_state: Dict[str, Any]):
+        """Persist public Z3 baseline, novelty feed, decisions, transitions, and snapshot."""
+        if not self.pool or not z3_state:
+            return
+        try:
+            baseline = z3_state.get("baseline") or {}
+            baseline_id = baseline.get("baseline_id", "z3-baseline-unknown")
+            baseline_version = int(baseline.get("version", 0) or 0)
+            last_decision = z3_state.get("last_decision") or {}
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO z3_baselines (baseline_id, version, state, updated_at)
+                    VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                    ON CONFLICT (baseline_id) DO UPDATE SET
+                        version = $2,
+                        state = $3,
+                        updated_at = CURRENT_TIMESTAMP
+                """, baseline_id, baseline_version, json.dumps(baseline))
+
+                for event in z3_state.get("novelty_events", []) or []:
+                    if not isinstance(event, dict):
+                        continue
+                    await conn.execute("""
+                        INSERT INTO z3_novelty_events
+                            (event_id, baseline_version, source, signal_type, novelty_score, severity, event, observed_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8))
+                        ON CONFLICT (event_id) DO UPDATE SET event = $7
+                    """,
+                    event.get("event_id"),
+                    int(event.get("baseline_version", baseline_version) or baseline_version),
+                    event.get("source"),
+                    event.get("signal_type"),
+                    float(event.get("novelty_score", 0.0) or 0.0),
+                    event.get("severity"),
+                    json.dumps(event),
+                    float(event.get("observed_at", 0.0) or 0.0))
+
+                if last_decision:
+                    await conn.execute("""
+                        INSERT INTO z3_decisions
+                            (decision_id, baseline_version, action, linked_event_id, confidence, decision, created_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7))
+                        ON CONFLICT (decision_id) DO UPDATE SET decision = $6
+                    """,
+                    last_decision.get("decision_id"),
+                    int(last_decision.get("baseline_version", baseline_version) or baseline_version),
+                    last_decision.get("action"),
+                    last_decision.get("linked_event_id"),
+                    float(last_decision.get("confidence", 0.0) or 0.0),
+                    json.dumps(last_decision),
+                    float(last_decision.get("created_at", 0.0) or 0.0))
+
+                for transition in z3_state.get("transitions", []) or []:
+                    if not isinstance(transition, dict):
+                        continue
+                    await conn.execute("""
+                        INSERT INTO z3_transitions
+                            (transition_id, from_baseline_version, to_baseline_version, action, decision_id, linked_event_id, transition, created_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8))
+                        ON CONFLICT (transition_id) DO UPDATE SET transition = $7
+                    """,
+                    transition.get("transition_id"),
+                    int(transition.get("from_baseline_version", baseline_version) or baseline_version),
+                    int(transition.get("to_baseline_version", baseline_version) or baseline_version),
+                    transition.get("action"),
+                    transition.get("decision_id"),
+                    transition.get("linked_event_id"),
+                    json.dumps(transition),
+                    float(transition.get("created_at", 0.0) or 0.0))
+
+                await conn.execute("""
+                    INSERT INTO z3_snapshots (baseline_version, state)
+                    VALUES ($1, $2)
+                """, baseline_version, json.dumps(z3_state))
+        except Exception as e:
+            logger.error(f"Error saving Z3 state: {e}")
+
+    async def load_latest_z3_snapshot(self) -> Optional[Dict[str, Any]]:
+        """Load the latest public Z3 snapshot."""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT state FROM z3_snapshots
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """)
+                if row:
+                    return json.loads(row["state"])
+                return None
+        except Exception as e:
+            logger.error(f"Error loading latest Z3 snapshot: {e}")
             return None
 
     async def save_gossip_event(self, event_id: str, node_id: str, event_type: str, data: Dict[str, Any]):
