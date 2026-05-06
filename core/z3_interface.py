@@ -16,6 +16,7 @@ from collections import deque
 from typing import Any, Dict, Iterable, List, Optional
 
 from z3_adjudicator import Z3Adjudicator
+from z3_baseline_controller import Z3BaselineController
 from z3_contracts import BaselineState, NoveltyEvent, Z3Decision, Z3EvidenceScore, Z3State, Z3Transition
 
 
@@ -25,9 +26,14 @@ class Z3Interface:
     def __init__(self, novelty_threshold: float = 0.35, severe_threshold: float = 0.72) -> None:
         self.novelty_threshold = float(novelty_threshold)
         self.severe_threshold = float(severe_threshold)
+        self.baseline_controller = Z3BaselineController(
+            novelty_threshold=self.novelty_threshold,
+            coherence_threshold=0.35,
+        )
         self.adjudicator = Z3Adjudicator(
             novelty_threshold=self.novelty_threshold,
             update_threshold=self.severe_threshold,
+            coherence_gate_threshold=0.35,
         )
         self._baseline_version = 1
         self._baseline_id = "z3-baseline-1"
@@ -78,6 +84,14 @@ class Z3Interface:
                 self._event_ids.add(event.event_id)
 
         signature_changed = self._last_signature is not None and signature != self._last_signature
+        evidence_frame = self.baseline_controller.evaluate(
+            events=list(self._events),
+            phi=phi,
+            sigma=sigma,
+            drift=drift,
+            baseline_version=self._baseline_version,
+            now=now,
+        )
         decision, transition, resulting_version = self.adjudicator.adjudicate(
             events=list(self._events),
             phi=phi,
@@ -86,6 +100,7 @@ class Z3Interface:
             baseline_version=self._baseline_version,
             signature_changed=signature_changed,
             now=now,
+            evidence_frame=evidence_frame,
         )
         if resulting_version != self._baseline_version:
             self._baseline_version = resulting_version
@@ -108,7 +123,7 @@ class Z3Interface:
             coherence=round(coherence, 6),
             stability=round(stability, 6),
             watch_targets=watch_targets,
-            metrics=self._public_baseline_metrics(metrics, world_model, resonant_memory, recursive_state),
+            metrics=self._public_baseline_metrics(metrics, world_model, resonant_memory, recursive_state, evidence_frame),
             summary=self._baseline_summary(phi, sigma, drift, regime),
             updated_at=now,
         )
@@ -120,6 +135,9 @@ class Z3Interface:
             "noise": round(sigma, 6),
             "drift": round(drift, 6),
             "novelty_pressure": self._current_novelty_pressure(world_model, learning, recursive_state),
+            "trusted_novelty_pressure": evidence_frame.get("trusted_novelty_pressure", 0.0),
+            "trusted_gate_count": evidence_frame.get("trusted_gate_count", 0),
+            "visible_novelty_count": evidence_frame.get("visible_novelty_count", 0),
             "active_predictions": len(predictions_list),
             "active_goals": int(self._float(metrics.get("active_goals", metrics.get("total_goals", 0)), 0.0)),
         }
@@ -192,6 +210,9 @@ class Z3Interface:
                     trust=self._float(raw_score.get("trust", 0.0), 0.0),
                     recommendation=str(raw_score.get("recommendation", "observe")),
                     rationale=str(raw_score.get("rationale", "Persisted evidence score.")),
+                    gate_open=bool(raw_score.get("gate_open", False)),
+                    local_coherence=self._float(raw_score.get("local_coherence", 0.0), 0.0),
+                    memory_salience=self._float(raw_score.get("memory_salience", 0.0), 0.0),
                 )
             decision = Z3Decision(
                 decision_id=str(raw_decision.get("decision_id")),
@@ -205,6 +226,9 @@ class Z3Interface:
             )
             self._decisions.append(decision)
             self._decision_ids.add(decision.decision_id)
+
+        baseline_metrics = self._dict(baseline.get("metrics"))
+        self.baseline_controller.restore(self._dict(baseline_metrics.get("adjudication_memory")))
 
         self._transitions.clear()
         for raw_transition in z3_state.get("transitions", []) or []:
@@ -410,12 +434,20 @@ class Z3Interface:
         world_model: Dict[str, Any],
         resonant_memory: Dict[str, Any],
         recursive_state: Dict[str, Any],
+        evidence_frame: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         resonance_metrics = self._dict(resonant_memory.get("metrics"))
+        evidence_frame = self._dict(evidence_frame)
+        latest = self._dict(evidence_frame.get("latest"))
         return {
             "total_observations": int(self._float(metrics.get("total_observations", 0), 0.0)),
             "world_model_iteration": int(self._float(world_model.get("iteration", 0), 0.0)),
             "average_recent_loss": round(self._float(world_model.get("average_recent_loss", 0.0), 0.0), 6),
             "recursive_loss": round(self._float(recursive_state.get("coherence_loss", 0.0), 0.0), 6),
             "resonant_memory_rings": int(self._float(resonance_metrics.get("rings", 0), 0.0)),
+            "adjudication_memory": self._dict(evidence_frame.get("memory")),
+            "trusted_novelty_gate": bool(latest.get("trusted_gate_open", False)),
+            "local_coherence": round(self._float(latest.get("local_coherence", 0.0), 0.0), 6),
+            "compressed_novelty": round(self._float(latest.get("novelty", 0.0), 0.0), 6),
+            "weighted_evidence": round(self._float(latest.get("weight", 0.0), 0.0), 6),
         }

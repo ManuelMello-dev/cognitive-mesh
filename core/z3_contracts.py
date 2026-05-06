@@ -45,6 +45,9 @@ class Z3EvidenceScore:
     trust: float
     recommendation: str
     rationale: str
+    gate_open: bool = False
+    local_coherence: float = 0.0
+    memory_salience: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

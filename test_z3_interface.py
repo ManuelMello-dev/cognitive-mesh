@@ -90,6 +90,13 @@ check("Novelty event created", len(z3_state.get("novelty_events", [])) >= 1)
 check("Novelty event is compressed", "latent_state" not in z3_state["novelty_events"][0].get("evidence", {}))
 check("Baseline updated by trusted novelty", z3_state["baseline"].get("version", 1) >= 2)
 check("Decision has evidence score", isinstance((z3_state.get("last_decision") or {}).get("evidence_score"), dict))
+evidence_score = (z3_state.get("last_decision") or {}).get("evidence_score") or {}
+baseline_metrics = z3_state.get("baseline", {}).get("metrics", {})
+organism_state = z3_state.get("organism_state", {})
+check("Trusted novelty gate opens", evidence_score.get("gate_open") is True, evidence_score)
+check("Local coherence is formalized", 0.0 < evidence_score.get("local_coherence", 0.0) <= 1.0, evidence_score)
+check("Adjudication memory is exposed", baseline_metrics.get("adjudication_memory", {}).get("entries", 0) >= 1, baseline_metrics)
+check("Organism reports trusted gate count", organism_state.get("trusted_gate_count", 0) >= 1, organism_state)
 check("Transition recorded", len(z3_state.get("transitions", [])) >= 1)
 check("No raw internals at public root", "rules" not in z3_state and "concepts" not in z3_state and "z_cubed_state" not in z3_state)
 
@@ -111,6 +118,7 @@ noisy_z3 = noisy.project(
     recursive_state={"loss_delta": 0.2, "world_model_memory_loss": 0.81},
 ).to_dict()
 check("Noisy novelty rejected", noisy_z3["last_decision"].get("action") == "reject_noise", noisy_z3["last_decision"])
+check("Noisy evidence keeps gate closed", noisy_z3["last_decision"].get("evidence_score", {}).get("gate_open") is False, noisy_z3["last_decision"])
 check("Rejected novelty does not advance baseline", noisy_z3["baseline"].get("version") == 1)
 
 # Persisted public state should restore baseline identity into a fresh interface.
@@ -126,6 +134,7 @@ restored_state = restored.project(
 ).to_dict()
 check("Restored baseline version survives", restored_state["baseline"].get("version") >= z3_state["baseline"].get("version"))
 check("Restored transitions survive", len(restored_state.get("transitions", [])) >= 1)
+check("Restored adjudication memory survives", restored_state["baseline"].get("metrics", {}).get("adjudication_memory", {}).get("entries", 0) >= 1)
 
 print("=" * 60)
 print(f"PASS={PASS} FAIL={FAIL}")
