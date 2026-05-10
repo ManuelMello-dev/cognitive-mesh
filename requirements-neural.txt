@@ -1,0 +1,5 @@
+# Optional dependencies for the trainable Z³ neural dynamics runtime.
+# Keep this separate from requirements-minimal.txt so lightweight deployments are not forced to install PyTorch.
+# For standalone validation, install with: python -m pip install -r requirements-neural.txt
+
+torch>=2.2.0

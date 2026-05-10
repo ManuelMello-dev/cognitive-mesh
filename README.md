@@ -150,6 +150,21 @@ The mesh now renders status and chat responses through deterministic native code
 
 ---
 
+## Optional Z³ Neural Dynamics Runtime
+
+The repository includes an optional trainable neural implementation of the Z³ / Z-prime formalization in `core/z3_neural_dynamics.py`. It does not replace the public `Z3Interface`, `Z3BaselineController`, or `Z3Adjudicator`; instead, it acts as an internal neural runtime whose metrics can be projected into the existing public Z³ membrane through `public_projection()`.
+
+Install its heavier machine-learning dependency only when you want to train or simulate the neural runtime:
+
+```bash
+pip install -r requirements-neural.txt
+python3.11 test_z3_neural_dynamics.py
+```
+
+The runtime supports predictive, balanced, and internal-coherence configuration presets so experiments can distinguish external next-step prediction from the enlightenment-style objective of internal harmony before adjudication.
+
+---
+
 ## Prediction Validation Engine
 
 The `PredictionValidationEngine` is a universal state-change predictor.  It predicts whether the next observation for any entity will be **higher**, **lower**, or **stable** relative to the current value — regardless of what that value represents.
