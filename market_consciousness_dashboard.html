@@ -219,30 +219,113 @@
         }
         .log-entry .ts { color: var(--dim); margin-right: 6px; }
 
-        /* ── Chat ── */
-        .chat-container { display: flex; flex-direction: column; height: 280px; }
-        .chat-messages {
-            flex-grow: 1; overflow-y: auto; padding: 8px;
-            border: 1px solid var(--border);
-            margin-bottom: 6px;
-            background: rgba(0,0,0,0.3);
+        /* ── Chat Interaction ── */
+        .chat-container {
+            display: grid;
+            grid-template-rows: auto minmax(320px, 52vh) auto;
+            gap: 10px;
         }
-        .chat-message { margin-bottom: 8px; padding: 6px; border-radius: 4px; line-height: 1.3; font-size: 0.8rem; }
-        .user-message { border-left: 3px solid var(--neon-blue); }
-        .ai-message { border-left: 3px solid var(--gold); }
-        .chat-input-area { display: flex; gap: 6px; }
-        .chat-input {
-            flex-grow: 1; background: #000;
-            border: 1px solid var(--border);
+        .chat-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            color: var(--dim);
+            font-size: 0.72rem;
+            letter-spacing: 0.6px;
+        }
+        .chat-mode-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .chat-mode-select {
+            background: #000;
             color: var(--matrix-green);
-            padding: 8px; font-family: inherit;
-        }
-        .chat-send {
-            background: var(--matrix-green); color: #000;
-            border: none; padding: 0 16px;
-            cursor: pointer; font-weight: bold;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 8px;
             font-family: inherit;
+            font-size: 0.74rem;
         }
+        .chat-output-window {
+            position: relative;
+            overflow-y: auto;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background:
+                linear-gradient(180deg, rgba(0,212,255,0.05), rgba(0,0,0,0.2)),
+                rgba(0,0,0,0.38);
+            box-shadow: inset 0 0 18px rgba(0,255,65,0.05);
+        }
+        .chat-output-window::-webkit-scrollbar { width: 6px; }
+        .chat-output-window::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .chat-message {
+            max-width: 88%;
+            margin-bottom: 10px;
+            padding: 9px 10px;
+            border-radius: 6px;
+            line-height: 1.42;
+            font-size: 0.82rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-message .chat-meta {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--dim);
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .user-message {
+            margin-left: auto;
+            border: 1px solid rgba(0,212,255,0.28);
+            border-right: 3px solid var(--neon-blue);
+            background: rgba(0,212,255,0.08);
+        }
+        .ai-message {
+            margin-right: auto;
+            border: 1px solid rgba(255,215,0,0.28);
+            border-left: 3px solid var(--gold);
+            background: rgba(255,215,0,0.07);
+        }
+        .system-message {
+            max-width: 100%;
+            border: 1px dashed rgba(0,255,65,0.2);
+            color: var(--dim);
+            background: rgba(0,255,65,0.035);
+        }
+        .chat-input-area { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+        .chat-input {
+            min-height: 64px;
+            resize: vertical;
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--matrix-green);
+            padding: 10px;
+            font-family: inherit;
+            line-height: 1.35;
+        }
+        .chat-input:focus, .chat-mode-select:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 10px rgba(0,212,255,0.16);
+        }
+        .chat-actions { display: flex; flex-direction: column; gap: 8px; }
+        .chat-send, .chat-clear {
+            min-width: 92px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 0 16px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: inherit;
+            letter-spacing: 1px;
+        }
+        .chat-send { background: var(--matrix-green); color: #000; }
+        .chat-clear { background: transparent; color: var(--dim); }
+        .chat-send:disabled { opacity: 0.55; cursor: wait; }
+        .chat-hint { color: var(--dim); font-size: 0.66rem; }
 
         /* ── Responsive ── */
         @media (max-width: 768px) {
@@ -250,6 +333,9 @@
             .panel.span2 { grid-column: span 1; }
             .metric-value { font-size: 1rem; }
             #coherenceCanvas { height: 180px; }
+            .chat-container { grid-template-rows: auto minmax(260px, 48vh) auto; }
+            .chat-input-area { grid-template-columns: 1fr; }
+            .chat-actions { flex-direction: row; }
         }
     </style>
 </head>
@@ -439,13 +525,34 @@
 <div id="tab-chat" class="tab-page">
     <div class="dashboard">
         <div class="panel wide">
-            <h2>Chat with the Mesh</h2>
-            <div class="chat-container">
-                <div class="chat-messages" id="chatMessages"></div>
-                <div class="chat-input-area">
-                    <input type="text" id="chatInput" class="chat-input" placeholder="Ask about the mesh's state...">
-                    <button id="chatSend" class="chat-send">SEND</button>
+            <h2>Z³ Chat Interaction Console</h2>
+            <div class="chat-container" aria-label="Z3 chat interaction console">
+                <div class="chat-toolbar">
+                    <div class="chat-mode-group">
+                        <span>Mode</span>
+                        <select id="chatMode" class="chat-mode-select" aria-label="Chat response mode">
+                            <option value="chat">Chat</option>
+                            <option value="analysis">Analysis</option>
+                            <option value="status">Status</option>
+                            <option value="summary">Summary</option>
+                        </select>
+                    </div>
+                    <div id="chatStatus" class="chat-status">Output Layer ready · connected to cached mesh state</div>
                 </div>
+                <div class="chat-output-window" id="chatMessages" role="log" aria-live="polite" aria-label="Mesh response output window">
+                    <div class="chat-message system-message">
+                        <span class="chat-meta">System</span>
+                        Ask the mesh about coherence, Z³ state, learning, providers, concepts, predictions, goals, or current drift. The dashboard remains a monitor and I/O layer; the core keeps running continuously behind this interface.
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <textarea id="chatInput" class="chat-input" rows="3" placeholder="Type a message for the Z³ mesh... Shift+Enter for newline, Enter to send." aria-label="Chat input"></textarea>
+                    <div class="chat-actions">
+                        <button id="chatSend" class="chat-send">SEND</button>
+                        <button id="chatClear" class="chat-clear" type="button">CLEAR</button>
+                    </div>
+                </div>
+                <div class="chat-hint">Messages are sent to <code>/api/chat</code> with short local conversation history for context.</div>
             </div>
         </div>
     </div>
@@ -1012,47 +1119,89 @@
             });
         });
 
-        // Chat functionality
+        // Chat interaction console
         const chatInput = document.getElementById('chatInput');
         const chatSend = document.getElementById('chatSend');
+        const chatClear = document.getElementById('chatClear');
+        const chatMode = document.getElementById('chatMode');
+        const chatStatus = document.getElementById('chatStatus');
         const chatMessages = document.getElementById('chatMessages');
+        const chatHistory = [];
+        const maxChatHistory = 12;
+
+        function appendChatMessage(role, message, metaText) {
+            if (!chatMessages) return null;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-message ${role === 'user' ? 'user-message' : role === 'system' ? 'system-message' : 'ai-message'}`;
+            const meta = document.createElement('span');
+            meta.className = 'chat-meta';
+            meta.textContent = metaText || (role === 'user' ? 'You' : role === 'system' ? 'System' : 'Z³ Mesh');
+            const body = document.createElement('span');
+            body.textContent = message;
+            msgDiv.appendChild(meta);
+            msgDiv.appendChild(body);
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return msgDiv;
+        }
+
+        function setChatBusy(isBusy) {
+            if (chatSend) {
+                chatSend.disabled = isBusy;
+                chatSend.textContent = isBusy ? 'WAIT' : 'SEND';
+            }
+            if (chatStatus) {
+                chatStatus.textContent = isBusy ? 'Output Layer processing mesh response...' : 'Output Layer ready · connected to cached mesh state';
+            }
+        }
 
         const sendChatMessage = async () => {
+            if (!chatInput || !chatMessages) return;
             const message = chatInput.value.trim();
-            if (!message) return;
+            if (!message || chatSend?.disabled) return;
+            const mode = chatMode?.value || 'chat';
 
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.className = 'chat-message user-message';
-            userMsgDiv.textContent = message;
-            chatMessages.appendChild(userMsgDiv);
+            appendChatMessage('user', message, `You · ${new Date().toLocaleTimeString()}`);
+            chatHistory.push({ role: 'user', content: message, ts: new Date().toISOString() });
+            while (chatHistory.length > maxChatHistory) chatHistory.shift();
             chatInput.value = '';
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            setChatBusy(true);
 
             try {
                 const response = await fetch(`${API_BASE}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, mode: 'chat' })
+                    body: JSON.stringify({ message, mode, history: chatHistory })
                 });
                 const data = await response.json();
+                if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
 
-                const aiMsgDiv = document.createElement('div');
-                aiMsgDiv.className = 'chat-message ai-message';
-                aiMsgDiv.textContent = data.response || data.error || 'No response from the mesh.';
-                chatMessages.appendChild(aiMsgDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                const reply = data.response || data.error || 'No response from the mesh.';
+                appendChatMessage('assistant', reply, `Z³ Mesh · ${mode} · ${new Date().toLocaleTimeString()}`);
+                chatHistory.push({ role: 'assistant', content: reply, mode, ts: new Date().toISOString() });
+                while (chatHistory.length > maxChatHistory) chatHistory.shift();
             } catch (error) {
                 console.error('Chat Error:', error);
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'chat-message ai-message';
-                errorDiv.textContent = 'Error communicating with the mesh.';
-                chatMessages.appendChild(errorDiv);
+                appendChatMessage('assistant', `Error communicating with the mesh: ${error.message || error}`, `Z³ Mesh · error`);
+            } finally {
+                setChatBusy(false);
+                chatInput.focus();
             }
         };
 
-        chatSend.addEventListener('click', sendChatMessage);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendChatMessage();
+        chatSend?.addEventListener('click', sendChatMessage);
+        chatClear?.addEventListener('click', () => {
+            if (!chatMessages) return;
+            chatMessages.innerHTML = '';
+            chatHistory.length = 0;
+            appendChatMessage('system', 'Chat output cleared. The mesh core continues running; this only resets the visible interaction window.', 'System');
+            chatInput?.focus();
+        });
+        chatInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
         });
 
 
