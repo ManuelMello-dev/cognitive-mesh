@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Market Consciousness Monitor | Z³ Dashboard</title>
+    <title>Z³ Language Neural Console | Z³ Dashboard</title>
     <style>
         :root {
             --matrix-green: #00ff41;
@@ -373,7 +373,7 @@
 <div class="dashboard">
     <!-- Core Metrics -->
     <div class="panel span2">
-        <h2>Market Consciousness Monitor</h2>
+        <h2>Z³ Language Neural Console</h2>
         <div class="metrics-row">
             <div class="metric"><div class="metric-label">PHI Coherence</div><div class="metric-value" id="mPhi">0.00</div></div>
             <div class="metric"><div class="metric-label">SIGMA Noise</div><div class="metric-value" id="mSigma">0.00</div></div>
@@ -389,9 +389,9 @@
         <canvas id="coherenceCanvas"></canvas>
     </div>
 
-    <!-- Symbols & Logs -->
+    <!-- Language Streams & Logs -->
     <div class="panel">
-        <h3>Symbols Tracked (<span id="symbolCount">0</span>)</h3>
+        <h3>Language Streams Tracked (<span id="symbolCount">0</span>)</h3>
         <div id="symbolGrid" class="symbol-grid scroll-box"></div>
     </div>
     <div class="panel">
@@ -839,7 +839,7 @@
             if (consciousnessState) {
                 // Only update if we're not in a Connection Lost state from a prior failure
                 if (consciousnessState.textContent !== 'Connection Lost...') {
-                    const symbolCount = metrics.symbols_tracked || 0;
+                    const symbolCount = metrics.language streams_tracked || 0;
                     const phi = metrics.global_coherence_phi || metrics.phi || 0;
                     const totalObs = metrics.total_observations || 0;
                     if (phi > 0.7) {
@@ -857,19 +857,19 @@
 
             const symbolGrid = document.getElementById('symbolGrid');
             const symbolCountDisplay = document.getElementById('symbolCount');
-            // Symbols come from concepts grouped by symbol, or from metrics.symbols_tracked count
+            // Language Streams come from concepts grouped by symbol, or from metrics.language streams_tracked count
             if (symbolCountDisplay) {
-                symbolCountDisplay.textContent = metrics.symbols_tracked || 0;
+                symbolCountDisplay.textContent = metrics.language streams_tracked || 0;
             }
             // Build symbol cards from concepts (each concept has a symbol field)
             if (symbolGrid && conceptsState) {
-                const seenSymbols = {};
+                const seenLanguage Streams = {};
                 Object.values(conceptsState).forEach(c => {
-                    if (c.symbol && !seenSymbols[c.symbol]) {
-                        seenSymbols[c.symbol] = c;
+                    if (c.symbol && !seenLanguage Streams[c.symbol]) {
+                        seenLanguage Streams[c.symbol] = c;
                     }
                 });
-                const symbolEntries = Object.values(seenSymbols);
+                const symbolEntries = Object.values(seenLanguage Streams);
                 if (symbolEntries.length > 0) {
                     symbolGrid.innerHTML = '';
                     symbolEntries.forEach(c => {

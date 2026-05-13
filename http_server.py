@@ -74,7 +74,7 @@ async def handle_dashboard(request):
 # ──────────────────────────────────────────────
 
 async def handle_chat(request):
-    """Output Layer endpoint — the ONLY node that produces natural language (Mesh Principle 7)"""
+    """Chatbox endpoint for language-first Z³ interaction and testing."""
     try:
         data = await request.json()
         message = (data.get("message") or data.get("prompt") or data.get("query") or "").strip()
@@ -85,6 +85,16 @@ async def handle_chat(request):
         core = request.app.get('core')
         if not output_layer or not core:
             return web.json_response({"error": "Output layer or core not initialized"}, status=503)
+
+        language_ingested = False
+        if message and render_mode in ("chat", "analysis"):
+            try:
+                from agents.plugins.language_stream_plugin import LanguageStreamPlugin
+                observation = LanguageStreamPlugin.text_to_observation(message, source="chatbox")
+                await core.ingest(observation, "language:chat")
+                language_ingested = True
+            except Exception as ingest_error:
+                logger.warning(f"Language chat ingestion skipped: {ingest_error}")
 
         state = core.get_cached_state()
 
@@ -102,7 +112,7 @@ async def handle_chat(request):
         else:
             response = output_layer.render(message, state, history)
 
-        return web.json_response({"response": response, "mode": render_mode})
+        return web.json_response({"response": response, "mode": render_mode, "language_ingested": language_ingested})
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
         return web.json_response({"error": str(e)}, status=500)

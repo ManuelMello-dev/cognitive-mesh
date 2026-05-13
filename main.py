@@ -18,7 +18,7 @@ Architecture:
   DistributedCognitiveCore
     └─ Async wrapper with DB persistence + cognitive loop thread
   DataPlugin system (domain-agnostic)
-    └─ CERNCollisionPlugin — default proving stream from CERN Open Data
+    └─ LanguageStreamPlugin — default language proving stream
     └─ MarketPlugin (financial) — legacy optional plugin, opt-in only
     └─ Any other plugin can be added without touching the core
 
@@ -502,16 +502,16 @@ class CognitiveMeshOrchestrator:
         # ── Data plugins ──────────────────────────────────────────────────
         self.plugins: List[DataPlugin] = []
 
-        # CERN collision data is the default proving stream for the agnostic mesh.
-        if os.getenv("DISABLE_CERN_PLUGIN", "").lower() not in ("1", "true", "yes"):
+        # Language is the default proving stream for the agnostic mesh.
+        if os.getenv("DISABLE_LANGUAGE_PLUGIN", "").lower() not in ("1", "true", "yes"):
             try:
-                from agents.plugins.cern_collision_plugin import CERNCollisionPlugin
-                self.plugins.append(CERNCollisionPlugin())
-                logger.info("CERNCollisionPlugin enabled as default data source")
+                from agents.plugins.language_stream_plugin import LanguageStreamPlugin
+                self.plugins.append(LanguageStreamPlugin())
+                logger.info("LanguageStreamPlugin enabled as default data source")
             except Exception as _e:
-                logger.warning(f"CERNCollisionPlugin could not be loaded ({_e}) — continuing without it")
+                logger.warning(f"LanguageStreamPlugin could not be loaded ({_e}) — continuing without it")
         else:
-            logger.info("CERNCollisionPlugin disabled via DISABLE_CERN_PLUGIN env var")
+            logger.info("LanguageStreamPlugin disabled via DISABLE_LANGUAGE_PLUGIN env var")
 
         # Market plugin is legacy and opt-in only. This keeps the system capable of
         # market ingestion without letting finance define the mesh identity.

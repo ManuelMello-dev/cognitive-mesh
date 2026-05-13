@@ -36,8 +36,10 @@ class Config:
     DATA_BATCH_SIZE = int(os.getenv("DATA_BATCH_SIZE", 150))
 
     # ── Plugin Flags ─────────────────────────────────────────────────────────
-    # CERN collision data is the default proving data source.
-    DISABLE_CERN_PLUGIN = os.getenv("DISABLE_CERN_PLUGIN", "").lower() in ("1", "true", "yes")
+    # Language is the default proving and interaction stream.
+    DISABLE_LANGUAGE_PLUGIN = os.getenv("DISABLE_LANGUAGE_PLUGIN", "").lower() in ("1", "true", "yes")
+    LANGUAGE_TRAINING_CORPUS_PATH = os.getenv("LANGUAGE_TRAINING_CORPUS_PATH", "")
+    LANGUAGE_TRAINING_BATCH_SIZE = int(os.getenv("LANGUAGE_TRAINING_BATCH_SIZE", 25))
 
     # Market systems are legacy/optional. They load only when explicitly enabled.
     ENABLE_MARKET_PLUGIN = os.getenv("ENABLE_MARKET_PLUGIN", "").lower() in ("1", "true", "yes")

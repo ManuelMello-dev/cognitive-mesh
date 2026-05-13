@@ -3,16 +3,15 @@ agents/plugins
 ==============
 DataPlugin implementations for the cognitive mesh.
 
-The mesh is data-source agnostic.  CERN collision data is the default proving
-domain because it exercises the same observation contract without financial
-market assumptions.  Market-context plugins remain available as legacy optional
-plugins and are loaded only when explicitly enabled by environment flags.
+The mesh is data-source agnostic. Language is now the default proving and
+interaction stream, while market-context plugins remain available as legacy
+optional plugins loaded only when explicitly enabled by environment flags.
 """
 
-from agents.plugins.cern_collision_plugin import CERNCollisionPlugin
+from agents.plugins.language_stream_plugin import LanguageStreamPlugin
 
 __all__ = [
-    "CERNCollisionPlugin",
+    "LanguageStreamPlugin",
     "SentimentPlugin",
     "MacroPlugin",
     "OnChainPlugin",
