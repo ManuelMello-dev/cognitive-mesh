@@ -858,9 +858,13 @@ class CognitiveMeshOrchestrator:
             await self._initial_discovery()
 
             # PHASE 4: Start execution loops
-            stream_count = sum(
-                getattr(p, 'stream_count', 0) for p in self.plugins
-            )
+            stream_count = 0
+            for p in self.plugins:
+                try:
+                    count_attr = getattr(p, 'stream_count', 0)
+                    stream_count += int(count_attr() if callable(count_attr) else count_attr)
+                except Exception:
+                    pass
             logger.info("=" * 60)
             logger.info("  COGNITIVE MESH IS LIVE")
             logger.info("  Engines: Abstraction, Reasoning, CrossDomain,")

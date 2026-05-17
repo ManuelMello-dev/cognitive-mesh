@@ -3,3 +3,4 @@
 # For standalone validation, install with: python -m pip install -r requirements-neural.txt
 
 torch>=2.2.0
+datasets>=2.18.0

@@ -84,6 +84,15 @@ class DistributedCognitiveCore:
         # Public Z3 membrane — projects raw mesh internals into the user-facing organism state.
         self.z3_interface = Z3Interface()
 
+        # Live corpus ingestion bridge: language observations train the Z³ neural runtime.
+        self.z3_corpus_ingestor = None
+        try:
+            from z3_corpus_ingestion import Z3CorpusNeuralIngestor
+            self.z3_corpus_ingestor = Z3CorpusNeuralIngestor()
+            logger.info(f"Z3 corpus ingestor initialized: {self.z3_corpus_ingestor.snapshot()}")
+        except Exception as exc:
+            logger.warning(f"Z3 corpus ingestor unavailable: {exc}")
+
         # Self-evolution engine (reactivated)
         from self_writing_engine import SelfEvolvingSystem
         self.code_evolver = SelfEvolvingSystem(
@@ -1138,6 +1147,10 @@ class DistributedCognitiveCore:
                 except Exception as e:
                     logger.debug(f"Provider status error in cache: {e}")
             coord_state["providers"] = providers
+            if self.z3_corpus_ingestor is not None:
+                corpus_status = self.z3_corpus_ingestor.snapshot()
+                coord_state["z3_corpus_ingestion"] = corpus_status
+                coord_state.setdefault("learning", {})["z3_corpus_ingestion"] = corpus_status
             coord_state["resonant_memory"] = resonance_i
             coord_state["toggles"] = dict(self._toggles)
             coord_state["node_id"] = self.node_id
@@ -1830,12 +1843,24 @@ class DistributedCognitiveCore:
                 self.cognitive_system._ensure_meta_domain(meta)
                 self.cognitive_system._meta_domains[meta].add(domain)
 
+        z3_corpus_status = None
+        if domain.startswith("language") and self.z3_corpus_ingestor is not None:
+            text = observation.get("text")
+            if isinstance(text, str) and text.strip():
+                try:
+                    z3_corpus_status = self.z3_corpus_ingestor.observe_text(text, metadata=observation)
+                    observation = observation.copy()
+                    observation["z3_corpus_ingestion"] = z3_corpus_status
+                except Exception as exc:
+                    logger.error(f"Z3 corpus ingestion error: {exc}", exc_info=True)
+
         self._pending_observations.append((observation.copy(), domain))
         return {
             "success": True,
             "queued": True,
             "observation_count": self._observation_count,
             "pending": len(self._pending_observations),
+            "z3_corpus_ingestion": z3_corpus_status,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
